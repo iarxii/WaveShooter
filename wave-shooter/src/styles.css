@@ -1,0 +1,141 @@
+:root {
+    --bg: #0b1020;
+    --ui: #111827;
+    --accent: #22c55e;
+    --danger: #ef4444
+}
+
+html,
+body,
+#root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: #fff;
+    font-family: Inter, system-ui, Arial
+}
+
+.canvas-wrap {
+    width: 100vw;
+    height: 100vh;
+    display: flex
+}
+
+.ui {
+    position: absolute;
+    left: 16px;
+    top: 16px;
+    background: rgba(0, 0, 0, 0.45);
+    padding: 12px;
+    border-radius: 8px
+}
+
+.hud {
+    position: absolute;
+    right: 16px;
+    top: 16px;
+    background: rgba(0, 0, 0, 0.45);
+    padding: 12px;
+    border-radius: 8px;
+    text-align: right
+}
+
+.button {
+    background: #111;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    cursor: pointer
+}
+
+.small {
+    font-size: 13px
+}
+
+/* basic crosshair */
+.crosshair {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none
+}
+
+.crosshair:before {
+    content: '';
+    display: block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    border-radius: 50%
+}
+
+/* Pause overlay */
+.pause-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.pause-content {
+    background: var(--ui);
+    padding: 2rem;
+    border-radius: 12px;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pause-content h2 {
+    margin: 0 0 1rem 0;
+    color: var(--accent);
+    font-size: 2rem;
+}
+
+.pause-content p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Pickup popups */
+.pickup-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    border: 2px solid var(--popup-color, #22c55e);
+    z-index: 500;
+    transition: opacity 0.3s ease;
+    text-align: center;
+    min-width: 200px;
+}
+
+.pickup-popup.visible {
+    opacity: 1;
+}
+
+.pickup-popup.hidden {
+    opacity: 0;
+}
+
+.pickup-name {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--popup-color, #22c55e);
+    margin-bottom: 0.5rem;
+}
+
+.pickup-effect {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.8);
+}
