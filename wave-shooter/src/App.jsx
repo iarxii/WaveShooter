@@ -4,7 +4,8 @@ import { OrbitControls, Stats, Text } from '@react-three/drei'
 import * as THREE from 'three'
 
 // GAME CONSTANTS
-const PLAYER_SPEED = 26 // faster than minions to keep mobility advantage
+const PLAYER_SPEED = 24 // faster than minions to keep mobility advantage
+const PLAYER_SPEED_CAP = 50 // cap player base speed for control stability
 const SPEED_DEBUFF_FACTOR = 0.6
 const SPEED_DEBUFF_DURATION_MS = 4000
 const BOUNDARY_LIMIT = 50
@@ -22,18 +23,38 @@ const BULLET_POOL_SIZE = 50
 const PICKUP_COLLECT_DISTANCE = 3.8
 const AIM_RAY_LENGTH = 8
 const MAX_PICKUPS = 25 // cap concurrent pickups to optimize memory and FPS
+// Bomb ability constants
+const BOMB_DAMAGE = 4
+const BOMB_STUN_MS = 1400
+const BOMB_CONTACT_RADIUS = 1.4
+const BOMB_AOE_RADIUS = 6.2
+const BOMB_UP_VEL = 12
+const BOMB_GRAVITY = 24
+const BOMB_SPAWN_INTERVAL_MS = 250 // 4 per second
+const BOMB_ABILITY_DURATION_MS = 6000 // extended: total 6s
+// Speed boost planes (green triangles) constants
+const SPEED_BUFF_DURATION_MS = 4000
+const SPEED_BOOST_LIFETIME = 4500
+const SPEED_BOOST_RADIUS_MIN = 10
+const SPEED_BOOST_RADIUS_MAX = 18
 // Speed tuning helpers (normalize new high speeds against a baseline feel)
-const SPEED_TUNING_BASE = 12 // reference player speed used for original tuning
+const SPEED_TUNING_BASE = 14 // reference player speed used for original tuning
 const SPEED_SCALE = Math.max(0.5, PLAYER_SPEED / SPEED_TUNING_BASE)
 // Caps and smoothing to avoid jitter/teleport at high speeds
 const MINION_MAX_SPEED = 12 // u/s hard cap for minion & ordinary boss chase
 const TRIANGLE_CHARGE_MAX = 18 // u/s hard cap for triangle charge
 const TRIANGLE_CIRCLE_MAX = 12 // u/s hard cap for triangle circling
+// Enemy damage scaling
+const DAMAGE_SCALE_PER_WAVE = 0.04 // +4% per wave
+const DAMAGE_SCALE_MAX = 4.0 // cap at 4x (balanced)
+// Enemy speed scaling and player compensation
+const ENEMY_SPEED_SCALE_PER_WAVE = 0.03 // +3% enemy speed per wave
+const ENEMY_SPEED_SCALE_MAX = 1.5 // cap at 1.5x (balanced)
 const APPROACH_SLOW_RADIUS = 2.5 // start slowing when near target
 const POST_LAND_SETTLE = 0.3 // s to ramp in after spawn landing
 // Knockback tuning (exposed constants)
 const KNOCKBACK = {
-  minion: 124.0,
+  minion: 12.0,
   boss: 8.0,
   triangle: 7.0,
 }
@@ -51,15 +72,15 @@ const PORTALS_PER_WAVE_MAX = 4
 const PORTAL_RADIUS_MIN = 12
 const PORTAL_RADIUS_MAX = 20
 const PORTAL_STAGGER_MS = 260 // ms between enemy drops per portal
-const DROP_SPAWN_HEIGHT = 7 // y height enemies begin falling from
+const DROP_SPAWN_HEIGHT = 8 // y height enemies begin falling from
 const DROP_SPEED = 10 // units/sec downward during spawn
 
 // Contact damage by enemy type
 const CONTACT_DAMAGE = {
-  minion: 1,
-  boss: 10,
-  triangle: 16,
-  cone: 22,
+  minion: 2,
+  boss: 20,
+  triangle: 31,
+  cone: 42,
 }
 
 // Pickup notification popup component
@@ -90,7 +111,15 @@ function PickupPopup({ pickup, onComplete }) {
       ? { name: 'Power Up', effect: `+${pickup.amount ?? 50} Score`, color: '#60a5fa' }
       : pickup.type === 'invuln'
         ? { name: 'Invulnerability', effect: 'Immune (5s)', color: '#facc15' }
-        : { name: 'Debuff', effect: 'Speed Reduced -40% (4s)', color: '#f97316' }
+        : pickup.type === 'bombs'
+          ? { name: 'Bomb Kit', effect: '4/s bombs for 6s', color: '#111827' }
+        : pickup.type === 'speedboost'
+          ? { name: 'Speed Boost', effect: 'Speed 26–28 (4s)', color: '#22c55e' }
+        : pickup.type === 'dmgscale'
+          ? { name: 'Enemy Fury', effect: `Damage x${(pickup.scale ?? 1).toFixed(2)}`, color: '#f97316' }
+        : pickup.type === 'speedramp'
+          ? { name: 'Speed Surge', effect: `Enemies x${(pickup.scale ?? 1).toFixed(2)} • Player +1`, color: '#22c55e' }
+          : { name: 'Debuff', effect: 'Speed Reduced -40% (4s)', color: '#f97316' }
   
   return (
     <div 
@@ -200,12 +229,31 @@ function Bullet({ bullet, onExpire, isPaused }) {
 }
 
 // Pickup is a small box that floats with collision detection
-function Pickup({ pos, type, amount=50, lifetimeMaxSec=20, onCollect, onExpire, id, playerPosRef, isPaused }) {
+function Pickup({ pos, type, amount=50, lifetimeMaxSec=20, onCollect, onExpire, id, playerPosRef, isPaused, scaleMul = 1 }) {
   const ref = useRef()
   const elapsedRef = useRef(0)
   const baseScale = useRef(type === 'power' ? (0.5 + Math.min(Math.max((amount - 50) / 50, 0), 1) * 0.6) : 0.5)
   const pulseSpeed = useRef( type === 'power' && amount >= 90 ? 3.0 : 0 )
   const isDiamond = amount >= 90 && type === 'power'
+  const lifeLabelRef = useRef()
+  const collectedRef = useRef(false)
+  // Heart geometry for life pickups (extruded 2D heart)
+  const heartGeom = useMemo(() => {
+    if (type !== 'life') return null
+    const shape = new THREE.Shape()
+    // A simple heart path
+    shape.moveTo(0, 0.35)
+    shape.bezierCurveTo(0, 0.15, -0.35, 0.15, -0.5, 0.35)
+    shape.bezierCurveTo(-0.7, 0.6, -0.45, 0.95, 0, 1.2)
+    shape.bezierCurveTo(0.45, 0.95, 0.7, 0.6, 0.5, 0.35)
+    shape.bezierCurveTo(0.35, 0.15, 0, 0.15, 0, 0.35)
+    const extrude = new THREE.ExtrudeGeometry(shape, { depth: 0.25, bevelEnabled: false, steps: 1 })
+    // Rotate to face up and center pivot slightly
+    extrude.rotateX(-Math.PI / 2)
+    extrude.translate(0, 0, 0)
+    return extrude
+  }, [type])
+  const heartMat = useMemo(() => type === 'life' ? new THREE.MeshStandardMaterial({ color: 0xff3366, emissive: 0x220011, roughness: 0.5 }) : null, [type])
   
   useFrame((_, dt) => {
     if (!ref.current || isPaused) return
@@ -218,37 +266,65 @@ function Pickup({ pos, type, amount=50, lifetimeMaxSec=20, onCollect, onExpire, 
       onExpire && onExpire(id)
       return
     }
-    // high-value pulse
-    if (pulseSpeed.current > 0) {
+    // Scaling per type with pulses
+    if (type === 'life') {
+      const t = performance.now() * 0.004
+      const s0 = 1.0 + 0.15 * (0.5 + 0.5 * Math.sin(t)) // gently pulse large heart
+      const s = s0 * 1.4 // base upsize
+      ref.current.scale.set(s * scaleMul, s * scaleMul, s * scaleMul)
+      if (lifeLabelRef.current) {
+        const tt = performance.now() * 0.003 + id
+        lifeLabelRef.current.position.y = 0.9 + 0.12 * Math.sin(tt)
+      }
+    } else if (pulseSpeed.current > 0) {
       const p = 1 + Math.sin(performance.now() * 0.001 * (pulseSpeed.current * 60)) * 0.12
-      const s = baseScale.current * p
+      const s = baseScale.current * p * scaleMul
       ref.current.scale.set(s, s, s)
     } else if (type === 'power') {
-      const s = baseScale.current
+      const s = baseScale.current * scaleMul
+      ref.current.scale.set(s, s, s)
+    } else {
+      const s = 0.5 * scaleMul
       ref.current.scale.set(s, s, s)
     }
     
-    // Check collision with player
-    const distance = ref.current.position.distanceTo(playerPosRef.current)
-    if (distance < PICKUP_COLLECT_DISTANCE) {
-      onCollect(id)
+    // Check collision with player (single-fire guard)
+    if (!collectedRef.current) {
+      const distance = ref.current.position.distanceTo(playerPosRef.current)
+      if (distance < PICKUP_COLLECT_DISTANCE) {
+        collectedRef.current = true
+        onCollect(id)
+      }
     }
   })
   
   return (
     <mesh ref={ref} position={pos}>
-      {type === 'health' ? (
+      {type === 'life' ? (
+        <primitive object={heartGeom} attach="geometry" />
+      ) : type === 'health' ? (
         <boxGeometry args={[0.5, 0.5, 0.5]} />
       ) : type === 'invuln' ? (
         <capsuleGeometry args={[0.25, 0.6, 4, 8]} />
+      ) : type === 'bombs' ? (
+        <sphereGeometry args={[0.32, 12, 12]} />
       ) : (
         isDiamond ? <octahedronGeometry args={[0.5, 0]} /> : <boxGeometry args={[0.5, 0.5, 0.5]} />
       )}
-      <meshStandardMaterial 
-        color={type === 'health' ? 0x22c55e : (type === 'invuln' ? 0xfacc15 : 0x60a5fa)}
-        emissive={type === 'power' && isDiamond ? 0x224466 : (type === 'health' ? 0x001100 : (type === 'invuln' ? 0x443300 : 0x000044))}
-        emissiveIntensity={type === 'power' && isDiamond ? 1.5 : (type === 'invuln' ? 0.9 : 0.4)}
-      />
+      {type === 'life' && (
+        <Text ref={lifeLabelRef} position={[0, 0.9, 0]} fontSize={0.45} color="#22c55e" anchorX="center" anchorY="bottom" outlineWidth={0.02} outlineColor="#000000">
+          1UP
+        </Text>
+      )}
+      {type === 'life' ? (
+        <primitive object={heartMat} attach="material" />
+      ) : (
+        <meshStandardMaterial 
+          color={type === 'health' ? 0x22c55e : (type === 'invuln' ? 0xfacc15 : (type === 'bombs' ? 0x000000 : 0x60a5fa))}
+          emissive={type === 'power' && isDiamond ? 0x224466 : (type === 'health' ? 0x001100 : (type === 'invuln' ? 0x443300 : (type === 'bombs' ? 0x000000 : 0x000044)))}
+          emissiveIntensity={type === 'power' && isDiamond ? 1.5 : (type === 'invuln' ? 0.9 : 0.4)}
+        />
+      )}
     </mesh>
   )
 }
@@ -272,8 +348,50 @@ function Portal({ pos, isPaused }) {
   )
 }
 
+// Speed boost visual: green triangular plane that pulses
+function SpeedBoostPlane({ pos, isPaused }) {
+  const ref = useRef()
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x002200, roughness: 0.7 }), [])
+  const geom = useMemo(() => new THREE.CircleGeometry(2.2, 3), []) // triangle
+  useFrame(() => {
+    if (!ref.current || isPaused) return
+    const t = performance.now() * 0.005
+    const s = 1 + Math.sin(t) * 0.08
+    ref.current.scale.set(s, s, s)
+    // subtle emissive pulse
+    mat.emissiveIntensity = 0.4 + 0.3 * (0.5 + 0.5 * Math.sin(t * 1.3))
+  })
+  return (
+    <mesh ref={ref} position={[pos[0], 0.052, pos[2]]} rotation={[-Math.PI / 2, 0, 0]} material={mat}>
+      <primitive object={geom} attach="geometry" />
+    </mesh>
+  )
+}
+
+// Translucent shield bubble around the player; color/size can be customized per use
+function ShieldBubble({ playerPosRef, isPaused, color = 0x66ccff, radius = 1.4, baseOpacity = 0.25 }) {
+  const ref = useRef()
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: baseOpacity }), [color, baseOpacity])
+  const geom = useMemo(() => new THREE.SphereGeometry(radius, 20, 20), [radius])
+  useFrame((_, dt) => {
+    if (!ref.current) return
+    const p = playerPosRef.current
+    ref.current.position.set(p.x, 0.5, p.z)
+    if (!isPaused) {
+      const t = performance.now() * 0.004
+      // gentle pulse in scale and opacity
+      const s = 1 + 0.06 * (0.5 + 0.5 * Math.sin(t))
+      ref.current.scale.set(s, s, s)
+      mat.opacity = baseOpacity * 0.7 + (baseOpacity * 0.5) * (0.5 + 0.5 * Math.sin(t * 1.3))
+    }
+  })
+  return (
+    <mesh ref={ref} geometry={geom} material={mat} />
+  )
+}
+
 // Player (simple rectangle box) with WASD movement and mouse aiming
-function Player({ position, setPositionRef, onShoot, isPaused, autoFire, controlScheme = 'dpad', moveInputRef, moveSourceRef, onSlam, highContrast=false, portals=[], onDebuff, autoFollow, arcTriggerToken, autoAimEnabled=false }) {
+function Player({ position, setPositionRef, onShoot, isPaused, autoFire, controlScheme = 'dpad', moveInputRef, moveSourceRef, onSlam, highContrast=false, portals=[], onDebuff, speedBoosts=[], onBoost, autoFollow, arcTriggerToken, resetToken=0, basePlayerSpeed=PLAYER_SPEED, autoAimEnabled=false, onBoundaryJumpChange, onLanding, dashTriggerToken=0, onDashStart, onDashEnd }) {
   const ref = useRef()
   const lastShot = useRef(0)
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
@@ -305,8 +423,37 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
   const landingMat = useMemo(() => new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, side: THREE.DoubleSide }), [])
   const landingGeom = useMemo(() => new THREE.RingGeometry(0.7, 0.8, 32), [])
   const debuffTimer = useRef(0) // seconds remaining for speed debuff
+  // Dash state
+  const dashing = useRef(false)
+  const dashTime = useRef(0)
+  const dashDuration = 0.25 // seconds
+  const dashVel = useRef(new THREE.Vector3())
   const portalHitCooldown = useRef(0)
+  const boundaryGraceRef = useRef(0) // seconds of grace after respawn to ignore boundary launch
+  const boostTimer = useRef(0) // seconds remaining for speed boost
+  const boostHitCooldown = useRef(0)
+  const boostSpeedRef = useRef(PLAYER_SPEED)
   const lastArcToken = useRef(0)
+  const boundaryJumpActive = useRef(false)
+  // Reset position and motion after respawn/restart
+  useEffect(() => {
+    if (!ref.current) return
+    // Center player and clear motion
+    ref.current.position.set(0, 0.5, 0)
+    airVelY.current = 0
+    airFwdVel.current = 0
+    airFwdDir.current.set(0, 0, -1)
+    slamArmed.current = false
+    launchCooldown.current = 0
+    portalHitCooldown.current = 0
+    // Clear inputs
+    keysRef.current = { w: false, a: false, s: false, d: false, up: false, down: false, left: false, right: false }
+    isKeyJumpDown.current = false
+    isRmbDown.current = false
+    // Short grace: do not trigger boundary launch immediately after respawn
+    boundaryGraceRef.current = 2.0
+  }, [resetToken])
+
   
   useEffect(() => {
     if (isPaused) return
@@ -358,27 +505,21 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
       if (e.button === 2 && isRmbDown.current && ref.current) {
         e.preventDefault()
         isRmbDown.current = false
-        const heldMs = performance.now() - rmbDownAt.current
         if (ref.current.position.y <= 0.5) {
-          if (heldMs > 2000) {
-            airVelY.current = LAUNCH_UP_VEL
-            const totalLen = 2 * BOUNDARY_LIMIT
-            const desired = Math.max(4, LAUNCH_TARGET_FRACTION * totalLen)
-            const target = new THREE.Vector3().copy(ref.current.position).addScaledVector(aimDirRef.current, desired)
-            const margin = 1.0
-            target.x = Math.max(Math.min(target.x, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
-            target.z = Math.max(Math.min(target.z, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
-            const disp = new THREE.Vector3().subVectors(target, ref.current.position)
-            const dispLen = Math.max(0.001, Math.hypot(disp.x, disp.z))
-            airFwdDir.current.set(disp.x / dispLen, 0, disp.z / dispLen)
-            const tFlight = (2 * LAUNCH_UP_VEL) / GRAVITY
-            airFwdVel.current = dispLen / tFlight
-            slamArmed.current = true
-          } else {
-            airVelY.current = LAUNCH_UP_VEL
-            airFwdVel.current = 0
-            slamArmed.current = true
-          }
+          // Always perform a forward arc jump on release
+          airVelY.current = LAUNCH_UP_VEL
+          const totalLen = 2 * BOUNDARY_LIMIT
+          const desired = Math.max(4, LAUNCH_TARGET_FRACTION * totalLen)
+          const target = new THREE.Vector3().copy(ref.current.position).addScaledVector(aimDirRef.current, desired)
+          const margin = 1.0
+          target.x = Math.max(Math.min(target.x, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
+          target.z = Math.max(Math.min(target.z, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
+          const disp = new THREE.Vector3().subVectors(target, ref.current.position)
+          const dispLen = Math.max(0.001, Math.hypot(disp.x, disp.z))
+          airFwdDir.current.set(disp.x / dispLen, 0, disp.z / dispLen)
+          const tFlight = (2 * LAUNCH_UP_VEL) / GRAVITY
+          airFwdVel.current = dispLen / tFlight
+          slamArmed.current = true
         }
         // hide indicators
         if (chargeRingRef.current) chargeRingRef.current.scale.set(0.001, 0.001, 0.001)
@@ -390,9 +531,9 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
     window.addEventListener('mousedown', handleMouseDown)
-  window.addEventListener('mouseup', handleMouseUp)
-  window.addEventListener('contextmenu', handleContextMenu)
-    
+    window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('contextmenu', handleContextMenu)
+      
     return () => {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
@@ -415,30 +556,22 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
       if ((e.code === 'ControlLeft' || e.code === 'ControlRight' || e.code === 'Enter' || e.code === 'NumpadEnter') && isKeyJumpDown.current && ref.current) {
         e.preventDefault()
         isKeyJumpDown.current = false
-        const heldMs = performance.now() - keyJumpDownAt.current
         // Only trigger if on ground
         if (ref.current.position.y <= 0.5) {
-          if (heldMs > 2000) {
-            // Arc jump similar to boundary launch, using aim dir
-            airVelY.current = LAUNCH_UP_VEL
-            const totalLen = 2 * BOUNDARY_LIMIT
-            const desired = Math.max(4, LAUNCH_TARGET_FRACTION * totalLen)
-            const target = new THREE.Vector3().copy(ref.current.position).addScaledVector(aimDirRef.current, desired)
-            const margin = 1.0
-            target.x = Math.max(Math.min(target.x, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
-            target.z = Math.max(Math.min(target.z, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
-            const disp = new THREE.Vector3().subVectors(target, ref.current.position)
-            const dispLen = Math.max(0.001, Math.hypot(disp.x, disp.z))
-            airFwdDir.current.set(disp.x / dispLen, 0, disp.z / dispLen)
-            const tFlight = (2 * LAUNCH_UP_VEL) / GRAVITY
-            airFwdVel.current = dispLen / tFlight
-            slamArmed.current = true
-          } else {
-            // Vertical hop and slam
-            airVelY.current = LAUNCH_UP_VEL
-            airFwdVel.current = 0
-            slamArmed.current = true
-          }
+          // Always perform a forward arc jump on release
+          airVelY.current = LAUNCH_UP_VEL
+          const totalLen = 2 * BOUNDARY_LIMIT
+          const desired = Math.max(4, LAUNCH_TARGET_FRACTION * totalLen)
+          const target = new THREE.Vector3().copy(ref.current.position).addScaledVector(aimDirRef.current, desired)
+          const margin = 1.0
+          target.x = Math.max(Math.min(target.x, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
+          target.z = Math.max(Math.min(target.z, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
+          const disp = new THREE.Vector3().subVectors(target, ref.current.position)
+          const dispLen = Math.max(0.001, Math.hypot(disp.x, disp.z))
+          airFwdDir.current.set(disp.x / dispLen, 0, disp.z / dispLen)
+          const tFlight = (2 * LAUNCH_UP_VEL) / GRAVITY
+          airFwdVel.current = dispLen / tFlight
+          slamArmed.current = true
         }
         // hide indicators
         if (chargeRingRef.current) chargeRingRef.current.scale.set(0.001, 0.001, 0.001)
@@ -481,6 +614,20 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
   // Rotate player smoothly to face mouse (projected onto ground) or face shape origin when auto-following
   useFrame((state, dt) => {
     if (!ref.current || isPaused) return
+
+    // Dash movement override: while dashing, move along dashVel and skip normal handling
+    if (dashing.current) {
+      dashTime.current += dt
+      ref.current.position.addScaledVector(dashVel.current, dt)
+      // Clamp to arena bounds
+      ref.current.position.x = Math.max(Math.min(ref.current.position.x, BOUNDARY_LIMIT - 0.5), -BOUNDARY_LIMIT + 0.5)
+      ref.current.position.z = Math.max(Math.min(ref.current.position.z, BOUNDARY_LIMIT - 0.5), -BOUNDARY_LIMIT + 0.5)
+      if (dashTime.current >= dashDuration) {
+        dashing.current = false
+        onDashEnd && onDashEnd({ x: ref.current.position.x, z: ref.current.position.z })
+      }
+      return
+    }
 
     // Auto-fire cadence (FIRE_RATE) using accumulated dt
     if (autoFire) {
@@ -733,15 +880,20 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
   // debuff countdown and factor
   portalHitCooldown.current = Math.max(0, portalHitCooldown.current - dt)
   debuffTimer.current = Math.max(0, debuffTimer.current - dt)
+  boostHitCooldown.current = Math.max(0, boostHitCooldown.current - dt)
+  boostTimer.current = Math.max(0, boostTimer.current - dt)
   const debuffMul = debuffTimer.current > 0 ? SPEED_DEBUFF_FACTOR : 1
+  const baseSpeed = (boostTimer.current > 0 ? boostSpeedRef.current : basePlayerSpeed)
   const speedMul = ((moveSourceRef && moveSourceRef.current === 'runner') ? RUNNER_SPEED_MULTIPLIER : 1) * debuffMul
   // base movement
-  ref.current.position.x += mx * (PLAYER_SPEED * speedMul) * dt
-  ref.current.position.z += mz * (PLAYER_SPEED * speedMul) * dt
+  ref.current.position.x += mx * (baseSpeed * speedMul) * dt
+  ref.current.position.z += mz * (baseSpeed * speedMul) * dt
 
   // Boundary detection -> launch
     launchCooldown.current = Math.max(0, launchCooldown.current - dt)
-    if (launchCooldown.current <= 0) {
+    // Skip boundary launch while grace is active
+    boundaryGraceRef.current = Math.max(0, boundaryGraceRef.current - dt)
+    if (launchCooldown.current <= 0 && boundaryGraceRef.current <= 0) {
       if (ref.current.position.x > BOUNDARY_LIMIT - 0.1 || ref.current.position.x < -BOUNDARY_LIMIT + 0.1 ||
           ref.current.position.z > BOUNDARY_LIMIT - 0.1 || ref.current.position.z < -BOUNDARY_LIMIT + 0.1) {
         // clamp to bounds
@@ -764,6 +916,9 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
         airFwdVel.current = dispLen / tFlight
         slamArmed.current = true
         launchCooldown.current = 1.0 // cooldown to avoid repeated triggers at edge
+        // Boundary-launched jump: grant temporary invulnerability and enable flying-enemy smash
+        boundaryJumpActive.current = true
+        onBoundaryJumpChange && onBoundaryJumpChange(true)
       }
     }
 
@@ -787,6 +942,12 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
           // trigger AOE via callback
           onSlam && onSlam({ pos: [ref.current.position.x, 0.5, ref.current.position.z], radius: 9, power: 30 })
         }
+        onLanding && onLanding({ x: ref.current.position.x, z: ref.current.position.z })
+        // End of airborne: disable boundary jump mode if it was from edge
+        if (boundaryJumpActive.current) {
+          boundaryJumpActive.current = false
+          onBoundaryJumpChange && onBoundaryJumpChange(false)
+        }
       }
     }
 
@@ -808,49 +969,75 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
       }
     }
 
+    // Check collision with speed boost planes to apply temporary speed boost
+    if (boostHitCooldown.current <= 0 && speedBoosts && speedBoosts.length) {
+      const px = ref.current.position.x
+      const pz = ref.current.position.z
+      const R = 2.4
+      for (let i = 0; i < speedBoosts.length; i++) {
+        const sb = speedBoosts[i]
+        const dx = px - sb.pos[0]
+        const dz = pz - sb.pos[2]
+        if (dx*dx + dz*dz <= R*R) {
+          boostTimer.current = SPEED_BUFF_DURATION_MS / 1000
+          // randomize target base speed between 26 and 28
+          boostSpeedRef.current = 26 + Math.random() * 2
+          boostHitCooldown.current = 1.0
+          onBoost && onBoost()
+          break
+        }
+      }
+    }
+
     // Final bounds clamp to be safe
     ref.current.position.x = Math.max(Math.min(ref.current.position.x, BOUNDARY_LIMIT), -BOUNDARY_LIMIT)
     ref.current.position.z = Math.max(Math.min(ref.current.position.z, BOUNDARY_LIMIT), -BOUNDARY_LIMIT)
     setPositionRef(ref.current.position)
 
-    // Charging visual indicators
+    // Charging visual indicators (no threshold; show landing marker immediately)
     const charging = (isKeyJumpDown.current || isRmbDown.current) && ref.current.position.y <= 0.5
     if (charging) {
-      const now = performance.now()
-      const heldKey = isKeyJumpDown.current ? (now - keyJumpDownAt.current) : 0
-      const heldRmb = isRmbDown.current ? (now - rmbDownAt.current) : 0
-      const held = Math.max(heldKey, heldRmb)
-      const progress = Math.min(held / 2000, 1)
       if (chargeRingRef.current) {
-        const s = 0.3 + progress * 0.9
+        const t = performance.now() * 0.003
+        const s = 0.8 + 0.15 * Math.sin(t)
         chargeRingRef.current.scale.set(s, s, s)
-        // pre-threshold: yellow; post-threshold: cyan/white-ish
-        chargeMat.color.set(progress >= 1 ? 0x99ffff : 0xffcc00)
-        chargeMat.opacity = progress >= 1 ? 0.75 : 0.65
+        chargeMat.color.set(0x99ffff)
+        chargeMat.opacity = 0.75
       }
       if (landingRingRef.current) {
-        if (progress >= 1) {
-          // compute target relative offset for display
-          const totalLen = 2 * BOUNDARY_LIMIT
-          const desired = Math.max(4, 0.3 * totalLen)
-          const target = new THREE.Vector3().copy(ref.current.position).addScaledVector(aimDirRef.current, desired)
-          const margin = 1.0
-          target.x = Math.max(Math.min(target.x, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
-          target.z = Math.max(Math.min(target.z, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
-          // place ring relative to player group so it stays where shown during charge
-          const offX = target.x - ref.current.position.x
-          const offZ = target.z - ref.current.position.z
-          landingRingRef.current.position.set(offX, 0.06, offZ)
-          landingRingRef.current.scale.set(1, 1, 1)
-        } else {
-          landingRingRef.current.scale.set(0.001, 0.001, 0.001)
-        }
+        // compute target relative offset for display
+        const totalLen = 2 * BOUNDARY_LIMIT
+        const desired = Math.max(4, LAUNCH_TARGET_FRACTION * totalLen)
+        const target = new THREE.Vector3().copy(ref.current.position).addScaledVector(aimDirRef.current, desired)
+        const margin = 1.0
+        target.x = Math.max(Math.min(target.x, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
+        target.z = Math.max(Math.min(target.z, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
+        // place ring relative to player group so it stays where shown during charge
+        const offX = target.x - ref.current.position.x
+        const offZ = target.z - ref.current.position.z
+        landingRingRef.current.position.set(offX, 0.06, offZ)
+        landingRingRef.current.scale.set(1, 1, 1)
       }
     } else {
       if (chargeRingRef.current) chargeRingRef.current.scale.set(0.001, 0.001, 0.001)
       if (landingRingRef.current) landingRingRef.current.scale.set(0.001, 0.001, 0.001)
     }
   })
+
+  // Trigger dash when token increments
+  useEffect(() => {
+    if (!ref.current) return
+    // Compute direction from current aim; fallback to forward if near zero
+    const dir = aimDirRef.current.clone()
+    if (dir.lengthSq() < 1e-4) dir.set(0, 0, -1)
+    dir.normalize()
+    const distance = 0.4 * BOUNDARY_LIMIT // ~20% of play area diameter
+    const speed = distance / dashDuration
+    dashVel.current.set(dir.x * speed, 0, dir.z * speed)
+    dashing.current = true
+    dashTime.current = 0
+    onDashStart && onDashStart({ dir: [dir.x, dir.z], distance, durationMs: dashDuration * 1000 })
+  }, [dashTriggerToken])
 
   return (
     <group ref={ref} position={position}>
@@ -876,7 +1063,7 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
 }
 
 // Enemy minion (sphere) with improved AI behavior and health system
-function Minion({ id, pos, playerPosRef, onDie, isBoss=false, waveNumber, health, isPaused, spawnHeight }) {
+function Minion({ id, pos, playerPosRef, onDie, isBoss=false, waveNumber, health, isPaused, spawnHeight, speedScale=1 }) {
   const ref = useRef()
   const rawSpeed = isBoss ? BOSS_SPEED : ENEMY_SPEED + (waveNumber * 0.1) // base before caps
   const maxSpeed = MINION_MAX_SPEED
@@ -898,6 +1085,7 @@ function Minion({ id, pos, playerPosRef, onDie, isBoss=false, waveNumber, health
   
   useFrame((_, dt) => {
     if (!ref.current || isPaused) return
+    
     
     // Handle drop-in spawn
     if (isSpawning.current) {
@@ -965,7 +1153,7 @@ function Minion({ id, pos, playerPosRef, onDie, isBoss=false, waveNumber, health
         // Post-landing settle ramp
         const ramp = settleTimer.current > 0 ? (1 - Math.max(0, settleTimer.current - dt) / POST_LAND_SETTLE) : 1
         settleTimer.current = Math.max(0, settleTimer.current - dt)
-        const stepSpeed = speed * slow * ramp
+  const stepSpeed = speed * slow * ramp * (speedScale || 1)
         ref.current.position.addScaledVector(dir, stepSpeed * dt)
       }
     }
@@ -998,6 +1186,8 @@ function Minion({ id, pos, playerPosRef, onDie, isBoss=false, waveNumber, health
       onDie(id, true)
     }
   })
+
+  // (dash handling is in Player component)
   
   // Store reference for formation behavior
   useEffect(() => {
@@ -1066,7 +1256,7 @@ function Minion({ id, pos, playerPosRef, onDie, isBoss=false, waveNumber, health
 }
 
 // Triangle boss (every 3 waves) with enhanced behavior and health system
-function TriangleBoss({ id, pos, playerPosRef, onDie, health, isPaused, spawnHeight }) {
+function TriangleBoss({ id, pos, playerPosRef, onDie, health, isPaused, spawnHeight, speedScale = 1 }) {
   const ref = useRef()
   const chargeTimer = useRef(0)
   const isCharging = useRef(false)
@@ -1117,7 +1307,7 @@ function TriangleBoss({ id, pos, playerPosRef, onDie, health, isPaused, spawnHei
       // Charge towards last known player position
       if (chargeTimer.current < 1.5) {
         const chargeSpeed = Math.min(BOSS_SPEED * 3 * TRIANGLE_BOSS_SPEED_MULT, TRIANGLE_CHARGE_MAX)
-        ref.current.position.addScaledVector(chargeDirection.current, chargeSpeed * dt)
+  ref.current.position.addScaledVector(chargeDirection.current, chargeSpeed * dt * (speedScale || 1))
       } else {
         // Stop charging
         isCharging.current = false
@@ -1139,7 +1329,7 @@ function TriangleBoss({ id, pos, playerPosRef, onDie, health, isPaused, spawnHei
         const circleSpeed = Math.min(BOSS_SPEED * 1.2 * TRIANGLE_BOSS_SPEED_MULT, TRIANGLE_CIRCLE_MAX)
         // slow slightly as we approach the circle target to avoid magnetized snapping
         const slow = Math.min(1, Math.max(0.3, circleDir.length() / 4))
-        ref.current.position.addScaledVector(circleDir, circleSpeed * slow * dt)
+  ref.current.position.addScaledVector(circleDir, circleSpeed * slow * dt * (speedScale || 1))
       }
     }
     
@@ -1235,8 +1425,282 @@ function TriangleBoss({ id, pos, playerPosRef, onDie, health, isPaused, spawnHei
   )
 }
 
+// Pipe boss: rises from ground and periodically launches flying drones
+function PipeBoss({ id, pos, playerPosRef, onDie, health, isPaused, onLaunchDrones }) {
+  const ref = useRef()
+  const riseTimer = useRef(0)
+  const launchedOnce = useRef(false)
+  const launchCooldown = useRef(0)
+  const stunTimer = useRef(0)
+  const knockback = useRef(new THREE.Vector3())
+  const RISE_DURATION = 3 // seconds
+
+  useFrame((_, dt) => {
+    if (!ref.current || isPaused) return
+    // Apply stun decay
+    if (stunTimer.current > 0) stunTimer.current = Math.max(0, stunTimer.current - dt)
+    const stunned = stunTimer.current > 0
+
+    // Rising animation for first 3 seconds
+    if (riseTimer.current < RISE_DURATION) {
+      riseTimer.current = Math.min(RISE_DURATION, riseTimer.current + dt)
+      const k = riseTimer.current / RISE_DURATION
+      ref.current.position.y = 0.2 + k * 1.0 // rise from slightly below ground to 1.2 height
+      return
+    }
+
+    // Launch drones after rise, periodically
+    launchCooldown.current = Math.max(0, launchCooldown.current - dt)
+    if (!stunned && launchCooldown.current <= 0) {
+      const count = 2 + Math.floor(Math.random() * 5) // 2..6
+      onLaunchDrones && onLaunchDrones(count, [ref.current.position.x, 0.5, ref.current.position.z])
+      launchCooldown.current = 4 + Math.random() * 2 // 4-6s between launches
+      launchedOnce.current = true
+    }
+
+    // Apply knockback impulse with decay (stationary otherwise)
+    if (knockback.current.lengthSq() > 1e-6) {
+      ref.current.position.addScaledVector(knockback.current, dt)
+      const decay = Math.exp(-KNOCKBACK_DECAY.boss * SPEED_SCALE * dt)
+      knockback.current.multiplyScalar(decay)
+      if (knockback.current.lengthSq() < 1e-6) knockback.current.set(0, 0, 0)
+    }
+
+    // Basic collision: if player gets too close, deal contact damage via onDie
+    const d = ref.current.position.distanceTo(playerPosRef.current)
+    if (d < 1.8) onDie(id, true)
+  })
+
+  // Register into global enemy list
+  useEffect(() => {
+    if (!window.gameEnemies) window.gameEnemies = []
+    const enemyData = {
+      id,
+      ref,
+      isBoss: true,
+      isPipe: true,
+      impulse: (ix = 0, iz = 0, strength = 1) => {
+        knockback.current.x += ix * strength
+        knockback.current.z += iz * strength
+      },
+      stun: (ms = 2000) => {
+        const sec = Math.max(0, (ms | 0) / 1000)
+        stunTimer.current = Math.max(stunTimer.current, sec)
+      },
+    }
+    window.gameEnemies.push(enemyData)
+    return () => {
+      window.gameEnemies = window.gameEnemies.filter(e => e.id !== id)
+    }
+  }, [id])
+
+  return (
+    <group>
+      <mesh ref={ref} position={pos}>
+        <cylinderGeometry args={[1.2, 1.2, 1.6, 16]} />
+        <meshStandardMaterial color={0x6699cc} emissive={0x111111} metalness={0.3} roughness={0.5} />
+      </mesh>
+      <Text position={[pos[0], pos[1] + 2.2, pos[2]]} fontSize={0.35} color="#ffffff" anchorX="center" anchorY="bottom">
+        {`± ${health}/2`}
+      </Text>
+    </group>
+  )
+}
+
+// Cluster boss: clump of red orbs that splits into smaller orbs on death
+function ClusterBoss({ id, pos, playerPosRef, onDie, health, isPaused, onSplit }) {
+  const ref = useRef()
+  const stunTimer = useRef(0)
+  const knockback = useRef(new THREE.Vector3())
+  const speed = 8
+  useFrame((_, dt) => {
+    if (!ref.current || isPaused) return
+    if (stunTimer.current > 0) stunTimer.current = Math.max(0, stunTimer.current - dt)
+    const stunned = stunTimer.current > 0
+    const dir = new THREE.Vector3().subVectors(playerPosRef.current, ref.current.position)
+    dir.y = 0
+    const d = dir.length()
+    if (!stunned && d > 0.5) {
+      dir.normalize()
+      ref.current.position.addScaledVector(dir, speed * dt)
+    }
+    if (knockback.current.lengthSq() > 1e-6) {
+      ref.current.position.addScaledVector(knockback.current, dt)
+      const decay = Math.exp(-KNOCKBACK_DECAY.boss * SPEED_SCALE * dt)
+      knockback.current.multiplyScalar(decay)
+      if (knockback.current.lengthSq() < 1e-6) knockback.current.set(0, 0, 0)
+    }
+    if (ref.current.position.distanceTo(playerPosRef.current) < 1.5) onDie(id, true)
+  })
+  useEffect(() => {
+    if (!window.gameEnemies) window.gameEnemies = []
+    const enemyData = { id, ref, isBoss: true, isCluster: true, impulse: (ix=0,iz=0,s=1)=>{knockback.current.x+=ix*s;knockback.current.z+=iz*s}, stun:(ms=1000)=>{stunTimer.current=Math.max(stunTimer.current,(ms|0)/1000)} }
+    window.gameEnemies.push(enemyData)
+    return () => { window.gameEnemies = window.gameEnemies.filter(e => e.id !== id) }
+  }, [id])
+  // Visual: clump of 7 small spheres
+  const offsets = useMemo(() => {
+    const arr = []
+    const r = 0.7
+    for (let i=0;i<7;i++) {
+      const a = Math.random()*Math.PI*2
+      const rr = 0.2 + Math.random()*r
+      arr.push([Math.cos(a)*rr, 0, Math.sin(a)*rr])
+    }
+    return arr
+  }, [])
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: 0xff3333, emissive: 0x220000, roughness: 0.5 }), [])
+  const geom = useMemo(() => new THREE.SphereGeometry(0.5, 12, 12), [])
+  return (
+    <group>
+      <group ref={ref} position={pos}>
+        {offsets.map((o,i)=>(
+          <mesh key={i} position={o} geometry={geom} material={mat} />
+        ))}
+        <Text position={[0, 1.6, 0]} fontSize={0.35} color="#fff" anchorX="center" anchorY="bottom">{`± ${health}/3`}</Text>
+      </group>
+    </group>
+  )
+}
+
+// Flying drone: red capsule that orbits then dives toward player's last known position
+function FlyingDrone({ id, pos, playerPosRef, onDie, isPaused, boundaryJumpActiveRef, assets, trailBaseMat }) {
+  const ref = useRef()
+  const stateRef = useRef({ mode: 'orbit', t: 0, dir: new THREE.Vector3(1, 0, 0), diveTarget: new THREE.Vector3(), diveSpeed: 16 })
+  const speed = 10
+  const orbitAltitude = 4
+  const tmp = useRef(new THREE.Vector3())
+  const TRAIL_COUNT = 10
+  const lastPositions = useRef(Array.from({ length: TRAIL_COUNT }, () => new THREE.Vector3()))
+  const trailRefs = useRef([])
+  const trailTick = useRef(0)
+
+  useFrame((_, dt) => {
+    if (!ref.current || isPaused) return
+    const s = stateRef.current
+    s.t += dt
+
+    if (s.mode === 'orbit') {
+      // Maintain altitude and drift with slight attraction to player
+      ref.current.position.y = orbitAltitude
+      tmp.current.subVectors(playerPosRef.current, ref.current.position)
+      tmp.current.y = 0
+      const toPlayer = tmp.current.lengthSq() > 1e-6 ? tmp.current.normalize() : tmp.current.set(1, 0, 0)
+      // Blend current dir toward player with small random sway
+      s.dir.lerp(toPlayer, 0.6 * dt)
+      const sway = (Math.random() - 0.5) * 0.2
+      const cos = Math.cos(sway)
+      const sin = Math.sin(sway)
+      const dx = s.dir.x * cos - s.dir.z * sin
+      const dz = s.dir.x * sin + s.dir.z * cos
+      s.dir.set(dx, 0, dz).normalize()
+      // Move
+      ref.current.position.addScaledVector(s.dir, speed * dt)
+      // Bounds clamp
+      ref.current.position.x = Math.max(Math.min(ref.current.position.x, BOUNDARY_LIMIT - 1), -BOUNDARY_LIMIT + 1)
+      ref.current.position.z = Math.max(Math.min(ref.current.position.z, BOUNDARY_LIMIT - 1), -BOUNDARY_LIMIT + 1)
+      // Threat increase: dive if close to player OR after 5s timeout
+      const closeDx = ref.current.position.x - playerPosRef.current.x
+      const closeDz = ref.current.position.z - playerPosRef.current.z
+      const closeD2 = closeDx*closeDx + closeDz*closeDz
+      if (closeD2 < 7*7 || s.t >= 5) {
+        s.mode = 'dive'
+        s.diveTarget.set(playerPosRef.current.x, 0.5, playerPosRef.current.z)
+        // set direction toward dive target including downward component
+        tmp.current.subVectors(s.diveTarget, ref.current.position).normalize()
+        s.dir.copy(tmp.current)
+        // faster dive speed
+        s.diveSpeed = 18
+      }
+    } else if (s.mode === 'dive') {
+      // Accelerate slightly during dive
+      const diveSpeed = s.diveSpeed
+      ref.current.position.addScaledVector(s.dir, diveSpeed * dt)
+      // Collision with player
+      const dx = ref.current.position.x - playerPosRef.current.x
+      const dy = ref.current.position.y - 0.5
+      const dz = ref.current.position.z - playerPosRef.current.z
+      const d2 = dx*dx + dy*dy + dz*dz
+      if (d2 < 1.1*1.1) {
+        if (boundaryJumpActiveRef?.current) {
+          onDie(id, false) // killed by boundary jump collision
+        } else {
+          onDie(id, true) // damage player
+        }
+        return
+      }
+      // Hit ground => despawn
+      if (ref.current.position.y <= 0.6) {
+        onDie(id, false)
+        return
+      }
+    }
+
+    // Trail update when diving
+    if (stateRef.current.mode === 'dive') {
+      trailTick.current += dt
+      if (trailTick.current >= 0.04) {
+        trailTick.current = 0
+        // shift buffer
+        for (let i = TRAIL_COUNT - 1; i >= 1; i--) {
+          lastPositions.current[i].copy(lastPositions.current[i - 1])
+        }
+        lastPositions.current[0].copy(ref.current.position)
+        // update renderers
+        for (let i = 0; i < TRAIL_COUNT; i++) {
+          const m = trailRefs.current[i]
+          if (!m) continue
+          const p = lastPositions.current[i]
+          m.position.set(p.x, p.y, p.z)
+          const k = 1 - i / TRAIL_COUNT
+          m.scale.setScalar(0.6 * k + 0.2)
+          if (m.material && m.material.transparent) {
+            m.material.opacity = 0.5 * k
+          }
+        }
+      }
+    }
+  })
+
+  // Register for global interactions (bullets ignore flying due to check)
+  useEffect(() => {
+    if (!window.gameEnemies) window.gameEnemies = []
+    const enemyData = {
+      id,
+      ref,
+      isFlying: true,
+      impulse: () => {},
+      stun: () => {},
+    }
+    window.gameEnemies.push(enemyData)
+    return () => {
+      window.gameEnemies = window.gameEnemies.filter(e => e.id !== id)
+    }
+  }, [id])
+
+  return (
+    <group>
+      <group ref={ref} position={pos} rotation={[0, 0, 0]}>
+        {/* body */}
+        <mesh position={[0, 0, 0]} geometry={assets?.bodyGeom} material={assets?.bodyMat} />
+        {/* tips */}
+        <mesh position={[0, 0.5, 0]} geometry={assets?.tipGeom} material={assets?.tipMat} />
+        <mesh position={[0, -0.5, 0]} rotation={[Math.PI, 0, 0]} geometry={assets?.tipGeom} material={assets?.tipMat} />
+        {/* trail nodes */}
+        {Array.from({ length: TRAIL_COUNT }).map((_, i) => (
+          <mesh key={i}
+            geometry={assets?.trailGeom}
+            material={useMemo(() => (trailBaseMat ? trailBaseMat.clone() : new THREE.MeshBasicMaterial({ color: 0xff6666, transparent: true, opacity: 0.4 })), [trailBaseMat])}
+            ref={el => { if (el) trailRefs.current[i] = el }}
+          />
+        ))}
+      </group>
+    </group>
+  )
+}
+
 // Cone boss: waits for ~10s, then leaps to the player's position and slams down
-function ConeBoss({ id, pos, playerPosRef, onDamagePlayer, health, isPaused, spawnHeight }) {
+function ConeBoss({ id, pos, playerPosRef, onDamagePlayer, health, isPaused, spawnHeight, speedScale = 1 }) {
   const ref = useRef()
   const idleTimer = useRef(10) // seconds between jumps
   const airVelY = useRef(0)
@@ -1317,7 +1781,7 @@ function ConeBoss({ id, pos, playerPosRef, onDamagePlayer, health, isPaused, spa
         const dispLen = Math.max(0.001, Math.hypot(disp.x, disp.z))
         airFwdDir.current.set(disp.x / dispLen, 0, disp.z / dispLen)
         const tFlight = ((2 * UP_VEL) / GRAVITY) * FLIGHT_TIME_SCALE
-        airFwdVel.current = Math.min(dispLen / tFlight, CONE_JUMP_MAX)
+  airFwdVel.current = Math.min((dispLen / tFlight) * (speedScale || 1), CONE_JUMP_MAX)
         airVelY.current = UP_VEL
         isJumping.current = true
       }
@@ -1404,16 +1868,31 @@ export default function App() {
   const [bullets, setBullets] = useState([])
   const [wave, setWave] = useState(0)
   const [score, setScore] = useState(0)
+  const [bestScore, setBestScore] = useState(0)
+  const [bestWave, setBestWave] = useState(0)
   const [health, setHealth] = useState(100)
   const [lives, setLives] = useState(3)
   const [isGameOver, setIsGameOver] = useState(false)
   const [respawnCountdown, setRespawnCountdown] = useState(0)
-  const [isPaused, setIsPaused] = useState(false)
+  const [isPaused, setIsPaused] = useState(true)
+  const [isStarted, setIsStarted] = useState(false)
+  const isStartedRef = useRef(false)
+  const [boundaryJumpActive, setBoundaryJumpActive] = useState(false)
+  // Feeds: pickups (top-right) and boss spawns (left-bottom)
+  const [pickupFeed, setPickupFeed] = useState([]) // {id, text, color}
+  const [bossFeed, setBossFeed] = useState([]) // {id, text, color}
+  const pushBossFeedRef = useRef(null)
   const [autoFire, setAutoFire] = useState(true)
   const [pickupPopups, setPickupPopups] = useState([])
   const [portals, setPortals] = useState([])
+  const [speedBoosts, setSpeedBoosts] = useState([])
   const [aoes, setAoes] = useState([]) // ground slam visuals
+  const [bombs, setBombs] = useState([]) // active bombs
+  const [confetti, setConfetti] = useState([])
   const [controlScheme, setControlScheme] = useState('dpad') // 'wasd' | 'dpad' (default to D-Buttons)
+  const [playerResetToken, setPlayerResetToken] = useState(0)
+  const [playerBaseSpeed, setPlayerBaseSpeed] = useState(PLAYER_SPEED)
+  const [enemySpeedScale, setEnemySpeedScale] = useState(1)
   // Shape Runner feature is now a pickup-only visual; auto-move removed
   const [highContrast, setHighContrast] = useState(false)
   const [hpEvents, setHpEvents] = useState([]) // floating HP change indicators
@@ -1423,6 +1902,28 @@ export default function App() {
   const invulnRemainingRef = useRef(0)
   const invulnActiveRef = useRef(false)
   useEffect(() => { invulnActiveRef.current = invulnEffect.active }, [invulnEffect.active])
+  // Boundary jump invulnerability (only during edge-launched jumps)
+  const boundaryJumpActiveRef = useRef(false)
+  // Dash invulnerability window
+  const dashInvulnUntilRef = useRef(0)
+  // 2s protection after landing from auto-arc at the end of invuln
+  const expectingPostInvulnLandingRef = useRef(false)
+  const postInvulnShieldUntilRef = useRef(0)
+  const nowMs = () => performance.now()
+
+  const isPlayerInvulnerable = useCallback(() => {
+    const now = nowMs()
+    return invulnActiveRef.current || boundaryJumpActiveRef.current || (now < postInvulnShieldUntilRef.current) || (now < dashInvulnUntilRef.current)
+  }, [])
+  // Bomb kit effect
+  const [bombEffect, setBombEffect] = useState({ active: false })
+  const bombEffectTimeRef = useRef(0)
+  const bombSpawnTimerRef = useRef(0)
+  // App-visible buff/debuff effects for UI visualization
+  const [boostEffect, setBoostEffect] = useState({ active: false })
+  const boostRemainingRef = useRef(0)
+  const [debuffEffect, setDebuffEffect] = useState({ active: false })
+  const debuffRemainingRef = useRef(0)
   const [arcTriggerToken, setArcTriggerToken] = useState(0)
   const [autoFollowHeld, setAutoFollowHeld] = useState(false)
   const [autoFollowHeld2, setAutoFollowHeld2] = useState(false)
@@ -1431,13 +1932,79 @@ export default function App() {
   useEffect(() => { autoFollowHeldRef.current = autoFollowHeld }, [autoFollowHeld])
   useEffect(() => { autoFollowHeld2Ref.current = autoFollowHeld2 }, [autoFollowHeld2])
   const [cameraMode, setCameraMode] = useState('follow') // 'follow' | 'static' | 'topdown'
+  // Pickup scale modifier derived from camera mode
+  const pickupScaleMul = useMemo(() => {
+    if (cameraMode === 'topdown') return 2.0
+    if (cameraMode === 'static') return 1.5
+    return 1.3 // follow
+  }, [cameraMode])
+  // Dash/camera smoothing state
+  const [isDashing, setIsDashing] = useState(false)
+  const [cameraBoostUntilMs, setCameraBoostUntilMs] = useState(0)
+  // Dash ability state
+  const [dashCooldownMs, setDashCooldownMs] = useState(0)
+  const dashCooldownRef = useRef(0)
+  useEffect(() => { dashCooldownRef.current = dashCooldownMs }, [dashCooldownMs])
+  const [dashTriggerToken, setDashTriggerToken] = useState(0)
   const enemyId = useRef(1)
   const pickupId = useRef(1)
   const portalId = useRef(1)
+  const speedBoostId = useRef(1)
   // removed waveTimer (switched to pause-aware timeout loop)
   const bulletPool = useRef(new BulletPool(BULLET_POOL_SIZE))
+// Simple instanced confetti burst
+function ConfettiBurst({ start=0, count=48, onDone }) {
+  const ref = useRef()
+  const rng = useMemo(() => ({
+    vx: Float32Array.from({ length: count }, () => (Math.random()*2-1) * 8),
+    vy: Float32Array.from({ length: count }, () => 8 + Math.random()*6),
+    vz: Float32Array.from({ length: count }, () => (Math.random()*2-1) * 8),
+    rx: Float32Array.from({ length: count }, () => Math.random()*Math.PI*2),
+    ry: Float32Array.from({ length: count }, () => Math.random()*Math.PI*2),
+    rz: Float32Array.from({ length: count }, () => Math.random()*Math.PI*2),
+    col: Array.from({ length: count }, () => new THREE.Color().setHSL(Math.random(), 0.8, 0.6)),
+  }), [count])
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9 }), [])
+  const geom = useMemo(() => new THREE.PlaneGeometry(0.4, 0.4), [])
+  const life = 2500
+  useFrame((_, dt) => {
+    if (!ref.current) return
+    const t = performance.now() - start
+    const n = ref.current.count
+    for (let i=0;i<n;i++) {
+      const m = new THREE.Matrix4()
+      // basic physics
+      const age = t / life
+      const px = rng.vx[i] * (t/1000)
+      const py = rng.vy[i] * (t/1000) - 9.8 * (t/1000)*(t/1000) * 2
+      const pz = rng.vz[i] * (t/1000)
+      const rx = rng.rx[i] + t*0.004
+      const ry = rng.ry[i] + t*0.006
+      const rz = rng.rz[i] + t*0.005
+      m.makeRotationFromEuler(new THREE.Euler(rx, ry, rz))
+      m.setPosition(px, Math.max(0.3, py+2), pz)
+      ref.current.setMatrixAt(i, m)
+      const color = rng.col[i]
+      ref.current.setColorAt(i, color)
+    }
+    ref.current.instanceMatrix.needsUpdate = true
+    if (t > life) onDone && onDone()
+  })
+  return (
+    <instancedMesh ref={ref} args={[geom, mat, count]} />
+  )
+}
+  // Shared drone geometries/materials (to reduce allocations)
+  const droneBodyGeom = useMemo(() => new THREE.CylinderGeometry(0.25, 0.25, 1.0, 12), [])
+  const droneTipGeom = useMemo(() => new THREE.ConeGeometry(0.25, 0.35, 12), [])
+  const droneTrailGeom = useMemo(() => new THREE.SphereGeometry(0.12, 8, 8), [])
+  const droneBodyMat = useMemo(() => new THREE.MeshStandardMaterial({ color: 0xff3333, emissive: 0x220000, roughness: 0.5 }), [])
+  const droneTipMat = droneBodyMat
+  const droneTrailBaseMat = useMemo(() => new THREE.MeshBasicMaterial({ color: 0xff6666, transparent: true, opacity: 0.5 }), [])
   const isPausedRef = useRef(isPaused)
   useEffect(() => { isPausedRef.current = isPaused }, [isPaused])
+  const damageScaleRef = useRef(1)
+  const enemySpeedScaleRef = useRef(1)
   const isGameOverRef = useRef(false)
   useEffect(() => { isGameOverRef.current = isGameOver }, [isGameOver])
   const respawnRef = useRef(0)
@@ -1446,15 +2013,18 @@ export default function App() {
   useEffect(() => { livesRef.current = lives }, [lives])
   const deathHandledRef = useRef(false)
   const portalTimersRef = useRef([])
+  const speedBoostTimersRef = useRef([])
   const portalsRef = useRef([])
   useEffect(() => { portalsRef.current = portals.map(p => p.pos) }, [portals])
   // expose a damage function for special enemies (like ConeBoss)
   const damagePlayer = useCallback((dmg) => {
-    if (invulnActiveRef.current) return
-    setHealth(h => Math.max(h - (dmg || 1), 0))
+    if (isPlayerInvulnerable()) return
+    const scale = damageScaleRef.current || 1
+    const final = Math.max(1, Math.ceil((dmg || 1) * scale))
+    setHealth(h => Math.max(h - final, 0))
     const idEvt = Date.now() + Math.random()
-    setHpEvents(evts => [...evts, { id: idEvt, amount: -(dmg || 1), start: performance.now() }])
-  }, [])
+    setHpEvents(evts => [...evts, { id: idEvt, amount: -final, start: performance.now() }])
+  }, [isPlayerInvulnerable])
   
   // Load persisted settings once
   useEffect(() => {
@@ -1464,12 +2034,70 @@ export default function App() {
   // shapeRunner persisted flags no longer used
       const hc = localStorage.getItem('highContrast')
       if (hc != null) setHighContrast(hc === '1' || hc === 'true')
+      const bs = parseInt(localStorage.getItem('bestScore') || '0', 10)
+      const bw = parseInt(localStorage.getItem('bestWave') || '0', 10)
+      if (!Number.isNaN(bs)) setBestScore(bs)
+      if (!Number.isNaN(bw)) setBestWave(bw)
     } catch { /* ignore */ }
   }, [])
   // Persist on change
   useEffect(() => { try { localStorage.setItem('controlScheme', controlScheme) } catch { /* ignore */ } }, [controlScheme])
   // removed shapeRunner persistence
   useEffect(() => { try { localStorage.setItem('highContrast', highContrast ? '1' : '0') } catch { /* ignore */ } }, [highContrast])
+  // Persist bests when they change
+  useEffect(() => { try { localStorage.setItem('bestScore', String(bestScore)) } catch {} }, [bestScore])
+  useEffect(() => { try { localStorage.setItem('bestWave', String(bestWave)) } catch {} }, [bestWave])
+
+  // Update bests live during a run and trigger confetti once per run when breaking prior best
+  const bestScoreBaselineRef = useRef(0)
+  const highScoreCelebratedRef = useRef(false)
+  useEffect(() => {
+    // establish baseline when run starts
+    if (isStarted && !isPaused) {
+      if (bestScoreBaselineRef.current === 0) bestScoreBaselineRef.current = bestScore
+    }
+  }, [isStarted, isPaused, bestScore])
+  useEffect(() => {
+    if (score > bestScore) setBestScore(score)
+    if (score > bestScoreBaselineRef.current && !highScoreCelebratedRef.current) {
+      highScoreCelebratedRef.current = true
+      // spawn confetti burst
+      const id = Date.now() + Math.random()
+      setConfetti(prev => [...prev, { id, start: performance.now() }])
+    }
+  }, [score, bestScore])
+  useEffect(() => { if (wave > bestWave) setBestWave(wave) }, [wave, bestWave])
+  useEffect(() => { isStartedRef.current = isStarted }, [isStarted])
+
+  // Playtime tracking (persist across runs)
+  const totalPlayMsRef = useRef(0)
+  const lastPlayTickRef = useRef(0)
+  const [totalPlayMsView, setTotalPlayMsView] = useState(0)
+  useEffect(() => {
+    try { totalPlayMsRef.current = parseInt(localStorage.getItem('totalPlayTimeMs') || '0', 10) || 0 } catch {}
+    // Initialize view state
+    setTotalPlayMsView(totalPlayMsRef.current|0)
+  }, [])
+  useEffect(() => {
+    const int = setInterval(() => {
+      if (isStartedRef.current && !isPausedRef.current && !isGameOverRef.current) {
+        const now = performance.now()
+        const last = lastPlayTickRef.current || now
+        const delta = Math.min(2000, Math.max(0, now - last))
+        totalPlayMsRef.current += delta
+        lastPlayTickRef.current = now
+        // Persist every second
+        try { localStorage.setItem('totalPlayTimeMs', String(totalPlayMsRef.current|0)) } catch {}
+        // Reflect in UI
+        setTotalPlayMsView(totalPlayMsRef.current|0)
+      } else {
+        lastPlayTickRef.current = performance.now()
+        // Still tick UI to reflect any external changes
+        setTotalPlayMsView(totalPlayMsRef.current|0)
+      }
+    }, 1000)
+    return () => clearInterval(int)
+  }, [])
   
   // Pause toggling
   useEffect(() => {
@@ -1477,6 +2105,7 @@ export default function App() {
       const k = e.key
       if (k === 'Escape' || k === ' ') {
         e.preventDefault()
+        if (!isStartedRef.current) return
         // Disable manual pause toggle during respawn countdown or game over
         if (isGameOverRef.current || (respawnRef.current && respawnRef.current > 0)) return
         setIsPaused(prev => !prev)
@@ -1490,6 +2119,38 @@ export default function App() {
         setCameraMode('follow')
       } else if (k === '8' || e.code === 'Digit8') {
         setCameraMode('topdown')
+      } else if (k === '3' || e.code === 'Digit3') {
+        // Dash ability
+        if (!isStartedRef.current || isPausedRef.current || isGameOverRef.current) return
+        if (dashCooldownRef.current > 0) return
+        // Trigger dash: 250ms duration i-frames
+        setDashTriggerToken(t => t + 1)
+        setDashCooldownMs(10000)
+        dashInvulnUntilRef.current = performance.now() + 250
+        // Schedule brief enemy push bursts during the dash
+        const burst = () => {
+          const p = playerPosRef.current
+          if (!p || !window.gameEnemies) return
+          window.gameEnemies.forEach(ge => {
+            if (!ge?.ref?.current) return
+            const ex = ge.ref.current.position.x
+            const ez = ge.ref.current.position.z
+            const dx = ex - p.x
+            const dz = ez - p.z
+            const d2 = dx*dx + dz*dz
+            const R = 3.0
+            if (d2 <= R*R) {
+              const dist = Math.max(Math.sqrt(d2), 0.0001)
+              const nx = dx / dist
+              const nz = dz / dist
+              const base = 10 // moderate push strength
+              ge.impulse?.(nx, nz, base * (1 - dist / R))
+            }
+          })
+        }
+        burst()
+        setTimeout(burst, 80)
+        setTimeout(burst, 160)
       }
     }
 
@@ -1498,6 +2159,26 @@ export default function App() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
+  }, [])
+
+  // Format ms to H:MM:SS
+  const formatHMS = useCallback((ms) => {
+    const totalSec = Math.max(0, Math.floor((ms || 0) / 1000))
+    const h = Math.floor(totalSec / 3600)
+    const m = Math.floor((totalSec % 3600) / 60)
+    const s = totalSec % 60
+    const mm = m.toString().padStart(2, '0')
+    const ss = s.toString().padStart(2, '0')
+    return `${h}:${mm}:${ss}`
+  }, [])
+
+  // Dash cooldown ticker (pause-aware)
+  useEffect(() => {
+    const int = setInterval(() => {
+      if (isPausedRef.current) return
+      setDashCooldownMs(ms => Math.max(0, ms - 100))
+    }, 100)
+    return () => clearInterval(int)
   }, [])
 
   // Auto-follow ring key handling (hold 1 to ride the ring while invulnerable)
@@ -1534,13 +2215,32 @@ export default function App() {
     return id
   }, [])
 
+  const openSpeedBoostAt = useCallback((pos, duration = SPEED_BOOST_LIFETIME) => {
+    const id = speedBoostId.current++
+    setSpeedBoosts(prev => [...prev, { id, pos }])
+    const timer = setTimeout(() => {
+      setSpeedBoosts(prev => prev.filter(s => s.id !== id))
+    }, duration)
+    speedBoostTimersRef.current.push(timer)
+    return id
+  }, [])
+
   // Clear timers on unmount to avoid stray spawns
   useEffect(() => {
     return () => clearPortalTimers()
   }, [clearPortalTimers])
 
+  const clearSpeedBoostTimers = useCallback(() => {
+    speedBoostTimersRef.current.forEach(t => clearTimeout(t))
+    speedBoostTimersRef.current = []
+  }, [])
+
+  useEffect(() => {
+    return () => clearSpeedBoostTimers()
+  }, [clearSpeedBoostTimers])
+
   const scheduleEnemyBatchAt = useCallback((pos, count, options = {}) => {
-    const { isTriangle = false, isCone = false, waveNumber = 1 } = options
+    const { isTriangle = false, isCone = false, waveNumber = 1, extraDelayMs = 0 } = options
     for (let i = 0; i < count; i++) {
       const handle = setTimeout(() => {
         if (isPausedRef.current) return
@@ -1561,6 +2261,7 @@ export default function App() {
             maxHealth: 5,
             spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2,
           }])
+          pushBossFeedRef.current && pushBossFeedRef.current('Triangle boss spawned', '#8b5cf6')
         } else if (isCone) {
           // Respect max 6 cones at once
           setEnemies(prev => {
@@ -1576,20 +2277,37 @@ export default function App() {
               spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2,
             }]
           })
+          pushBossFeedRef.current && pushBossFeedRef.current('Cone boss spawned', '#f59e0b')
         } else {
-          const boss = Math.random() < 0.12
-          setEnemies(prev => [...prev, {
-            id,
-            pos: spawnPos,
-            isBoss: boss,
-            formationTarget: new THREE.Vector3(pos[0], 0.5, pos[2]),
-            waveNumber,
-            health: boss ? 3 : 1,
-            maxHealth: boss ? 3 : 1,
-            spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2,
-          }])
+          // 40% chance to spawn a cluster boss instead of a normal minion
+          const makeCluster = Math.random() < 0.4
+          if (makeCluster) {
+            setEnemies(prev => [...prev, {
+              id,
+              pos: spawnPos,
+              isCluster: true,
+              isBoss: true,
+              waveNumber,
+              health: 3,
+              maxHealth: 3,
+              spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2,
+            }])
+            pushBossFeedRef.current && pushBossFeedRef.current('Cluster boss spawned', '#ff3333')
+          } else {
+            const boss = Math.random() < 0.12
+            setEnemies(prev => [...prev, {
+              id,
+              pos: spawnPos,
+              isBoss: boss,
+              formationTarget: new THREE.Vector3(pos[0], 0.5, pos[2]),
+              waveNumber,
+              health: boss ? 3 : 1,
+              maxHealth: boss ? 3 : 1,
+              spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2,
+            }])
+          }
         }
-      }, i * PORTAL_STAGGER_MS)
+      }, extraDelayMs + i * PORTAL_STAGGER_MS)
       portalTimersRef.current.push(handle)
     }
   }, [])
@@ -1599,7 +2317,30 @@ export default function App() {
     if (isPausedRef.current) return
     setWave(w => {
       const nextWave = w + 1
+      // Update damage scale by wave and notify player
+      const newScale = Math.min(DAMAGE_SCALE_MAX, 1 + (Math.max(1, nextWave) - 1) * DAMAGE_SCALE_PER_WAVE)
+      if (Math.abs(newScale - (damageScaleRef.current || 1)) > 1e-6) {
+        damageScaleRef.current = newScale
+        const popupId = Date.now() + Math.random()
+        setPickupPopups(prev => [...prev, { id: popupId, pickup: { type: 'dmgscale', scale: newScale } }])
+      }
       const center = playerPosRef.current.clone()
+      // Wave-based speed ramp: enemies faster, player gets +1 base speed each wave
+      const newEnemyScale = Math.min(ENEMY_SPEED_SCALE_MAX, 1 + (Math.max(1, nextWave) - 1) * ENEMY_SPEED_SCALE_PER_WAVE)
+      if (Math.abs(newEnemyScale - (enemySpeedScaleRef.current || 1)) > 1e-6) {
+        enemySpeedScaleRef.current = newEnemyScale
+        setEnemySpeedScale(newEnemyScale)
+        setPlayerBaseSpeed(s => Math.min(PLAYER_SPEED_CAP, s + 1))
+        const popupId = Date.now() + Math.random()
+        setPickupPopups(prev => [...prev, { id: popupId, pickup: { type: 'speedramp', scale: newEnemyScale, player: true } }])
+      }
+      // Milestone life pickup: every 5 waves, spawn one rare life pickup near center
+      if (nextWave % 5 === 0) {
+        if (Math.random() < 0.7) { // rare-ish gate on top of milestone
+          const pos = [center.x + (Math.random() - 0.5) * 6, 0.5, center.z + (Math.random() - 0.5) * 6]
+          spawnPickup('life', pos)
+        }
+      }
       const portalsCount = Math.min(PORTALS_PER_WAVE_MAX, Math.max(PORTALS_PER_WAVE_MIN, 2 + Math.floor(nextWave / 4)))
       const totalEnemies = 6 + Math.floor(w / 2)
       const perPortal = Math.max(2, Math.floor(totalEnemies / portalsCount))
@@ -1612,8 +2353,20 @@ export default function App() {
         const px = center.x + Math.cos(angle) * radius
         const pz = center.z + Math.sin(angle) * radius
         const p = [px, 0.5, pz]
-        openPortalAt(p)
-        scheduleEnemyBatchAt(p, perPortal, { waveNumber: nextWave })
+        const extraDelay = 2000 + Math.random() * 2000 // 2-4s warmup
+        openPortalAt(p, PORTAL_LIFETIME + extraDelay)
+        scheduleEnemyBatchAt(p, perPortal, { waveNumber: nextWave, extraDelayMs: extraDelay })
+      }
+
+      // Spawn 1-2 green speed boost planes per wave nearby, lifetime similar to portals
+      const boostCount = Math.min(2, 1 + Math.floor(Math.random() * 2))
+      for (let i = 0; i < boostCount; i++) {
+        const angle = baseAngle + Math.random() * Math.PI * 2
+        const radius = SPEED_BOOST_RADIUS_MIN + Math.random() * (SPEED_BOOST_RADIUS_MAX - SPEED_BOOST_RADIUS_MIN)
+        const px = center.x + Math.cos(angle) * radius
+        const pz = center.z + Math.sin(angle) * radius
+        const pos = [px, 0.5, pz]
+        openSpeedBoostAt(pos)
       }
 
       // Triangle boss every 3 waves from its own portal
@@ -1623,10 +2376,10 @@ export default function App() {
         const px = center.x + Math.cos(angle) * radius
         const pz = center.z + Math.sin(angle) * radius
         const p = [px, 0.5, pz]
-        openPortalAt(p, PORTAL_LIFETIME + 1500)
-        // slight delay before boss drop for drama
-        const bossTimer = setTimeout(() => scheduleEnemyBatchAt(p, 1, { isTriangle: true, waveNumber: nextWave }), 500)
-        portalTimersRef.current.push(bossTimer)
+        const extraDelay = 2000 + Math.random() * 2000
+        openPortalAt(p, PORTAL_LIFETIME + 1500 + extraDelay)
+        // base 500ms theatrical delay + warmup
+        scheduleEnemyBatchAt(p, 1, { isTriangle: true, waveNumber: nextWave, extraDelayMs: 500 + extraDelay })
       }
 
       // Frequently spawn Cone bosses from their own portals (capped to 6 globally)
@@ -1636,11 +2389,32 @@ export default function App() {
         const px = center.x + Math.cos(angle) * radius
         const pz = center.z + Math.sin(angle) * radius
         const p = [px, 0.5, pz]
-        openPortalAt(p, PORTAL_LIFETIME + 800)
-        const coneTimer1 = setTimeout(() => scheduleEnemyBatchAt(p, 1, { isCone: true, waveNumber: nextWave }), 300)
-        portalTimersRef.current.push(coneTimer1)
-        const coneTimer2 = setTimeout(() => scheduleEnemyBatchAt(p, 1, { isCone: true, waveNumber: nextWave }), 700)
-        portalTimersRef.current.push(coneTimer2)
+        const extraDelay = 2000 + Math.random() * 2000
+        openPortalAt(p, PORTAL_LIFETIME + 800 + extraDelay)
+        scheduleEnemyBatchAt(p, 1, { isCone: true, waveNumber: nextWave, extraDelayMs: 300 + extraDelay })
+        scheduleEnemyBatchAt(p, 1, { isCone: true, waveNumber: nextWave, extraDelayMs: 700 + extraDelay })
+      }
+
+      // Occasionally spawn a Pipe boss at arena edges/corners; weaker health
+      if (Math.random() < 0.6) {
+        const cornerBias = Math.random() < 0.6
+        const lim = BOUNDARY_LIMIT - 2
+        let px = 0, pz = 0
+        if (cornerBias) {
+          px = (Math.random() < 0.5 ? -1 : 1) * lim
+          pz = (Math.random() < 0.5 ? -1 : 1) * lim
+        } else {
+          if (Math.random() < 0.5) {
+            px = (Math.random() < 0.5 ? -1 : 1) * lim
+            pz = (Math.random() * 2 - 1) * lim
+          } else {
+            px = (Math.random() * 2 - 1) * lim
+            pz = (Math.random() < 0.5 ? -1 : 1) * lim
+          }
+        }
+        const id = enemyId.current++
+        setEnemies(prev => [...prev, { id, pos: [px, 0.2, pz], isPipe: true, isBoss: true, health: 2, maxHealth: 2 }])
+        pushBossFeedRef.current && pushBossFeedRef.current('Pipe boss spawned', '#ff3333')
       }
 
       return nextWave
@@ -1665,6 +2439,37 @@ export default function App() {
     const px = playerPosition.x
     const py = playerPosition.y + 0.5
     const pz = playerPosition.z
+
+    // While shape runner is active (stun mode), emit 4 forward streams instead of 1
+    if (stunMode) {
+      const fx = direction[0]
+      const fz = direction[2]
+      // Right vector on XZ plane (perpendicular)
+      let rx = fz
+      let rz = -fx
+      const rlen = Math.hypot(rx, rz) || 1
+      rx /= rlen; rz /= rlen
+
+      const ahead = 0.9
+      const side = 0.6
+      const offsetsDeg = [-12, -4, 4, 12]
+      for (let i = 0; i < offsetsDeg.length; i++) {
+        const deg = offsetsDeg[i]
+        const rad = deg * Math.PI / 180
+        const cos = Math.cos(rad)
+        const sin = Math.sin(rad)
+        // rotated forward
+        const dx = fx * cos - fz * sin
+        const dz = fx * sin + fz * cos
+        // lateral emitter offsets
+        const s = (i === 0 ? -side : (i === 1 ? -side * 0.33 : (i === 2 ? side * 0.33 : side)))
+        const ex = px + fx * ahead + rx * s
+        const ez = pz + fz * ahead + rz * s
+        bulletPool.current.getBullet([ex, py, ez], [dx, 0, dz], style)
+      }
+      setBullets(bulletPool.current.getActiveBullets())
+      return
+    }
 
     // If medium-tier power (70..89), emit a triple stream with a slight arc in front
   if (!stunMode && powerEffect.active && powerEffect.amount >= 70 && powerEffect.amount <= 89) {
@@ -1745,6 +2550,16 @@ export default function App() {
           if (p.length >= MAX_PICKUPS) return p
           return [...p, { id, pos, type: 'invuln', lifetimeMaxSec: 20 }]
         })
+      } else if (type === 'bombs') {
+        setPickups(p => {
+          if (p.length >= MAX_PICKUPS) return p
+          return [...p, { id, pos, type: 'bombs', lifetimeMaxSec: 20 }]
+        })
+      } else if (type === 'life') {
+        setPickups(p => {
+          if (p.length >= MAX_PICKUPS) return p
+          return [...p, { id, pos, type: 'life', lifetimeMaxSec: 18 }]
+        })
       }
     }
   }, [])
@@ -1755,13 +2570,14 @@ export default function App() {
       const enemy = prev.find(e => e.id === id)
       // If enemy hit the player, apply contact damage based on type
       if (hitPlayer) {
-        if (!invulnActiveRef.current) {
-          const dmg = enemy?.isTriangle ? CONTACT_DAMAGE.triangle : (enemy?.isBoss ? CONTACT_DAMAGE.boss : CONTACT_DAMAGE.minion)
-          setHealth(h => Math.max(h - (dmg || 1), 0))
+        if (!isPlayerInvulnerable()) {
+          const base = enemy?.isTriangle ? CONTACT_DAMAGE.triangle : (enemy?.isBoss ? CONTACT_DAMAGE.boss : CONTACT_DAMAGE.minion)
+          const scale = damageScaleRef.current || 1
+          const dmg = Math.max(1, Math.ceil((base || 1) * scale))
+          setHealth(h => Math.max(h - dmg, 0))
           // show HP change
-          const amount = -(dmg || 1)
           const idEvt = Date.now() + Math.random()
-          setHpEvents(evts => [...evts, { id: idEvt, amount, start: performance.now() }])
+          setHpEvents(evts => [...evts, { id: idEvt, amount: -dmg, start: performance.now() }])
         }
       } else {
         // Award score if killed by player
@@ -1771,7 +2587,8 @@ export default function App() {
   if (Math.random() < 0.20) {
     const r2 = Math.random()
     if (r2 < 0.10) spawnPickup('invuln')
-    else spawnPickup(Math.random() < 0.72 ? 'power' : 'health') // reduce health chance by 30% (40% -> 28%)
+    else if (r2 < 0.18) spawnPickup('bombs') // rare bomb kit
+  else spawnPickup(Math.random() < 0.85 ? 'power' : 'health') // health ~15% of split on generic drops
   }
       }
       return prev.filter(e => e.id !== id)
@@ -1800,6 +2617,7 @@ export default function App() {
         if (!ge.ref || !ge.ref.current) continue
         const eData = enemies.find(e => e.id === ge.id)
         if (!eData) continue
+        if (ge.isFlying) continue // drones are immune to bullets
         enemyPos.copy(ge.ref.current.position)
         const hitRadius = eData.isBoss ? 1.8 : (eData.isTriangle ? 2.5 : 0.8)
         const dist = bulletPos.distanceTo(enemyPos)
@@ -1830,6 +2648,11 @@ export default function App() {
         // Stun-only bullets (from invuln shape runner) do not deal damage
         if (b?.style?.stun) {
           hitEnemy.stun?.(3000)
+          continue
+        }
+
+        // Cone boss is immune to player bullets (bombs still affect them)
+        if (hitEnemy.isCone) {
           continue
         }
 
@@ -1864,8 +2687,9 @@ export default function App() {
     }
   }, [bullets, handleCollisionDetection, isPaused])
 
-  // start waves loop (pause-aware, no stale closures)
+  // start waves loop (pause-aware, gated by isStarted, no stale closures)
   useEffect(() => {
+    if (!isStarted) return
     // initial wave
     spawnWave()
     let cancelled = false
@@ -1875,7 +2699,8 @@ export default function App() {
       if (!isPausedRef.current) {
         spawnWave()
   // slightly higher ambient pickup spawns after waves for faster pace
-  if (Math.random() < 0.35) spawnPickup(Math.random() < 0.35 ? 'health' : 'power') // reduce health ambient rate by 30%
+  if (Math.random() < 0.35) spawnPickup(Math.random() < 0.15 ? 'health' : 'power') // health ~15% of ambient split
+  if (Math.random() < 0.06) spawnPickup('bombs') // very rare ambient bomb kit
   // rare invulnerability pickup, similar rarity to high-tier power-ups
   if (Math.random() < 0.05) spawnPickup('invuln')
       }
@@ -1883,17 +2708,47 @@ export default function App() {
     }
     timer = setTimeout(tick, 12000)
     return () => { cancelled = true; if (timer) clearTimeout(timer) }
-  }, [spawnWave, spawnPickup])
+  }, [spawnWave, spawnPickup, isStarted])
+
+  const pushPickupFeed = useCallback((pickup) => {
+    const info = pickup.type === 'health'
+      ? { text: '+25 Health', color: '#22c55e' }
+      : pickup.type === 'power'
+        ? { text: `Power +${pickup.amount ?? 50}`, color: '#60a5fa' }
+        : pickup.type === 'invuln'
+          ? { text: 'Invulnerability (5s)', color: '#facc15' }
+          : pickup.type === 'bombs'
+            ? { text: 'Bomb Kit (4/s for 6s)', color: '#111827' }
+            : pickup.type === 'life'
+              ? { text: '1UP (+1 Life)', color: '#ff3366' }
+              : pickup.type === 'speedboost'
+                ? { text: 'Speed Boost (4s)', color: '#22c55e' }
+                : { text: 'Pickup', color: '#ffffff' }
+    setPickupFeed(prev => {
+      const next = [...prev, { id: Date.now() + Math.random(), text: info.text, color: info.color }]
+      return next.slice(-5)
+    })
+  }, [])
+
+  const pushBossFeed = useCallback((text, color = '#ffb020') => {
+    setBossFeed(prev => {
+      const next = [...prev, { id: Date.now() + Math.random(), text, color }]
+      return next.slice(-5)
+    })
+  }, [])
+
+  // Keep a live ref pointer so earlier-declared callbacks can safely invoke it
+  useEffect(() => {
+    pushBossFeedRef.current = pushBossFeed
+  }, [pushBossFeed])
 
   const onPickupCollect = useCallback((id) => {
     const pickup = pickups.find(pk => pk.id === id)
     if (!pickup) return
     
     setPickups(prev => prev.filter(pk => pk.id !== id))
-    
-    // Add pickup popup
-    const popupId = Date.now()
-    setPickupPopups(prev => [...prev, { id: popupId, pickup }])
+    // Stream the pickup feed (replaces popup)
+    pushPickupFeed(pickup)
     
     // Apply pickup effect
     if (pickup.type === 'health') {
@@ -1912,10 +2767,19 @@ export default function App() {
         invulnRemainingRef.current = 5000
         const shapes = ['circle','hexagon','rectangle']
         const shape = shapes[Math.floor(Math.random() * shapes.length)]
+        // Activate ref immediately to avoid any frame where damage can sneak in
+        invulnActiveRef.current = true
         setInvulnEffect({ active: true, shape })
+      } else if (pickup.type === 'bombs') {
+        // Activate bomb kit effect: 4 bombs/sec for 4s (16 bombs total)
+        bombEffectTimeRef.current = BOMB_ABILITY_DURATION_MS
+        bombSpawnTimerRef.current = 0
+        setBombEffect({ active: true })
+      } else if (pickup.type === 'life') {
+        setLives(l => Math.min(l + 1, 5))
       }
     }
-  }, [pickups])
+  }, [pickups, pushPickupFeed])
 
   // Remove pickup popup
   const removePickupPopup = useCallback((popupId) => {
@@ -1941,6 +2805,77 @@ export default function App() {
     return () => { cancelled = true; clearTimeout(t) }
   }, [powerEffect.active])
 
+  // Bomb kit effect: spawn 4 bombs/sec for 4s (pause-aware)
+  useEffect(() => {
+    if (!bombEffect.active) return
+    let cancelled = false
+    const tick = () => {
+      if (cancelled) return
+      if (!isPausedRef.current) {
+        const dt = 100 // ms tick granularity
+        bombEffectTimeRef.current = Math.max(0, bombEffectTimeRef.current - dt)
+        bombSpawnTimerRef.current += dt
+        // spawn bombs every 250ms while effect time remains
+        while (bombSpawnTimerRef.current >= BOMB_SPAWN_INTERVAL_MS && bombEffectTimeRef.current > 0) {
+          bombSpawnTimerRef.current -= BOMB_SPAWN_INTERVAL_MS
+          // launch a bomb from player position with upward velocity and slight horizontal spread
+          const p = playerPosRef.current
+          const angle = Math.random() * Math.PI * 2
+          const speed = 5 + Math.random() * 4 // travel a bit farther
+          const vx = Math.cos(angle) * speed
+          const vz = Math.sin(angle) * speed
+          const id = Date.now() + Math.random()
+          setBombs(prev => [...prev, { id, pos: [p.x, p.y + 0.8, p.z], vel: [vx, BOMB_UP_VEL, vz], state: 'air', landedAt: 0, explodeAt: 0, hits: {} }])
+        }
+        if (bombEffectTimeRef.current <= 0) {
+          setBombEffect({ active: false })
+          return
+        }
+      }
+      setTimeout(tick, 100)
+    }
+    const t = setTimeout(tick, 100)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [bombEffect.active])
+
+  // Boost effect timer (pause-aware)
+  useEffect(() => {
+    if (!boostEffect.active) return
+    let cancelled = false
+    const tick = () => {
+      if (cancelled) return
+      if (!isPausedRef.current) {
+        boostRemainingRef.current = Math.max(0, (boostRemainingRef.current|0) - 100)
+        if (boostRemainingRef.current <= 0) {
+          setBoostEffect({ active: false })
+          return
+        }
+      }
+      setTimeout(tick, 100)
+    }
+    const t = setTimeout(tick, 100)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [boostEffect.active])
+
+  // Debuff effect timer (pause-aware)
+  useEffect(() => {
+    if (!debuffEffect.active) return
+    let cancelled = false
+    const tick = () => {
+      if (cancelled) return
+      if (!isPausedRef.current) {
+        debuffRemainingRef.current = Math.max(0, (debuffRemainingRef.current|0) - 100)
+        if (debuffRemainingRef.current <= 0) {
+          setDebuffEffect({ active: false })
+          return
+        }
+      }
+      setTimeout(tick, 100)
+    }
+    const t = setTimeout(tick, 100)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [debuffEffect.active])
+
   // Invulnerability effect timer (pause-aware, 5s)
   useEffect(() => {
     if (!invulnEffect.active) return
@@ -1950,10 +2885,14 @@ export default function App() {
       if (!isPausedRef.current) {
         invulnRemainingRef.current = Math.max(0, invulnRemainingRef.current - 100)
         if (invulnRemainingRef.current <= 0) {
+          // Clear invulnerability synchronously
+          invulnActiveRef.current = false
           setInvulnEffect({ active: false })
           // trigger an arc jump at end of invulnerability only if holding 1 or 2
           if (autoFollowHeldRef.current || autoFollowHeld2Ref.current) {
             setArcTriggerToken(t => t + 1)
+            // mark to protect player 2s after landing from this auto-launch
+            expectingPostInvulnLandingRef.current = true
           }
           return
         }
@@ -1991,6 +2930,7 @@ export default function App() {
         if (window.gameEnemies) {
           for (const ge of window.gameEnemies) {
             if (!ge?.ref?.current) continue
+            if (ge.isFlying) continue // flying drones immune to invulnerability DoT
             const ex = ge.ref.current.position.x
             const ez = ge.ref.current.position.z
             let inside = false
@@ -2062,16 +3002,16 @@ export default function App() {
   // Death / lives / game over handling with single-fire guard
   useEffect(() => {
     if (health <= 0) {
-      // Prevent multiple decrements while health stays 0
       if (deathHandledRef.current) return
       deathHandledRef.current = true
-
-      // Clear current world state immediately
+      // Clear world state
       setEnemies([])
       setPickups([])
       setBullets([])
       setPortals([])
+      setSpeedBoosts([])
       clearPortalTimers()
+      clearSpeedBoostTimers()
       bulletPool.current.clear()
 
       if (livesRef.current > 1) {
@@ -2079,7 +3019,6 @@ export default function App() {
         setLives(l => Math.max(l - 1, 0))
         setIsPaused(true)
         setRespawnCountdown(3)
-
         let count = 3
         const interval = setInterval(() => {
           count -= 1
@@ -2088,22 +3027,20 @@ export default function App() {
             clearInterval(interval)
             setRespawnCountdown(0)
             setHealth(100)
+            setPlayerResetToken(t => t + 1)
             setIsPaused(false)
             // Kick off next wave immediately
             spawnWave()
           }
         }, 1000)
-
-        // Cleanup if component unmounts during countdown
         return () => clearInterval(interval)
       } else {
-        // No lives left -> Game Over
+        // Game Over
         setLives(0)
         setIsGameOver(true)
         setIsPaused(true)
       }
     } else {
-      // Reset guard when player is alive again
       deathHandledRef.current = false
     }
   }, [health, clearPortalTimers, spawnWave])
@@ -2118,9 +3055,16 @@ export default function App() {
     setScore(0)
     setWave(0)
     setPortals([])
+    setSpeedBoosts([])
+    // Reset speed ramps and caps
+    enemySpeedScaleRef.current = 1
+    setEnemySpeedScale(1)
+    setPlayerBaseSpeed(PLAYER_SPEED)
     // Clear global enemy references
     window.gameEnemies = []
     clearPortalTimers()
+    clearSpeedBoostTimers()
+    setPlayerResetToken(t => t + 1)
   }, [clearPortalTimers])
 
   // ground plane grid material
@@ -2191,18 +3135,26 @@ export default function App() {
           <Portal key={pr.id} pos={pr.pos} isPaused={isPaused} />
         ))}
 
+        {/* Active speed boost planes */}
+        {!isPaused && speedBoosts.map(sb => (
+          <SpeedBoostPlane key={sb.id} pos={sb.pos} isPaused={isPaused} />
+        ))}
+
         <Player 
           position={[0, 0.5, 0]} 
           setPositionRef={setPositionRef} 
           onShoot={handleShoot}
           isPaused={isPaused}
           autoFire={autoFire}
+          resetToken={playerResetToken}
+          basePlayerSpeed={playerBaseSpeed}
           autoAimEnabled={cameraMode === 'follow' || cameraMode === 'topdown'}
           controlScheme={controlScheme}
           moveInputRef={moveInputRef}
           moveSourceRef={moveSourceRef}
           highContrast={highContrast}
           portals={portals}
+          speedBoosts={speedBoosts}
           autoFollow={{ 
             active: (invulnEffect.active && (autoFollowHeld || autoFollowHeld2)), 
             radius: SHAPE_PATH_RADIUS, 
@@ -2211,6 +3163,41 @@ export default function App() {
             dirSign: (autoFollowHeld2 ? -1 : 1) // 1=CCW (key 1), -1=CW (key 2)
           }}
           arcTriggerToken={arcTriggerToken}
+          dashTriggerToken={dashTriggerToken}
+          onDashStart={() => {
+            setIsDashing(true)
+          }}
+          onDashEnd={(endPos) => {
+            setIsDashing(false)
+            setCameraBoostUntilMs(performance.now() + 400)
+            // End-of-dash impact: strong pushback + stun in radius
+            const center = [endPos.x, 0.06, endPos.z]
+            const radius = 6.5
+            const power = 90
+            const stunMs = 3000
+            if (window.gameEnemies) {
+              const cpos = new THREE.Vector3(center[0], 0.5, center[2])
+              const epos = new THREE.Vector3()
+              window.gameEnemies.forEach(ge => {
+                if (!ge?.ref?.current) return
+                epos.copy(ge.ref.current.position)
+                const dx = epos.x - cpos.x
+                const dz = epos.z - cpos.z
+                const d2 = dx*dx + dz*dz
+                const r2 = radius * radius
+                if (d2 <= r2) {
+                  const d = Math.sqrt(Math.max(d2, 1e-6))
+                  const nx = dx / d
+                  const nz = dz / d
+                  const strength = power * (1 - (d / radius))
+                  ge.impulse?.(nx, nz, strength)
+                  ge.stun?.(stunMs)
+                }
+              })
+            }
+            // Visualize the impact
+            setAoes(prev => [...prev, { id: Date.now() + Math.random(), pos: center, start: performance.now(), radius }])
+          }}
           onSlam={(slam) => {
             // Create AOE visual and push back enemies
             const center = slam.pos
@@ -2235,9 +3222,9 @@ export default function App() {
                   ge.impulse?.(nx, nz, strength)
                   // Apply stun for 5 seconds
                   ge.stun?.(5000)
-                  // Bosses drop a health pickup with 70% chance (reduced by 30%) upon being stunned
+                  // Bosses drop a health pickup with ~15% chance upon being stunned (further reduced)
                   if (ge.isBoss) {
-                    if (Math.random() < 0.7) {
+                    if (Math.random() < 0.15) {
                       spawnPickup('health', [epos.x, 0.5, epos.z])
                     }
                   }
@@ -2250,6 +3237,27 @@ export default function App() {
           onDebuff={() => {
             const popupId = Date.now()
             setPickupPopups(prev => [...prev, { id: popupId, pickup: { type: 'debuff' } }])
+            // Start debuff visualization timer
+            debuffRemainingRef.current = SPEED_DEBUFF_DURATION_MS
+            setDebuffEffect({ active: true })
+          }}
+          onBoost={() => {
+            const popupId = Date.now()
+            setPickupPopups(prev => [...prev, { id: popupId, pickup: { type: 'speedboost' } }])
+            // Start boost visualization timer
+            boostRemainingRef.current = SPEED_BUFF_DURATION_MS
+            setBoostEffect({ active: true })
+          }}
+          onBoundaryJumpChange={(active) => {
+            const v = !!active
+            boundaryJumpActiveRef.current = v
+            setBoundaryJumpActive(v)
+          }}
+          onLanding={() => {
+            if (expectingPostInvulnLandingRef.current) {
+              expectingPostInvulnLandingRef.current = false
+              postInvulnShieldUntilRef.current = performance.now() + 2000
+            }
           }}
         />
 
@@ -2264,6 +3272,7 @@ export default function App() {
               health={e.health}
               isPaused={isPaused}
               spawnHeight={e.spawnHeight}
+              speedScale={enemySpeedScale}
             />
           ) : e.isCone ? (
             <ConeBoss
@@ -2275,6 +3284,59 @@ export default function App() {
               health={e.health}
               isPaused={isPaused}
               spawnHeight={e.spawnHeight}
+              speedScale={enemySpeedScale}
+            />
+          ) : e.isPipe ? (
+            <PipeBoss
+              key={e.id}
+              id={e.id}
+              pos={e.pos}
+              playerPosRef={playerPosRef}
+              onDie={onEnemyDie}
+              health={e.health}
+              isPaused={isPaused}
+              onLaunchDrones={(count, fromPos) => {
+                // Cap total active drones to avoid overload
+                setEnemies(prev => {
+                  const activeDrones = prev.filter(x => x.isFlying).length
+                  const allowed = Math.max(0, 16 - activeDrones)
+                  const toSpawn = Math.min(count, allowed)
+                  if (toSpawn <= 0) return prev
+                  const arr = [...prev]
+                  for (let i = 0; i < toSpawn; i++) {
+                    const id = enemyId.current++
+                    // small offset ring around the pipe
+                    const a = Math.random() * Math.PI * 2
+                    const r = 1.2 + Math.random() * 0.8
+                    const px = fromPos[0] + Math.cos(a) * r
+                    const pz = fromPos[2] + Math.sin(a) * r
+                    arr.push({ id, pos: [px, 4, pz], isFlying: true, health: 1, maxHealth: 1 })
+                  }
+                  return arr
+                })
+              }}
+            />
+          ) : e.isCluster ? (
+            <ClusterBoss
+              key={e.id}
+              id={e.id}
+              pos={e.pos}
+              playerPosRef={playerPosRef}
+              onDie={onEnemyDie}
+              health={e.health}
+              isPaused={isPaused}
+            />
+          ) : e.isFlying ? (
+            <FlyingDrone
+              key={e.id}
+              id={e.id}
+              pos={e.pos}
+              playerPosRef={playerPosRef}
+              onDie={onEnemyDie}
+              isPaused={isPaused}
+              boundaryJumpActiveRef={boundaryJumpActiveRef}
+              assets={{ bodyGeom: droneBodyGeom, tipGeom: droneTipGeom, trailGeom: droneTrailGeom, bodyMat: droneBodyMat, tipMat: droneTipMat }}
+              trailBaseMat={droneTrailBaseMat}
             />
           ) : (
             <Minion 
@@ -2289,6 +3351,7 @@ export default function App() {
               health={e.health}
               isPaused={isPaused}
               spawnHeight={e.spawnHeight}
+              speedScale={enemySpeedScale}
             />
           )
         ))}
@@ -2299,6 +3362,69 @@ export default function App() {
             bullet={bullet} 
             onExpire={handleBulletExpire}
             isPaused={isPaused}
+          />
+        ))}
+
+        {/* Bombs */}
+        {bombs.map(b => (
+          <Bomb
+            key={b.id}
+            data={b}
+            isPaused={isPaused}
+            onUpdate={(id, patch) => setBombs(prev => prev.map(x => x.id === id ? { ...x, ...patch } : x))}
+            onExplode={(id, pos) => {
+              // AOE stun+damage at detonation
+              const cx = pos[0], cz = pos[2]
+              const r2 = BOMB_AOE_RADIUS * BOMB_AOE_RADIUS
+              const idsToHit = []
+              if (window.gameEnemies) {
+                window.gameEnemies.forEach(ge => {
+                  if (!ge?.ref?.current) return
+                  if (ge.isFlying) return // flying drones are immune to bombs
+                  const ex = ge.ref.current.position.x
+                  const ez = ge.ref.current.position.z
+                  const dx = ex - cx
+                  const dz = ez - cz
+                  if (dx*dx + dz*dz <= r2) {
+                    ge.stun?.(BOMB_STUN_MS)
+                    idsToHit.push(ge.id)
+                  }
+                })
+              }
+              if (idsToHit.length) {
+                setEnemies(prev => {
+                  const died = []
+                  const updated = prev.map(e => {
+                    if (!idsToHit.includes(e.id)) return e
+                    const dmg = e.isCone ? 5 : BOMB_DAMAGE
+                    const nh = (e.health ?? 1) - dmg
+                    if (nh <= 0) { died.push(e.id); return null }
+                    return { ...e, health: nh }
+                  }).filter(Boolean)
+                  if (died.length) setTimeout(() => died.forEach(id => onEnemyDie(id, false)), 0)
+                  return updated
+                })
+              }
+              // Visual explosion cue
+              setAoes(prev => [...prev, { id: Date.now() + Math.random(), pos: [cx, 0.06, cz], start: performance.now(), radius: BOMB_AOE_RADIUS }])
+              // remove bomb
+              setBombs(prev => prev.filter(x => x.id !== id))
+            }}
+            onHitEnemy={(enemyId) => {
+              setEnemies(prev => {
+                let died = false
+                const updated = prev.map(e => {
+                  if (e.id !== enemyId) return e
+                  if (e.isFlying) return e // flying drones ignore bomb contact
+                  const dmg = e.isCone ? 5 : BOMB_DAMAGE
+                  const nh = (e.health ?? 1) - dmg
+                  if (nh <= 0) { died = true; return null }
+                  return { ...e, health: nh }
+                }).filter(Boolean)
+                if (died) setTimeout(() => onEnemyDie(enemyId, false), 0)
+                return updated
+              })
+            }}
           />
         ))}
 
@@ -2314,6 +3440,7 @@ export default function App() {
             onExpire={(pid) => setPickups(prev => prev.filter(x => x.id !== pid))}
             playerPosRef={playerPosRef}
             isPaused={isPaused}
+            scaleMul={pickupScaleMul}
           />
         ))}
 
@@ -2325,7 +3452,7 @@ export default function App() {
       minPolarAngle={Math.PI / 3} 
     />
     {cameraMode === 'follow' && (
-      <CameraRig playerPosRef={playerPosRef} isPaused={isPaused} />
+      <CameraRig playerPosRef={playerPosRef} isPaused={isPaused} isDashing={isDashing} boostUntilMs={cameraBoostUntilMs} />
     )}
     {cameraMode === 'static' && (
       <StaticCameraRig />
@@ -2342,10 +3469,31 @@ export default function App() {
           <HpFloater key={evt.id} amount={evt.amount} start={evt.start} playerPosRef={playerPosRef} onDone={() => setHpEvents(e => e.filter(x => x.id !== evt.id))} />
         ))}
 
-        {/* Invulnerability visual ring around player while active */}
+        {/* Buff/debuff indicators above player */}
+        {(() => {
+          const items = []
+          if (invulnEffect.active) items.push({ key: 'inv', label: 'INVULN', color: '#facc15' })
+          if (powerEffect.active) items.push({ key: 'pow', label: `POWER ${powerEffect.amount}`, color: '#60a5fa' })
+          if (bombEffect.active) items.push({ key: 'bomb', label: 'BOMBS', color: '#ffffff' })
+          if (boostEffect.active) items.push({ key: 'boost', label: 'BOOST', color: '#22c55e' })
+          if (debuffEffect.active) items.push({ key: 'slow', label: 'SLOW', color: '#f97316' })
+          return items.length ? <BuffIndicators playerPosRef={playerPosRef} items={items} /> : null
+        })()}
+
+        {/* Invulnerability visuals */}
         {invulnEffect.active && (
-          <InvulnRing radius={SHAPE_PATH_RADIUS} isPaused={isPaused} shape={invulnEffect.shape || 'circle'} />
+          <>
+            <InvulnRing radius={SHAPE_PATH_RADIUS} isPaused={isPaused} shape={invulnEffect.shape || 'circle'} />
+            {/* Yellow translucent orb while invulnerability is active */}
+            <ShieldBubble playerPosRef={playerPosRef} isPaused={isPaused} color={0xfacc15} radius={1.5} baseOpacity={0.28} />
+          </>
         )}
+        {boundaryJumpActive && (
+          <ShieldBubble playerPosRef={playerPosRef} isPaused={isPaused} color={0x66ccff} radius={1.4} baseOpacity={0.25} />
+        )}
+        {confetti.map(c => (
+          <ConfettiBurst key={c.id} start={c.start} onDone={() => setConfetti(prev => prev.filter(x => x.id !== c.id))} />
+        ))}
 
         <Stats />
       </Canvas>
@@ -2356,14 +3504,35 @@ export default function App() {
         <DPad onVectorChange={(x, z) => { dpadVecRef.current.x = x; dpadVecRef.current.z = z }} />
       )}
       
+      {/* Overlay: start screen */}
+      {!isStarted && (
+        <div className="pause-overlay">
+          <div className="pause-content">
+            <h2>Wave Shooter</h2>
+            <p>Best — Score: <strong>{bestScore}</strong> • Wave: <strong>{bestWave}</strong></p>
+            <div style={{height:10}} />
+            <button
+              className="button"
+              onClick={() => {
+                setIsStarted(true)
+                setIsPaused(false)
+              }}
+            >
+              Start Game
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Overlay: pause / life lost countdown / game over */}
-      {isPaused && (
+      {isPaused && isStarted && (
         <div className="pause-overlay">
           <div className="pause-content">
             {isGameOver ? (
               <>
                 <h2>Game Over</h2>
                 <p>Score: <strong>{score}</strong> • Wave: <strong>{wave}</strong></p>
+                <p className="small">Best — Score: <strong>{bestScore}</strong> • Wave: <strong>{bestWave}</strong></p>
                 <div style={{height:10}} />
                 <button
                   className="button"
@@ -2394,19 +3563,34 @@ export default function App() {
         </div>
       )}
 
-      {/* Pickup popups */}
-      {pickupPopups.map(popup => (
-        <PickupPopup 
-          key={popup.id} 
-          pickup={popup.pickup} 
-          onComplete={() => removePickupPopup(popup.id)}
-        />
-      ))}
+      {/* Feeds & overlays */}
+      {/* Top-right stack: HUD + pickup feed */}
+      <div className="hud-stack">
+        <div className="hud small">
+          <div>Enemies: {enemies.length}</div>
+          <div>Flying: {enemies.filter(e => e.isFlying).length}</div>
+          <div>Pickups: {pickups.length}</div>
+          <div>Bullets: {bullets.length}</div>
+          <div>Status: {isPaused ? 'PAUSED' : 'PLAYING'}</div>
+          <div>Scheme: {controlScheme.toUpperCase()}</div>
+          <div>Speed: Enemies x{enemySpeedScale.toFixed(2)} • Player {playerBaseSpeed}</div>
+          <div>Play time: {formatHMS(totalPlayMsView)}</div>
+        </div>
+        <div className="feed feed-pickups small">
+          {pickupFeed.map(msg => (
+            <div key={msg.id} className="feed-item" style={{ '--dot': msg.color }}>
+              <div className="feed-dot" />
+              <div style={{ color: msg.color }}>{msg.text}</div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div className="ui">
         <div className="small">Wave: <strong>{wave}</strong></div>
         <div className="small">Score: <strong>{score}</strong></div>
-  <div className="small">Lives: <strong>{lives}</strong></div>
+        <div className="small">Best: <strong>{bestScore}</strong> / <strong>{bestWave}</strong></div>
+        <div className="small">Lives: <strong>{lives}</strong></div>
         <div className="small">Health: <strong>{health}</strong></div>
         <div style={{height:8}} />
         <button className="button" onClick={restartGame}>Restart</button>
@@ -2435,25 +3619,44 @@ export default function App() {
         <div style={{height:6}} />
   <div className="small">Controls: D-Buttons (default) or WASD • Mouse aim & click to shoot</div>
         <div className="small">F to toggle Auto-Fire • ESC/SPACE to pause</div>
+        <div style={{height:10}} />
+        <div className="abilities-panel small">
+          <div className="ability">
+            <div className="label">Dash <span className="hint">[3]</span></div>
+            <div className="cooldown">
+              {(() => { const pct = Math.max(0, Math.min(1, 1 - (dashCooldownMs / 10000))); return (
+                <>
+                  <div className="fill" style={{ width: `${Math.round(pct*100)}%` }} />
+                  <div className="cd-text">{dashCooldownMs > 0 ? `${(dashCooldownMs/1000).toFixed(1)}s` : 'Ready'}</div>
+                </>
+              )})()}
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="hud small">
-        <div>Enemies: {enemies.length}</div>
-        <div>Pickups: {pickups.length}</div>
-        <div>Bullets: {bullets.length}</div>
-        <div>Status: {isPaused ? 'PAUSED' : 'PLAYING'}</div>
-        <div>Scheme: {controlScheme.toUpperCase()}</div>
-      </div>
+      
 
-      {/* Control guide */}
-      <div className="control-guide">
-        <div className="title">Controls</div>
-        <div className="row">Move: D-Buttons (default) or WASD/Arrow Keys</div>
-        <div className="row">Aim: Mouse pointer • Fire: Left click</div>
-        <div className="row">Jump: Ctrl/Enter (hold for arc) or Right click (hold for arc)</div>
-        <div className="row">Auto-Fire: F • Pause: ESC/SPACE</div>
-        <div className="row">Invulnerability: collect yellow capsule (5s) • Auto-follow ring: hold 1 (CCW) or 2 (CW)</div>
-        <div className="row">Camera: 9 Follow • 0 Static (zoom) • 8 Top-Down</div>
+      {/* Left-bottom stack: Boss feed above control guide */}
+      <div className="left-bottom-stack">
+        <div className="feed feed-bosses small">
+          {bossFeed.map(msg => (
+            <div key={msg.id} className="feed-item" style={{ '--dot': msg.color }}>
+              <div className="feed-dot" />
+              <div style={{ color: msg.color }}>{msg.text}</div>
+            </div>
+          ))}
+        </div>
+        {/* Control guide */}
+        <div className="control-guide">
+          <div className="title">Controls</div>
+          <div className="row">Move: D-Buttons (default) or WASD/Arrow Keys</div>
+          <div className="row">Aim: Mouse pointer • Fire: Left click</div>
+          <div className="row">Jump: Ctrl/Enter (hold for arc) or Right click (hold for arc)</div>
+          <div className="row">Auto-Fire: F • Pause: ESC/SPACE</div>
+          <div className="row">Invulnerability: collect yellow capsule (5s) • Auto-follow ring: hold 1 (CCW) or 2 (CW)</div>
+          <div className="row">Camera: 9 Follow • 0 Static (zoom) • 8 Top-Down</div>
+        </div>
       </div>
 
     </div>
@@ -2518,6 +3721,61 @@ function AOEBlast({ pos, start, radius = 9, onDone }) {
   )
 }
 
+// Bomb entity: arcs up then down; on ground, stuns and damages enemies that collide; detonates 2s after landing
+function Bomb({ data, isPaused, onUpdate, onExplode, onHitEnemy }) {
+  const ref = useRef()
+  const hitSet = useRef(new Set())
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x111111, roughness: 0.8 }), [])
+  const geom = useMemo(() => new THREE.SphereGeometry(0.36, 12, 12), [])
+  useFrame((_, dt) => {
+    if (!ref.current || isPaused) return
+    const { id, state } = data
+    if (state === 'air') {
+      // integrate physics
+      const vx = data.vel[0]
+      const vy = data.vel[1] - BOMB_GRAVITY * dt
+      const vz = data.vel[2]
+      const x = data.pos[0] + vx * dt
+      let y = data.pos[1] + vy * dt
+      const z = data.pos[2] + vz * dt
+      if (y <= 0.5) {
+        y = 0.5
+        onUpdate(id, { pos: [x, y, z], vel: [vx, 0, vz], state: 'ground', landedAt: performance.now(), explodeAt: performance.now() + 2000 })
+      } else {
+        onUpdate(id, { pos: [x, y, z], vel: [vx, vy, vz] })
+      }
+      if (ref.current) ref.current.position.set(x, y, z)
+    } else if (state === 'ground') {
+      const now = performance.now()
+      if (now >= (data.explodeAt || 0)) {
+        onExplode(data.id, data.pos)
+        return
+      }
+      // contact stun+damage
+      if (window.gameEnemies) {
+        const cx = data.pos[0], cz = data.pos[2]
+        const r2 = BOMB_CONTACT_RADIUS * BOMB_CONTACT_RADIUS
+        window.gameEnemies.forEach(ge => {
+          if (!ge?.ref?.current) return
+          const ex = ge.ref.current.position.x
+          const ez = ge.ref.current.position.z
+          const dx = ex - cx
+          const dz = ez - cz
+          if (dx*dx + dz*dz <= r2 && !hitSet.current.has(ge.id)) {
+            hitSet.current.add(ge.id)
+            ge.stun?.(BOMB_STUN_MS)
+            onHitEnemy && onHitEnemy(ge.id)
+          }
+        })
+      }
+      if (ref.current) ref.current.position.set(data.pos[0], data.pos[1], data.pos[2])
+    }
+  })
+  return (
+    <mesh ref={ref} position={data.pos} geometry={geom} material={mat} />
+  )
+}
+
 // Visual rim/fence around the play area to signal the boundary
 function BoundaryCue({ limit = 40, isPaused }) {
   const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: 0x3366ff, transparent: true, opacity: 0.28, side: THREE.DoubleSide }), [])
@@ -2565,6 +3823,31 @@ function HpFloater({ amount, start, playerPosRef, onDone }) {
     <Text ref={ref} fontSize={0.6} color={color} anchorX="center" anchorY="middle">
       {text}
     </Text>
+  )
+}
+
+// Buff/debuff indicators stacked above the player
+function BuffIndicators({ playerPosRef, items = [] }) {
+  const baseY = 2.2
+  const gap = 0.36
+  const bgMat = useMemo(() => new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45 }), [])
+  const bgGeom = useMemo(() => new THREE.PlaneGeometry(1.2, 0.28), [])
+  return (
+    <group position={[0, 0, 0]}
+      onUpdate={self => {
+        const p = playerPosRef.current
+        if (p && self) self.position.set(p.x, baseY, p.z)
+      }}
+    >
+      {items.map((it, i) => (
+        <group key={it.key} position={[0, i * gap, 0]}>
+          <mesh position={[0, 0, 0]} geometry={bgGeom} material={bgMat} />
+          <Text position={[0, 0, 0.01]} fontSize={0.22} color={it.color || '#ffffff'} anchorX="center" anchorY="middle">
+            {it.label}
+          </Text>
+        </group>
+      ))}
+    </group>
   )
 }
 
@@ -2631,7 +3914,7 @@ function InvulnRing({ radius = 12, isPaused, shape = 'circle' }) {
 }
 
 // Camera rig that follows the player with smoothing and always looks at them
-function CameraRig({ playerPosRef, isPaused, offset = new THREE.Vector3(0, 35, 30) }) {
+function CameraRig({ playerPosRef, isPaused, offset = new THREE.Vector3(0, 35, 30), isDashing = false, boostUntilMs = 0 }) {
   const { camera } = useThree()
   const targetPos = useRef(new THREE.Vector3())
   const lastPos = useRef(new THREE.Vector3().copy(camera.position))
@@ -2642,7 +3925,10 @@ function CameraRig({ playerPosRef, isPaused, offset = new THREE.Vector3(0, 35, 3
     targetPos.current.set(p.x + offset.x, p.y + offset.y, p.z + offset.z)
     // dynamic catch-up: speed up when far
     const dist = lastPos.current.distanceTo(targetPos.current)
-    const lerpK = Math.max(0.08, Math.min(0.30, dist * 0.02))
+    const boostActive = isDashing || (performance.now() < (boostUntilMs || 0))
+    const baseK = Math.max(0.08, Math.min(0.30, dist * 0.02))
+    const dashK = Math.max(0.25, Math.min(0.70, dist * 0.05))
+    const lerpK = boostActive ? dashK : baseK
     lastPos.current.lerp(targetPos.current, 1 - Math.exp(-lerpK * (dt * 60)))
     camera.position.copy(lastPos.current)
     camera.lookAt(p.x, p.y, p.z)
@@ -2661,12 +3947,26 @@ function StaticCameraRig({ position = [0, 60, 80], target = [0, 0, 0] }) {
 }
 
 // Top-down camera that stays above the player and looks straight down for a 2D-style view
-function TopDownRig({ playerPosRef, height = 120 }) {
-  const { camera } = useThree()
+function TopDownRig({ playerPosRef }) {
+  const { camera, size } = useThree()
+  const heightRef = useRef(120)
+  const computeHeight = useCallback(() => {
+    // Ensure the entire arena fits within the viewport.
+    // For a perspective camera looking straight down, the ground coverage radius is h * tan(fov/2).
+    // To fit a square of side 2*BOUNDARY_LIMIT, we need radius >= sqrt(2)*BOUNDARY_LIMIT.
+    const fovRad = THREE.MathUtils.degToRad(camera.fov || 75)
+    const required = (Math.SQRT2 * BOUNDARY_LIMIT) / Math.tan(fovRad / 2)
+    // Add a small margin so edges aren't clipped
+    return required * 1.05
+  }, [camera])
+  useEffect(() => {
+    heightRef.current = computeHeight()
+  }, [computeHeight, size.width, size.height])
   useFrame(() => {
     const p = playerPosRef.current
     if (!p) return
-    camera.position.set(p.x, height, p.z + 0.0001)
+    const h = heightRef.current
+    camera.position.set(p.x, h, p.z + 0.0001)
     camera.lookAt(p.x, 0.5, p.z)
   })
   return null

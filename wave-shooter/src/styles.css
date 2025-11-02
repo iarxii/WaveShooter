@@ -41,6 +41,76 @@ body,
     text-align: right
 }
 
+/* Stacked HUD + pickup feed container (top-right) */
+.hud-stack {
+    position: absolute;
+    right: 16px;
+    top: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    z-index: 150;
+}
+.hud-stack .hud {
+    position: static; /* override absolute when stacked */
+}
+
+/* Left-bottom stack: boss feed above control guide */
+.left-bottom-stack {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    z-index: 150;
+}
+.left-bottom-stack .control-guide {
+    position: static; /* let it flow within stack */
+}
+
+/* Generic feed containers */
+.feed {
+    background: rgba(0,0,0,0.45);
+    padding: 8px 10px;
+    border-radius: 8px;
+    max-width: 320px;
+}
+.feed .feed-item {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.3;
+    color: rgba(255,255,255,0.9);
+    margin: 2px 0;
+}
+.feed .feed-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--dot, #fff);
+    box-shadow: 0 0 8px var(--dot, #fff);
+}
+
+/* Abilities panel */
+.abilities-panel {
+    background: rgba(0,0,0,0.45);
+    padding: 8px 10px;
+    border-radius: 8px;
+    width: 260px;
+}
+.abilities-panel .ability { margin-bottom: 6px; }
+.abilities-panel .ability:last-child { margin-bottom: 0; }
+.abilities-panel .label { font-weight: 600; margin-bottom: 4px; }
+.abilities-panel .hint { opacity: 0.8; font-weight: 400; margin-left: 6px; }
+.abilities-panel .cooldown { position: relative; height: 10px; background: rgba(255,255,255,0.12); border-radius: 6px; overflow: hidden; }
+.abilities-panel .cooldown .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); box-shadow: 0 0 10px rgba(34,197,94,0.6); }
+.abilities-panel .cooldown .cd-text { margin-top: 4px; font-size: 11px; opacity: 0.9; }
+
 .button {
     background: #111;
     color: #fff;
@@ -141,7 +211,7 @@ body,
     top: 12%;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.3);
     padding: 1rem 1.5rem;
     border-radius: 8px;
     border: 2px solid var(--popup-color, #22c55e);

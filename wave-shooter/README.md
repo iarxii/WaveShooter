@@ -1,3 +1,41 @@
+# Wave Shooter — New Enemies, Shield, and QoL
+
+This update adds a Pipe (cylinder) boss that spawns flying drones, a Cluster boss that splits into minions, a boundary-jump shield, a milestone Life pickup, confetti on new highs, and persistence for play time and control scheme.
+
+## New enemies
+
+- PipeBoss: rises for ~3s, then launches 2–6 flying drones every 4–6s near arena edges/corners; low HP compared to other bosses.
+- FlyingDrone: red capsule with tips; orbits while tracking the player and dives when close or after ~5s. Immune to bullets, bombs, and invuln DoT; killable by boundary-jump collision or self-destruct on ground impact.
+- ClusterBoss: clump of red orbs (boss) with modest HP. On death, splits into 4–6 standard minion orbs.
+
+## Mobility and difficulty
+
+- Speed caps: Player base speed capped at 65; enemy speed modifier capped at 1.6×.
+- Restart resets both player speed and enemy speed modifier to baseline.
+
+## Shield and pickups
+
+- Boundary jump invulnerability shows a faint shield around the player while airborne.
+- Invulnerability pickup (shape runner) now grants 2s of extra protection after the auto-arc landing.
+- Life pickup: rare spawn every 3 waves (milestone); grants +1 life (up to 5).
+
+## HUD and feedback
+
+- HUD shows current flying drone count and the speed indicators: “Enemies xS • Player P”.
+- Confetti bursts celebrate a new high score once per run.
+ - New Abilities panel shows Dash cooldown and status.
+
+## Persistence
+
+- Control scheme is persisted to localStorage and restored on reload.
+- Best score, best wave, and total play time (ms) are persisted in localStorage.
+
+## Performance notes
+
+- Drones capped to 16 active; drones share geometries and materials to reduce allocations.
+- Trails use a small, fixed node count and are only active during dives.
+- Confetti uses InstancedMesh for a short-lived, lightweight burst.
+
 # Wave Shooter: Healthcare Heroes
 
 A clean, fast top-down wave shooter built with React, Vite, and three.js. You play as healthcare-inspired heroes who repel waves of mutagens and viruses. Enemies emerge through directional portals that open around you, drop in from above, and then engage.
@@ -24,6 +62,7 @@ Open the printed local URL in your browser.
 - Pause: ESC or SPACE
  - Camera modes: 9 Follow • 0 Static (zoom enabled) • 8 Top-Down (2D-style)
  - Shape runner follow (during Invulnerability): hold 1 = CCW • hold 2 = CW
+ - Dash: press 3 to perform a fast dash (~0.25s) covering roughly 20% of the arena. 10s cooldown. Grants brief invulnerability during the dash and pushes nearby enemies away.
 
 ### Accessibility
 - Control scheme toggle:
@@ -51,6 +90,7 @@ See `ACCESSIBILITY.md` for details and roadmap.
 - Auto-aim (Follow and Top-Down camera modes):
 	- Prefers aiming at nearby clusters (centroid) at short/mid range; otherwise targets the highest-priority enemy (cone > boss > minion) at long range.
  - Edge launch + ground slam: hitting the play-space boundary launches you up and forward toward the cursor; landing triggers a 2s AOE shockwave that pushes enemies back.
+ - Dash ability (3): while off cooldown, dash in your aim direction to quickly reposition; you are invulnerable during the dash window and nearby enemies are pushed aside.
 
 ## Tuning knobs
 Edit `src/App.jsx` constants to balance feel and difficulty:
