@@ -17,7 +17,7 @@ A fast, top-down wave shooter where you play as healthcare-inspired heroes comba
 ## Enemy design (mutagens)
 - Minions: common chasers that coordinate loosely and avoid clustering.
 - Boss (Hex/"Pathogen"): heavier units that push and absorb more damage.
-- Triangle Boss: periodic elite with charge/circle behaviors that tests positioning.
+- Triangle Boss: periodic elite with charge/circle behaviors; cannot be damaged during its charge to avoid mid-dash despawns.
 
 ## Portal-based spawning (requested)
 - Enemies no longer appear randomly around the player.
@@ -27,25 +27,31 @@ A fast, top-down wave shooter where you play as healthcare-inspired heroes comba
 
 ## Movement & combat
 - WASD to move; mouse to aim; left-click to shoot.
-- Optional auto-fire toggle (F) to maintain fire at a fixed rate while aiming.
+- Auto-fire default ON; toggle with F.
+- Camera modes: Follow (9), Static with zoom (0), Top-Down (8).
+- Auto-aim (Follow/Top-Down): prioritizes nearby clusters at short/mid range, otherwise picks highest-priority long-range target (cone > boss > minion).
 - Bullets use object pooling for performance.
 - Knockback on hit provides separation; scaled by distance for punchy close-range hits.
 
 ## Pickups
 - Health packs (+25 Health)
-- Power-ups (+50 Score)
-- Collected by proximity; pop-ups briefly describe the item and effect.
+- Power-ups (+50 to +100 Score, weighted toward 50–80)
+- Invulnerability (5s) — enables "shape runner" with circle/hexagon/rectangle and shape DoT while active; hold 1 (CCW) or 2 (CW) to auto-follow the ring.
+- While holding 1/2 during invulnerability, shots become yellow stun bullets (no damage) that briefly stun enemies.
+- Pickups are proximity-based with brief pop-ups.
 
 ## Waves & pacing
 - Waves arrive on a fixed cadence.
 - Within a wave, portals open and spawn staggered batches.
 - Every few waves, a Triangle Boss enters via a dedicated portal.
 - The game respects pause state—spawns won’t backlog while paused.
+- Pickup economy: health probability reduced ~30% to keep runs readable and reduce on-field clutter; a MAX_PICKUPS cap limits concurrent pickups for FPS.
 
 ## UI & feedback
-- Minimal clean HUD: wave, score, health.
+- Minimal clean HUD: wave, score, health, lives.
 - Aim ray for clarity; ground grid for orientation.
-- Pause overlay with clear resume prompt.
+- Camera controls hint: 9 Follow • 0 Static (zoom) • 8 Top-Down; Invulnerability ring follow: hold 1/2.
+- Pause overlay with clear resume/restart prompts and life-lost countdown.
 
 ## Tuning knobs (selected)
 - Bullet: speed, lifetime, fire rate, pool size.

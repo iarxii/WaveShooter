@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Stats, Text } from '@react-three/drei'
 import * as THREE from 'three'
 
@@ -7,7 +7,9 @@ import * as THREE from 'three'
 const PLAYER_SPEED = 26 // faster than minions to keep mobility advantage
 const SPEED_DEBUFF_FACTOR = 0.6
 const SPEED_DEBUFF_DURATION_MS = 4000
-const BOUNDARY_LIMIT = 40
+const BOUNDARY_LIMIT = 50
+// Decoupled shape path radius for invulnerability runner (independent of arena boundary)
+const SHAPE_PATH_RADIUS = 24
 const ENEMY_SPEED = 18
 const RUNNER_SPEED_MULTIPLIER = 1.6
 const BOSS_SPEED = 6
@@ -19,6 +21,7 @@ const FIRE_RATE = 200 // ms between shots
 const BULLET_POOL_SIZE = 50
 const PICKUP_COLLECT_DISTANCE = 3.8
 const AIM_RAY_LENGTH = 8
+const MAX_PICKUPS = 25 // cap concurrent pickups to optimize memory and FPS
 // Speed tuning helpers (normalize new high speeds against a baseline feel)
 const SPEED_TUNING_BASE = 12 // reference player speed used for original tuning
 const SPEED_SCALE = Math.max(0.5, PLAYER_SPEED / SPEED_TUNING_BASE)
@@ -85,7 +88,9 @@ function PickupPopup({ pickup, onComplete }) {
     ? { name: 'Health Pack', effect: '+25 Health', color: '#22c55e' }
     : pickup.type === 'power'
       ? { name: 'Power Up', effect: `+${pickup.amount ?? 50} Score`, color: '#60a5fa' }
-      : { name: 'Debuff', effect: 'Speed Reduced -40% (4s)', color: '#f97316' }
+      : pickup.type === 'invuln'
+        ? { name: 'Invulnerability', effect: 'Immune (5s)', color: '#facc15' }
+        : { name: 'Debuff', effect: 'Speed Reduced -40% (4s)', color: '#f97316' }
   
   return (
     <div 
@@ -234,13 +239,15 @@ function Pickup({ pos, type, amount=50, lifetimeMaxSec=20, onCollect, onExpire, 
     <mesh ref={ref} position={pos}>
       {type === 'health' ? (
         <boxGeometry args={[0.5, 0.5, 0.5]} />
+      ) : type === 'invuln' ? (
+        <capsuleGeometry args={[0.25, 0.6, 4, 8]} />
       ) : (
         isDiamond ? <octahedronGeometry args={[0.5, 0]} /> : <boxGeometry args={[0.5, 0.5, 0.5]} />
       )}
       <meshStandardMaterial 
-        color={type === 'health' ? 0x22c55e : 0x60a5fa}
-        emissive={type === 'power' && isDiamond ? 0x224466 : (type === 'health' ? 0x001100 : 0x000044)}
-        emissiveIntensity={type === 'power' && isDiamond ? 1.5 : 0.4}
+        color={type === 'health' ? 0x22c55e : (type === 'invuln' ? 0xfacc15 : 0x60a5fa)}
+        emissive={type === 'power' && isDiamond ? 0x224466 : (type === 'health' ? 0x001100 : (type === 'invuln' ? 0x443300 : 0x000044))}
+        emissiveIntensity={type === 'power' && isDiamond ? 1.5 : (type === 'invuln' ? 0.9 : 0.4)}
       />
     </mesh>
   )
@@ -266,7 +273,7 @@ function Portal({ pos, isPaused }) {
 }
 
 // Player (simple rectangle box) with WASD movement and mouse aiming
-function Player({ position, setPositionRef, onShoot, isPaused, autoFire, controlScheme = 'dpad', moveInputRef, moveSourceRef, onSlam, highContrast=false, portals=[], onDebuff }) {
+function Player({ position, setPositionRef, onShoot, isPaused, autoFire, controlScheme = 'dpad', moveInputRef, moveSourceRef, onSlam, highContrast=false, portals=[], onDebuff, autoFollow, arcTriggerToken, autoAimEnabled=false }) {
   const ref = useRef()
   const lastShot = useRef(0)
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
@@ -299,6 +306,7 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
   const landingGeom = useMemo(() => new THREE.RingGeometry(0.7, 0.8, 32), [])
   const debuffTimer = useRef(0) // seconds remaining for speed debuff
   const portalHitCooldown = useRef(0)
+  const lastArcToken = useRef(0)
   
   useEffect(() => {
     if (isPaused) return
@@ -445,52 +453,174 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
     }
   }, [isPaused])
 
-  // Auto-fire loop: when enabled, fire at FIRE_RATE using current aim
+  // Trigger an external arc jump when arcTriggerToken increments
   useEffect(() => {
-    if (!autoFire || isPaused) return
-    let cancelled = false
-    const interval = setInterval(() => {
-      if (cancelled || isPaused || !ref.current) return
-      const now = performance.now()
-      if (now - lastShot.current > FIRE_RATE) {
-        lastShot.current = now
+    if (!ref.current) return
+    if (arcTriggerToken && arcTriggerToken !== lastArcToken.current) {
+      lastArcToken.current = arcTriggerToken
+      // Same arc jump used in boundary launch: hop forward along aim
+      airVelY.current = LAUNCH_UP_VEL
+      const totalLen = 2 * BOUNDARY_LIMIT
+      const desired = Math.max(4, LAUNCH_TARGET_FRACTION * totalLen)
+      const target = new THREE.Vector3().copy(ref.current.position).addScaledVector(aimDirRef.current, desired)
+      const margin = 1.0
+      target.x = Math.max(Math.min(target.x, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
+      target.z = Math.max(Math.min(target.z, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
+      const disp = new THREE.Vector3().subVectors(target, ref.current.position)
+      const dispLen = Math.max(0.001, Math.hypot(disp.x, disp.z))
+      airFwdDir.current.set(disp.x / dispLen, 0, disp.z / dispLen)
+      const tFlight = (2 * LAUNCH_UP_VEL) / GRAVITY
+      airFwdVel.current = dispLen / tFlight
+      slamArmed.current = true
+    }
+  }, [arcTriggerToken])
+
+  // Auto-fire using the render loop for reliability instead of setInterval
+  const autoFireTimerRef = useRef(0)
+
+  // Rotate player smoothly to face mouse (projected onto ground) or face shape origin when auto-following
+  useFrame((state, dt) => {
+    if (!ref.current || isPaused) return
+
+    // Auto-fire cadence (FIRE_RATE) using accumulated dt
+    if (autoFire) {
+      autoFireTimerRef.current += dt * 1000
+      if (autoFireTimerRef.current >= FIRE_RATE) {
+        autoFireTimerRef.current = 0
         const dir = forward.current
           .set(0, 0, -1)
           .applyQuaternion(ref.current.quaternion)
         dir.y = 0
         dir.normalize()
+        lastShot.current = performance.now()
         onShoot(ref.current.position, [dir.x, 0, dir.z])
       }
-    }, 20)
-    return () => { cancelled = true; clearInterval(interval) }
-  }, [autoFire, isPaused, onShoot])
-
-  // Rotate player smoothly to face mouse (projected onto ground) and draw aim ray
-  useFrame((state, dt) => {
-    if (!ref.current || isPaused) return
+    } else {
+      // reset timer when disabled to avoid burst on re-enable
+      autoFireTimerRef.current = 0
+    }
     
-    // Update raycaster from pointer and find intersection on ground plane
-    state.raycaster.setFromCamera(state.pointer, state.camera)
-    const hit = state.raycaster.ray.intersectPlane(plane, aimPoint.current)
-    if (hit) {
-      // Direction from player to aim point
-      tmpDir.current.subVectors(aimPoint.current, ref.current.position)
-      tmpDir.current.y = 0
+    if (autoFollow && autoFollow.active) {
+      // Face toward the shape origin (center)
+      const cx = (autoFollow.center?.[0] ?? 0)
+      const cz = (autoFollow.center?.[2] ?? 0)
+      tmpDir.current.set(cx - ref.current.position.x, 0, cz - ref.current.position.z)
       if (tmpDir.current.lengthSq() > 1e-6) {
-        // planar aim dir for boundary launch
-        aimDirRef.current.copy(tmpDir.current).normalize()
-        // Add PI to face the pointer (fix inverted forward vs. -Z default)
+        aimDirRef.current.copy(tmpDir.current).normalize() // also align arc launch direction
         const targetYaw = Math.atan2(tmpDir.current.x, tmpDir.current.z) + Math.PI
-        // Exponential damping for smooth rotation
         const diff = ((targetYaw - lastYaw.current + Math.PI) % (Math.PI * 2)) - Math.PI
         lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-10 * dt))
         ref.current.rotation.y = lastYaw.current
+      }
+    } else if (autoAimEnabled) {
+      // Auto-aim: prefer cluster center at short/mid range, else highest-priority enemy at long range
+      const p = ref.current.position
+      let target = null
+      let targetIsCluster = false
+      const SHORT_RANGE = 10
+      const MID_RANGE = 18
+      const LONG_RANGE = 36
+      let cx = 0, cz = 0, ccount = 0
+      if (window.gameEnemies && window.gameEnemies.length) {
+        for (const ge of window.gameEnemies) {
+          if (!ge?.ref?.current) continue
+          const ex = ge.ref.current.position.x
+          const ez = ge.ref.current.position.z
+          const dx = ex - p.x
+          const dz = ez - p.z
+          const d2 = dx*dx + dz*dz
+          if (d2 <= MID_RANGE*MID_RANGE) {
+            cx += ex; cz += ez; ccount++
+          }
+        }
+        // Large pull near us -> aim at centroid
+        if (ccount >= 5) {
+          cx /= ccount; cz /= ccount
+          target = { x: cx, z: cz }
+          targetIsCluster = true
+        } else {
+          // Highest level at long range
+          let best = null
+          for (const ge of window.gameEnemies) {
+            if (!ge?.ref?.current) continue
+            const ex = ge.ref.current.position.x
+            const ez = ge.ref.current.position.z
+            const dx = ex - p.x
+            const dz = ez - p.z
+            const d2 = dx*dx + dz*dz
+            if (d2 > LONG_RANGE*LONG_RANGE) continue
+            // Priority: cone > boss (includes triangle boss) > minion
+            let pri = 1
+            if (ge.isCone) pri = 3
+            else if (ge.isBoss) pri = 2
+            // Score prioritizes level first, distance second
+            const score = pri * 10000 - d2
+            if (!best || score > best.score) best = { score, x: ex, z: ez }
+          }
+          if (best) target = { x: best.x, z: best.z }
+        }
+      }
 
-        // Dynamic width based on aim distance (clamped)
-        const dist = tmpDir.current.length()
-        if (rayRef.current) {
-          const width = baseRayThickness + Math.min(dist / 12, 1) * 0.14 // ~0.08 to ~0.22
-          rayRef.current.scale.x = width // geometry is 1 unit wide by default
+      if (target) {
+        tmpDir.current.set(target.x - p.x, 0, target.z - p.z)
+        if (tmpDir.current.lengthSq() > 1e-6) {
+          aimDirRef.current.copy(tmpDir.current).normalize()
+          const targetYaw = Math.atan2(tmpDir.current.x, tmpDir.current.z) + Math.PI
+          const diff = ((targetYaw - lastYaw.current + Math.PI) % (Math.PI * 2)) - Math.PI
+          lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-10 * dt))
+          ref.current.rotation.y = lastYaw.current
+          // widen beam based on target distance
+          if (rayRef.current) {
+            const dist = Math.min(tmpDir.current.length(), MID_RANGE)
+            const width = baseRayThickness + Math.min(dist / 12, 1) * 0.14
+            rayRef.current.scale.x = width
+          }
+        }
+      } else {
+        // fallback to pointer if no auto-aim target
+        state.raycaster.setFromCamera(state.pointer, state.camera)
+        const hit = state.raycaster.ray.intersectPlane(plane, aimPoint.current)
+        if (hit) {
+          tmpDir.current.subVectors(aimPoint.current, ref.current.position)
+          tmpDir.current.y = 0
+          if (tmpDir.current.lengthSq() > 1e-6) {
+            aimDirRef.current.copy(tmpDir.current).normalize()
+            const targetYaw = Math.atan2(tmpDir.current.x, tmpDir.current.z) + Math.PI
+            const diff = ((targetYaw - lastYaw.current + Math.PI) % (Math.PI * 2)) - Math.PI
+            lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-10 * dt))
+            ref.current.rotation.y = lastYaw.current
+            const dist = tmpDir.current.length()
+            if (rayRef.current) {
+              const width = baseRayThickness + Math.min(dist / 12, 1) * 0.14
+              rayRef.current.scale.x = width
+            }
+          }
+        }
+      }
+    } else {
+      // Update raycaster from pointer and find intersection on ground plane
+      state.raycaster.setFromCamera(state.pointer, state.camera)
+      const hit = state.raycaster.ray.intersectPlane(plane, aimPoint.current)
+      if (hit) {
+        // Direction from player to aim point
+        tmpDir.current.subVectors(aimPoint.current, ref.current.position)
+        tmpDir.current.y = 0
+        if (tmpDir.current.lengthSq() > 1e-6) {
+          // planar aim dir for boundary launch
+          aimDirRef.current.copy(tmpDir.current).normalize()
+          // Add PI to face the pointer (fix inverted forward vs. -Z default)
+          const targetYaw = Math.atan2(tmpDir.current.x, tmpDir.current.z) + Math.PI
+          // Exponential damping for smooth rotation
+          const diff = ((targetYaw - lastYaw.current + Math.PI) % (Math.PI * 2)) - Math.PI
+          lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-10 * dt))
+          ref.current.rotation.y = lastYaw.current
+
+          // Dynamic width based on aim distance (clamped)
+          const dist = tmpDir.current.length()
+          if (rayRef.current) {
+            const width = baseRayThickness + Math.min(dist / 12, 1) * 0.14 // ~0.08 to ~0.22
+            rayRef.current.scale.x = width // geometry is 1 unit wide by default
+          }
         }
       }
     }
@@ -513,6 +643,90 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
       if (Math.abs(extMx) > 0.001 || Math.abs(extMz) > 0.001) { mx = extMx; mz = extMz }
       else { mx = keyMx; mz = keyMz }
     }
+    // Auto-follow path override: follow edges of selected shape (circle/triangle/rectangle)
+    if (autoFollow && autoFollow.active) {
+      const cx = (autoFollow.center?.[0] ?? 0)
+      const cz = (autoFollow.center?.[2] ?? 0)
+      const px = ref.current.position.x
+      const pz = ref.current.position.z
+      const shape = autoFollow.shape || 'circle'
+      const r = Math.max(0.001, autoFollow.radius || 1)
+      const dirSign = autoFollow.dirSign || 1
+
+      const clampStep = (v, maxStep) => Math.max(-maxStep, Math.min(maxStep, v))
+
+      if (shape === 'circle') {
+        let dx = px - cx
+        let dz = pz - cz
+        const len = Math.hypot(dx, dz)
+        if (len < 0.001) { dx = 1; dz = 0 }
+        // tangent (CCW default); dirSign=-1 flips to clockwise
+        let tx = -dz * dirSign
+        let tz = dx * dirSign
+        const tlen = Math.hypot(tx, tz) || 1
+        mx = tx / tlen; mz = tz / tlen
+        // smooth radial correction: add as velocity bias for smoothness
+        const radialErr = r - len
+        if (Math.abs(radialErr) > 0.001) {
+          const rx = dx / (len || 1)
+          const rz = dz / (len || 1)
+          const corrGain = 2.5 // lower gain for smoother glue to path
+          mx += rx * radialErr * corrGain * dt
+          mz += rz * radialErr * corrGain * dt
+        }
+      } else {
+        // Polygon path (hexagon/rectangle): compute nearest point on perimeter and edge tangent
+        const segs = []
+        if (shape === 'hexagon') {
+          const verts = []
+          for (let i = 0; i < 6; i++) {
+            const a = (-Math.PI / 2) + i * (2 * Math.PI / 6) // start at top, CCW order; dirSign flips for CW
+            verts.push([cx + Math.cos(a) * r, cz + Math.sin(a) * r])
+          }
+          for (let i = 0; i < 6; i++) {
+            const a0 = verts[i], a1 = verts[(i + 1) % 6]
+            segs.push([a0[0], a0[1], a1[0], a1[1]])
+          }
+        } else {
+          const hx = r
+          const hz = r * 0.7
+          const v = [
+            [cx + hx, cz + hz],
+            [cx - hx, cz + hz],
+            [cx - hx, cz - hz],
+            [cx + hx, cz - hz],
+          ]
+          for (let i = 0; i < 4; i++) {
+            const a0 = v[i], a1 = v[(i + 1) % 4]
+            segs.push([a0[0], a0[1], a1[0], a1[1]])
+          }
+        }
+        let best = null
+        for (const s of segs) {
+          const [x1, z1, x2, z2] = s
+          const vx = x2 - x1, vz = z2 - z1
+          const denom = vx * vx + vz * vz || 1
+          let t = ((px - x1) * vx + (pz - z1) * vz) / denom
+          t = Math.max(0, Math.min(1, t))
+          const nx = x1 + t * vx
+          const nz = z1 + t * vz
+          const dx = px - nx
+          const dz = pz - nz
+          const d2 = dx * dx + dz * dz
+          if (!best || d2 < best.d2) best = { nx, nz, vx, vz, d2 }
+        }
+        if (best) {
+          const elen = Math.hypot(best.vx, best.vz) || 1
+          // tangent along segment; dirSign flips direction
+          mx = (best.vx / elen) * dirSign
+          mz = (best.vz / elen) * dirSign
+          // smooth correction towards nearest point to stick to edge: add to velocity, not position
+          const corrGain = 8.0
+          mx += (best.nx - px) * corrGain * dt
+          mz += (best.nz - pz) * corrGain * dt
+        }
+      }
+    }
   // normalize and compute speed multiplier (runner covers larger area)
   const mlen = Math.hypot(mx, mz) || 1
   mx /= mlen; mz /= mlen
@@ -525,7 +739,7 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
   ref.current.position.x += mx * (PLAYER_SPEED * speedMul) * dt
   ref.current.position.z += mz * (PLAYER_SPEED * speedMul) * dt
 
-    // Boundary detection -> launch
+  // Boundary detection -> launch
     launchCooldown.current = Math.max(0, launchCooldown.current - dt)
     if (launchCooldown.current <= 0) {
       if (ref.current.position.x > BOUNDARY_LIMIT - 0.1 || ref.current.position.x < -BOUNDARY_LIMIT + 0.1 ||
@@ -962,6 +1176,8 @@ function TriangleBoss({ id, pos, playerPosRef, onDie, health, isPaused, spawnHei
       id,
       ref,
       isBoss: true,
+      isTriangle: true,
+      isCharging: () => isCharging.current,
       impulse: (ix = 0, iz = 0, strength = 1) => {
         knockback.current.x += ix * strength
         knockback.current.z += iz * strength
@@ -1189,18 +1405,32 @@ export default function App() {
   const [wave, setWave] = useState(0)
   const [score, setScore] = useState(0)
   const [health, setHealth] = useState(100)
+  const [lives, setLives] = useState(3)
+  const [isGameOver, setIsGameOver] = useState(false)
+  const [respawnCountdown, setRespawnCountdown] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
-  const [autoFire, setAutoFire] = useState(false)
+  const [autoFire, setAutoFire] = useState(true)
   const [pickupPopups, setPickupPopups] = useState([])
   const [portals, setPortals] = useState([])
   const [aoes, setAoes] = useState([]) // ground slam visuals
   const [controlScheme, setControlScheme] = useState('dpad') // 'wasd' | 'dpad' (default to D-Buttons)
-  const [shapeRunner, setShapeRunner] = useState(false)
-  const [shapePattern, setShapePattern] = useState('circle') // 'circle' | 'triangle' | 'rectangle'
+  // Shape Runner feature is now a pickup-only visual; auto-move removed
   const [highContrast, setHighContrast] = useState(false)
   const [hpEvents, setHpEvents] = useState([]) // floating HP change indicators
   const [powerEffect, setPowerEffect] = useState({ active: false, amount: 0 })
   const powerRemainingRef = useRef(0) // ms remaining for effect
+  const [invulnEffect, setInvulnEffect] = useState({ active: false })
+  const invulnRemainingRef = useRef(0)
+  const invulnActiveRef = useRef(false)
+  useEffect(() => { invulnActiveRef.current = invulnEffect.active }, [invulnEffect.active])
+  const [arcTriggerToken, setArcTriggerToken] = useState(0)
+  const [autoFollowHeld, setAutoFollowHeld] = useState(false)
+  const [autoFollowHeld2, setAutoFollowHeld2] = useState(false)
+  const autoFollowHeldRef = useRef(false)
+  const autoFollowHeld2Ref = useRef(false)
+  useEffect(() => { autoFollowHeldRef.current = autoFollowHeld }, [autoFollowHeld])
+  useEffect(() => { autoFollowHeld2Ref.current = autoFollowHeld2 }, [autoFollowHeld2])
+  const [cameraMode, setCameraMode] = useState('follow') // 'follow' | 'static' | 'topdown'
   const enemyId = useRef(1)
   const pickupId = useRef(1)
   const portalId = useRef(1)
@@ -1208,11 +1438,19 @@ export default function App() {
   const bulletPool = useRef(new BulletPool(BULLET_POOL_SIZE))
   const isPausedRef = useRef(isPaused)
   useEffect(() => { isPausedRef.current = isPaused }, [isPaused])
+  const isGameOverRef = useRef(false)
+  useEffect(() => { isGameOverRef.current = isGameOver }, [isGameOver])
+  const respawnRef = useRef(0)
+  useEffect(() => { respawnRef.current = respawnCountdown }, [respawnCountdown])
+  const livesRef = useRef(lives)
+  useEffect(() => { livesRef.current = lives }, [lives])
+  const deathHandledRef = useRef(false)
   const portalTimersRef = useRef([])
   const portalsRef = useRef([])
   useEffect(() => { portalsRef.current = portals.map(p => p.pos) }, [portals])
   // expose a damage function for special enemies (like ConeBoss)
   const damagePlayer = useCallback((dmg) => {
+    if (invulnActiveRef.current) return
     setHealth(h => Math.max(h - (dmg || 1), 0))
     const idEvt = Date.now() + Math.random()
     setHpEvents(evts => [...evts, { id: idEvt, amount: -(dmg || 1), start: performance.now() }])
@@ -1223,18 +1461,14 @@ export default function App() {
     try {
       const cs = localStorage.getItem('controlScheme')
       if (cs === 'wasd' || cs === 'dpad') setControlScheme(cs)
-      const sr = localStorage.getItem('shapeRunner')
-      if (sr != null) setShapeRunner(sr === '1' || sr === 'true')
-      const sp = localStorage.getItem('shapePattern')
-      if (sp === 'circle' || sp === 'triangle' || sp === 'rectangle') setShapePattern(sp)
+  // shapeRunner persisted flags no longer used
       const hc = localStorage.getItem('highContrast')
       if (hc != null) setHighContrast(hc === '1' || hc === 'true')
     } catch { /* ignore */ }
   }, [])
   // Persist on change
   useEffect(() => { try { localStorage.setItem('controlScheme', controlScheme) } catch { /* ignore */ } }, [controlScheme])
-  useEffect(() => { try { localStorage.setItem('shapeRunner', shapeRunner ? '1' : '0') } catch { /* ignore */ } }, [shapeRunner])
-  useEffect(() => { try { localStorage.setItem('shapePattern', shapePattern) } catch { /* ignore */ } }, [shapePattern])
+  // removed shapeRunner persistence
   useEffect(() => { try { localStorage.setItem('highContrast', highContrast ? '1' : '0') } catch { /* ignore */ } }, [highContrast])
   
   // Pause toggling
@@ -1243,9 +1477,19 @@ export default function App() {
       const k = e.key
       if (k === 'Escape' || k === ' ') {
         e.preventDefault()
+        // Disable manual pause toggle during respawn countdown or game over
+        if (isGameOverRef.current || (respawnRef.current && respawnRef.current > 0)) return
         setIsPaused(prev => !prev)
       } else if (k === 'f' || k === 'F') {
         setAutoFire(prev => !prev)
+      } else if (k === '1' || e.code === 'Digit1') {
+        // handled in a dedicated key listener to support keyup as well
+      } else if (k === '0' || e.code === 'Digit0') {
+        setCameraMode('static')
+      } else if (k === '9' || e.code === 'Digit9') {
+        setCameraMode('follow')
+      } else if (k === '8' || e.code === 'Digit8') {
+        setCameraMode('topdown')
       }
     }
 
@@ -1253,6 +1497,24 @@ export default function App() {
     
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
+
+  // Auto-follow ring key handling (hold 1 to ride the ring while invulnerable)
+  useEffect(() => {
+    const onDown = (e) => {
+      if (e.key === '1' || e.code === 'Digit1') setAutoFollowHeld(true)
+      if (e.key === '2' || e.code === 'Digit2') setAutoFollowHeld2(true)
+    }
+    const onUp = (e) => {
+      if (e.key === '1' || e.code === 'Digit1') setAutoFollowHeld(false)
+      if (e.key === '2' || e.code === 'Digit2') setAutoFollowHeld2(false)
+    }
+    window.addEventListener('keydown', onDown)
+    window.addEventListener('keyup', onUp)
+    return () => {
+      window.removeEventListener('keydown', onDown)
+      window.removeEventListener('keyup', onUp)
     }
   }, [])
 
@@ -1390,18 +1652,57 @@ export default function App() {
     if (!direction) return
     // Determine bullet style based on power-up effect
     let style = null
-    if (powerEffect.active) {
+    const stunMode = (invulnEffect.active && (autoFollowHeld || autoFollowHeld2))
+    if (stunMode) {
+      // Yellow stun bullets during invulnerability while following the shape
+      style = { color: 0xfacc15, scale: 1.3, stun: true }
+    } else if (powerEffect.active) {
       const amt = powerEffect.amount
       const scale = 1 + Math.max(0, (amt - 50)) / 50 * 0.5 // 1.0 .. 1.5
       style = { color: 0x66aaff, scale }
     }
-    const bullet = bulletPool.current.getBullet(
-      [playerPosition.x, playerPosition.y + 0.5, playerPosition.z],
-      direction,
-      style
-    )
+
+    const px = playerPosition.x
+    const py = playerPosition.y + 0.5
+    const pz = playerPosition.z
+
+    // If medium-tier power (70..89), emit a triple stream with a slight arc in front
+  if (!stunMode && powerEffect.active && powerEffect.amount >= 70 && powerEffect.amount <= 89) {
+      // Base forward dir
+      const fx = direction[0]
+      const fz = direction[2]
+      // Right vector on XZ plane (perpendicular)
+      let rx = fz
+      let rz = -fx
+      const rlen = Math.hypot(rx, rz) || 1
+      rx /= rlen; rz /= rlen
+
+      // Slight arc emitter positions, ahead of player
+      const ahead = 0.8
+      const side = 0.4
+      const offsetsDeg = [-8, 0, 8]
+      for (let i = 0; i < offsetsDeg.length; i++) {
+        const deg = offsetsDeg[i]
+        const rad = deg * Math.PI / 180
+        const cos = Math.cos(rad)
+        const sin = Math.sin(rad)
+        // rotate forward by small yaw
+        const dx = fx * cos - fz * sin
+        const dz = fx * sin + fz * cos
+        // emitter position forms a shallow arc in front
+        const sx = (i === 0 ? -side : (i === 2 ? side : 0))
+        const ex = px + fx * ahead + rx * sx
+        const ez = pz + fz * ahead + rz * sx
+        bulletPool.current.getBullet([ex, py, ez], [dx, 0, dz], style)
+      }
+      setBullets(bulletPool.current.getActiveBullets())
+      return
+    }
+
+    // Default: single bullet
+    const bullet = bulletPool.current.getBullet([px, py, pz], direction, style)
     if (bullet) setBullets(bulletPool.current.getActiveBullets())
-  }, [powerEffect])
+  }, [powerEffect, invulnEffect.active, autoFollowHeld, autoFollowHeld2])
 
   // Handle bullet expiration
   const handleBulletExpire = useCallback((bulletId) => {
@@ -1428,10 +1729,23 @@ export default function App() {
     if (type === 'power') {
       const amount = weightedPowerAmount() // biased 50..100
       const pos = atPos ?? randPos(30)
-      setPickups(p => [...p, { id, pos, type: 'power', amount, lifetimeMaxSec: 15 }])
+      setPickups(p => {
+        if (p.length >= MAX_PICKUPS) return p
+        return [...p, { id, pos, type: 'power', amount, lifetimeMaxSec: 15 }]
+      })
     } else {
       const pos = atPos ?? randPos(30)
-      setPickups(p => [...p, { id, pos, type: 'health', lifetimeMaxSec: 30 }])
+      if (type === 'health') {
+        setPickups(p => {
+          if (p.length >= MAX_PICKUPS) return p
+          return [...p, { id, pos, type: 'health', lifetimeMaxSec: 30 }]
+        })
+      } else if (type === 'invuln') {
+        setPickups(p => {
+          if (p.length >= MAX_PICKUPS) return p
+          return [...p, { id, pos, type: 'invuln', lifetimeMaxSec: 20 }]
+        })
+      }
     }
   }, [])
 
@@ -1441,18 +1755,24 @@ export default function App() {
       const enemy = prev.find(e => e.id === id)
       // If enemy hit the player, apply contact damage based on type
       if (hitPlayer) {
-        const dmg = enemy?.isTriangle ? CONTACT_DAMAGE.triangle : (enemy?.isBoss ? CONTACT_DAMAGE.boss : CONTACT_DAMAGE.minion)
-        setHealth(h => Math.max(h - (dmg || 1), 0))
-        // show HP change
-        const amount = -(dmg || 1)
-        const idEvt = Date.now() + Math.random()
-        setHpEvents(evts => [...evts, { id: idEvt, amount, start: performance.now() }])
+        if (!invulnActiveRef.current) {
+          const dmg = enemy?.isTriangle ? CONTACT_DAMAGE.triangle : (enemy?.isBoss ? CONTACT_DAMAGE.boss : CONTACT_DAMAGE.minion)
+          setHealth(h => Math.max(h - (dmg || 1), 0))
+          // show HP change
+          const amount = -(dmg || 1)
+          const idEvt = Date.now() + Math.random()
+          setHpEvents(evts => [...evts, { id: idEvt, amount, start: performance.now() }])
+        }
       } else {
         // Award score if killed by player
         const points = enemy?.isTriangle ? 100 : (enemy?.isBoss ? 50 : 10)
         setScore(s => s + points)
   // drop chance tuned for faster game pace
-  if (Math.random() < 0.20) spawnPickup(Math.random() < 0.6 ? 'power' : 'health')
+  if (Math.random() < 0.20) {
+    const r2 = Math.random()
+    if (r2 < 0.10) spawnPickup('invuln')
+    else spawnPickup(Math.random() < 0.72 ? 'power' : 'health') // reduce health chance by 30% (40% -> 28%)
+  }
       }
       return prev.filter(e => e.id !== id)
     })
@@ -1507,6 +1827,17 @@ export default function App() {
           hitEnemy.impulse?.(knockDir.x, knockDir.z, strength)
         }
 
+        // Stun-only bullets (from invuln shape runner) do not deal damage
+        if (b?.style?.stun) {
+          hitEnemy.stun?.(3000)
+          continue
+        }
+
+        // Triangle boss should not lose HP during its forward dash (charging)
+        if (hitEnemy.isCharging?.()) {
+          continue
+        }
+
         // Apply damage
         const hitId = hitEnemy.id
         setEnemies(prev => {
@@ -1544,7 +1875,9 @@ export default function App() {
       if (!isPausedRef.current) {
         spawnWave()
   // slightly higher ambient pickup spawns after waves for faster pace
-  if (Math.random() < 0.35) spawnPickup(Math.random() < 0.5 ? 'health' : 'power')
+  if (Math.random() < 0.35) spawnPickup(Math.random() < 0.35 ? 'health' : 'power') // reduce health ambient rate by 30%
+  // rare invulnerability pickup, similar rarity to high-tier power-ups
+  if (Math.random() < 0.05) spawnPickup('invuln')
       }
       timer = setTimeout(tick, 12000)
     }
@@ -1568,12 +1901,19 @@ export default function App() {
       const idEvt = Date.now() + Math.random()
       setHpEvents(evts => [...evts, { id: idEvt, amount: +25, start: performance.now() }])
     } else {
-      // power-up: add score by amount and enable bullet effect for duration
-      const amt = Math.max(50, Math.min(100, pickup.amount || 50))
-      setScore(s => s + amt)
-      // duration proportional to amount (5..10s)
-      powerRemainingRef.current = (amt / 10) * 1000
-      setPowerEffect({ active: true, amount: amt })
+      if (pickup.type === 'power') {
+        // power-up: add score by amount and enable bullet effect for duration
+        const amt = Math.max(50, Math.min(100, pickup.amount || 50))
+        setScore(s => s + amt)
+        // duration proportional to amount (5..10s)
+        powerRemainingRef.current = (amt / 10) * 1000
+        setPowerEffect({ active: true, amount: amt })
+      } else if (pickup.type === 'invuln') {
+        invulnRemainingRef.current = 5000
+        const shapes = ['circle','hexagon','rectangle']
+        const shape = shapes[Math.floor(Math.random() * shapes.length)]
+        setInvulnEffect({ active: true, shape })
+      }
     }
   }, [pickups])
 
@@ -1601,6 +1941,105 @@ export default function App() {
     return () => { cancelled = true; clearTimeout(t) }
   }, [powerEffect.active])
 
+  // Invulnerability effect timer (pause-aware, 5s)
+  useEffect(() => {
+    if (!invulnEffect.active) return
+    let cancelled = false
+    const tick = () => {
+      if (cancelled) return
+      if (!isPausedRef.current) {
+        invulnRemainingRef.current = Math.max(0, invulnRemainingRef.current - 100)
+        if (invulnRemainingRef.current <= 0) {
+          setInvulnEffect({ active: false })
+          // trigger an arc jump at end of invulnerability only if holding 1 or 2
+          if (autoFollowHeldRef.current || autoFollowHeld2Ref.current) {
+            setArcTriggerToken(t => t + 1)
+          }
+          return
+        }
+      }
+      setTimeout(tick, 100)
+    }
+    const t = setTimeout(tick, 100)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [invulnEffect.active])
+
+  // Damage enemies inside the shape area once per second during invulnerability
+  useEffect(() => {
+    if (!invulnEffect.active) return
+    let cancelled = false
+    const center = { x: 0, z: 0 }
+    const radius = SHAPE_PATH_RADIUS
+    const shape = invulnEffect.shape || 'circle'
+    function pointInPolygon(px, pz, verts) {
+      // Ray-casting algorithm for 2D point-in-polygon
+      let inside = false
+      for (let i = 0, j = verts.length - 1; i < verts.length; j = i++) {
+        const xi = verts[i][0], zi = verts[i][1]
+        const xj = verts[j][0], zj = verts[j][1]
+        const intersect = ((zi > pz) !== (zj > pz)) &&
+          (px < (xj - xi) * (pz - zi) / ((zj - zi) || 1e-9) + xi)
+        if (intersect) inside = !inside
+      }
+      return inside
+    }
+
+    const tick = () => {
+      if (cancelled) return
+      if (!isPausedRef.current) {
+        const idsToDamage = []
+        if (window.gameEnemies) {
+          for (const ge of window.gameEnemies) {
+            if (!ge?.ref?.current) continue
+            const ex = ge.ref.current.position.x
+            const ez = ge.ref.current.position.z
+            let inside = false
+            if (shape === 'circle') {
+              const dx = ex - center.x
+              const dz = ez - center.z
+              inside = (dx * dx + dz * dz) <= (radius * radius)
+            } else if (shape === 'rectangle') {
+              const hx = radius
+              const hz = radius * 0.7
+              inside = (ex >= center.x - hx && ex <= center.x + hx && ez >= center.z - hz && ez <= center.z + hz)
+            } else if (shape === 'hexagon') {
+              const verts = []
+              for (let i = 0; i < 6; i++) {
+                const a = (-Math.PI / 2) + i * (2 * Math.PI / 6)
+                verts.push([center.x + Math.cos(a) * radius, center.z + Math.sin(a) * radius])
+              }
+              inside = pointInPolygon(ex, ez, verts)
+            } else {
+              // fallback to circle behavior if unknown shape
+              const dx = ex - center.x
+              const dz = ez - center.z
+              inside = (dx * dx + dz * dz) <= (radius * radius)
+            }
+            // Do not damage triangle boss while it's charging; prevents despawn mid-dash
+            if (inside && !(ge.isCharging?.())) idsToDamage.push(ge.id)
+          }
+        }
+        if (idsToDamage.length) {
+          setEnemies(prev => {
+            const toDie = []
+            const updated = prev.map(e => {
+              if (!idsToDamage.includes(e.id)) return e
+              const nh = (e.health ?? 1) - 1
+              if (nh <= 0) { toDie.push(e.id); return null }
+              return { ...e, health: nh }
+            }).filter(Boolean)
+            // fire deaths after state update
+            if (toDie.length) setTimeout(() => toDie.forEach(id => onEnemyDie(id, false)), 0)
+            return updated
+          })
+        }
+      }
+      setTimeout(tick, 1000)
+    }
+    const t = setTimeout(tick, 1000)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [invulnEffect.active, invulnEffect.shape, onEnemyDie])
+
   // High-value radial barrage (3 waves/sec) while effect active and amount>=90
   useEffect(() => {
     if (!powerEffect.active || powerEffect.amount < 90) return
@@ -1620,17 +2059,54 @@ export default function App() {
     return () => { cancelled = true; clearInterval(interval) }
   }, [powerEffect.active, powerEffect.amount, handleShoot])
 
-  // game over watch
+  // Death / lives / game over handling with single-fire guard
   useEffect(() => {
     if (health <= 0) {
-      // reset minimal game state
+      // Prevent multiple decrements while health stays 0
+      if (deathHandledRef.current) return
+      deathHandledRef.current = true
+
+      // Clear current world state immediately
       setEnemies([])
       setPickups([])
       setBullets([])
+      setPortals([])
+      clearPortalTimers()
       bulletPool.current.clear()
-      setWave(0)
+
+      if (livesRef.current > 1) {
+        // Lose a life and respawn after a short countdown
+        setLives(l => Math.max(l - 1, 0))
+        setIsPaused(true)
+        setRespawnCountdown(3)
+
+        let count = 3
+        const interval = setInterval(() => {
+          count -= 1
+          setRespawnCountdown(count)
+          if (count <= 0) {
+            clearInterval(interval)
+            setRespawnCountdown(0)
+            setHealth(100)
+            setIsPaused(false)
+            // Kick off next wave immediately
+            spawnWave()
+          }
+        }, 1000)
+
+        // Cleanup if component unmounts during countdown
+        return () => clearInterval(interval)
+      } else {
+        // No lives left -> Game Over
+        setLives(0)
+        setIsGameOver(true)
+        setIsPaused(true)
+      }
+    } else {
+      // Reset guard when player is alive again
+      deathHandledRef.current = false
     }
-  }, [health])
+  }, [health, clearPortalTimers, spawnWave])
 
   // Restart game function
   const restartGame = useCallback(() => {
@@ -1654,77 +2130,34 @@ export default function App() {
   
   // External movement input vectors (refs to avoid per-frame allocations)
   const dpadVecRef = useRef({ x: 0, z: 0 })
-  const runnerVecRef = useRef({ x: 0, z: 0 })
+  // runnerVecRef removed
   // Effective movement input for Player when using external controls
   const moveInputRef = useRef({ x: 0, z: 0 })
   // Source of movement for speed scaling/override semantics: 'dpad' | 'runner' | 'keyboard' | 'none'
   const moveSourceRef = useRef('none')
 
-  // Shape Runner controller: emits a direction vector when enabled
-  useEffect(() => {
-    if (!shapeRunner) {
-      runnerVecRef.current.x = 0
-      runnerVecRef.current.z = 0
-      return
-    }
-    let cancelled = false
-    const start = performance.now()
-    const tick = () => {
-      if (cancelled || isPausedRef.current) {
-        // keep last vector or zero when paused
-        requestAnimationFrame(tick)
-        return
-      }
-      const t = (performance.now() - start) / 1000
-      let vx = 0, vz = 0
-      if (shapePattern === 'circle') {
-        // steady circular motion
-        vx = Math.cos(t)
-        vz = Math.sin(t)
-      } else if (shapePattern === 'triangle') {
-        // 3 segments, each ~2s direction
-        const seg = Math.floor((t % 6) / 2)
-        if (seg === 0) { vx = 1; vz = 0 } else if (seg === 1) { vx = -0.5; vz = Math.sin(Math.PI / 3) } else { vx = -0.5; vz = -Math.sin(Math.PI / 3) }
-      } else {
-        // rectangle: 4 directions, 1.5s each
-        const seg = Math.floor((t % 6) / 1.5)
-        if (seg === 0) { vx = 1; vz = 0 } else if (seg === 1) { vx = 0; vz = 1 } else if (seg === 2) { vx = -1; vz = 0 } else { vx = 0; vz = -1 }
-      }
-      // normalize (avoid allocations)
-      const len = Math.hypot(vx, vz) || 1
-      runnerVecRef.current.x = vx / len
-      runnerVecRef.current.z = vz / len
-      requestAnimationFrame(tick)
-    }
-    const r = requestAnimationFrame(tick)
-    return () => { cancelled = true; cancelAnimationFrame(r) }
-  }, [shapeRunner, shapePattern])
+  // shape runner auto-move removed
 
-  // Combine manual DPad and Shape Runner: manual overrides when non-zero
+  // External movement: only DPad input; keyboard handled directly in Player
   useEffect(() => {
     let raf = 0
     const merge = () => {
-      // default
-      let sx = 0, sz = 0
-      let source = 'none'
       const mx = dpadVecRef.current.x
       const mz = dpadVecRef.current.z
       if (Math.abs(mx) > 0.001 || Math.abs(mz) > 0.001) {
-        sx = mx; sz = mz; source = 'dpad'
-      } else if (shapeRunner) {
-        // runner preferred when enabled and no manual input
-        sx = runnerVecRef.current.x
-        sz = runnerVecRef.current.z
-        source = 'runner'
+        moveInputRef.current.x = mx
+        moveInputRef.current.z = mz
+        moveSourceRef.current = 'dpad'
+      } else {
+        moveInputRef.current.x = 0
+        moveInputRef.current.z = 0
+        moveSourceRef.current = 'none'
       }
-      moveInputRef.current.x = sx
-      moveInputRef.current.z = sz
-      moveSourceRef.current = source
       raf = requestAnimationFrame(merge)
     }
     raf = requestAnimationFrame(merge)
     return () => cancelAnimationFrame(raf)
-  }, [shapeRunner])
+  }, [])
 
   const handlePointerMove = useCallback((e) => {
     const x = e.clientX
@@ -1764,11 +2197,20 @@ export default function App() {
           onShoot={handleShoot}
           isPaused={isPaused}
           autoFire={autoFire}
+          autoAimEnabled={cameraMode === 'follow' || cameraMode === 'topdown'}
           controlScheme={controlScheme}
           moveInputRef={moveInputRef}
           moveSourceRef={moveSourceRef}
           highContrast={highContrast}
           portals={portals}
+          autoFollow={{ 
+            active: (invulnEffect.active && (autoFollowHeld || autoFollowHeld2)), 
+            radius: SHAPE_PATH_RADIUS, 
+            center: [0, 0, 0], 
+            shape: invulnEffect.shape || 'circle',
+            dirSign: (autoFollowHeld2 ? -1 : 1) // 1=CCW (key 1), -1=CW (key 2)
+          }}
+          arcTriggerToken={arcTriggerToken}
           onSlam={(slam) => {
             // Create AOE visual and push back enemies
             const center = slam.pos
@@ -1793,9 +2235,11 @@ export default function App() {
                   ge.impulse?.(nx, nz, strength)
                   // Apply stun for 5 seconds
                   ge.stun?.(5000)
-                  // Bosses drop a health pickup immediately upon being stunned
+                  // Bosses drop a health pickup with 70% chance (reduced by 30%) upon being stunned
                   if (ge.isBoss) {
-                    spawnPickup('health', [epos.x, 0.5, epos.z])
+                    if (Math.random() < 0.7) {
+                      spawnPickup('health', [epos.x, 0.5, epos.z])
+                    }
                   }
                 }
               })
@@ -1873,7 +2317,22 @@ export default function App() {
           />
         ))}
 
-        <OrbitControls enableRotate={false} enablePan={false} maxPolarAngle={Math.PI / 2.2} minPolarAngle={Math.PI / 3} />
+    <OrbitControls 
+      enableRotate={false} 
+      enablePan={false} 
+      enableZoom={cameraMode === 'static'}
+      maxPolarAngle={Math.PI / 2.2} 
+      minPolarAngle={Math.PI / 3} 
+    />
+    {cameraMode === 'follow' && (
+      <CameraRig playerPosRef={playerPosRef} isPaused={isPaused} />
+    )}
+    {cameraMode === 'static' && (
+      <StaticCameraRig />
+    )}
+    {cameraMode === 'topdown' && (
+      <TopDownRig playerPosRef={playerPosRef} />
+    )}
         {/* AOE visuals */}
         {aoes.map(a => (
           <AOEBlast key={a.id} pos={a.pos} start={a.start} radius={a.radius} onDone={() => setAoes(prev => prev.filter(x => x.id !== a.id))} />
@@ -1882,6 +2341,11 @@ export default function App() {
         {hpEvents.map(evt => (
           <HpFloater key={evt.id} amount={evt.amount} start={evt.start} playerPosRef={playerPosRef} onDone={() => setHpEvents(e => e.filter(x => x.id !== evt.id))} />
         ))}
+
+        {/* Invulnerability visual ring around player while active */}
+        {invulnEffect.active && (
+          <InvulnRing radius={SHAPE_PATH_RADIUS} isPaused={isPaused} shape={invulnEffect.shape || 'circle'} />
+        )}
 
         <Stats />
       </Canvas>
@@ -1892,12 +2356,40 @@ export default function App() {
         <DPad onVectorChange={(x, z) => { dpadVecRef.current.x = x; dpadVecRef.current.z = z }} />
       )}
       
-      {/* Pause overlay */}
+      {/* Overlay: pause / life lost countdown / game over */}
       {isPaused && (
         <div className="pause-overlay">
           <div className="pause-content">
-            <h2>Game Paused</h2>
-            <p>Press ESC or SPACE to resume</p>
+            {isGameOver ? (
+              <>
+                <h2>Game Over</h2>
+                <p>Score: <strong>{score}</strong> • Wave: <strong>{wave}</strong></p>
+                <div style={{height:10}} />
+                <button
+                  className="button"
+                  onClick={() => {
+                    setIsGameOver(false)
+                    setLives(3)
+                    setRespawnCountdown(0)
+                    restartGame()
+                    setIsPaused(false)
+                    spawnWave()
+                  }}
+                >
+                  Restart
+                </button>
+              </>
+            ) : respawnCountdown > 0 ? (
+              <>
+                <h2>Life Lost</h2>
+                <p>Next wave in <strong>{respawnCountdown}</strong>…</p>
+              </>
+            ) : (
+              <>
+                <h2>Game Paused</h2>
+                <p>Press ESC or SPACE to resume</p>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1914,6 +2406,7 @@ export default function App() {
       <div className="ui">
         <div className="small">Wave: <strong>{wave}</strong></div>
         <div className="small">Score: <strong>{score}</strong></div>
+  <div className="small">Lives: <strong>{lives}</strong></div>
         <div className="small">Health: <strong>{health}</strong></div>
         <div style={{height:8}} />
         <button className="button" onClick={restartGame}>Restart</button>
@@ -1933,24 +2426,7 @@ export default function App() {
           <option value="dpad">D-Buttons Control</option>
         </select>
         <div style={{height:6}} />
-        <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input type="checkbox" checked={shapeRunner} onChange={e => setShapeRunner(e.target.checked)} />
-          + Shape runner
-        </label>
-        {shapeRunner && (
-          <>
-            <div className="small" style={{marginTop:4}}>Pattern:</div>
-            <select
-              value={shapePattern}
-              onChange={e => setShapePattern(e.target.value)}
-              style={{ width: '100%', padding: '4px', borderRadius: 6, background: '#111', color: '#fff', border: '1px solid rgba(255,255,255,0.1)'}}
-            >
-              <option value="circle">Circular</option>
-              <option value="triangle">Triangular</option>
-              <option value="rectangle">Rectangular</option>
-            </select>
-          </>
-        )}
+        {/* Shape runner repurposed into a pickup-driven invulnerability effect (no manual toggle) */}
         <div style={{height:6}} />
         <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input type="checkbox" checked={highContrast} onChange={e => setHighContrast(e.target.checked)} />
@@ -1967,7 +2443,6 @@ export default function App() {
         <div>Bullets: {bullets.length}</div>
         <div>Status: {isPaused ? 'PAUSED' : 'PLAYING'}</div>
         <div>Scheme: {controlScheme.toUpperCase()}</div>
-        {shapeRunner && <div>Runner: {shapePattern}</div>}
       </div>
 
       {/* Control guide */}
@@ -1977,7 +2452,8 @@ export default function App() {
         <div className="row">Aim: Mouse pointer • Fire: Left click</div>
         <div className="row">Jump: Ctrl/Enter (hold for arc) or Right click (hold for arc)</div>
         <div className="row">Auto-Fire: F • Pause: ESC/SPACE</div>
-        <div className="row">Runner: Shapes auto-move; manual inputs override while held</div>
+        <div className="row">Invulnerability: collect yellow capsule (5s) • Auto-follow ring: hold 1 (CCW) or 2 (CW)</div>
+        <div className="row">Camera: 9 Follow • 0 Static (zoom) • 8 Top-Down</div>
       </div>
 
     </div>
@@ -2044,14 +2520,14 @@ function AOEBlast({ pos, start, radius = 9, onDone }) {
 
 // Visual rim/fence around the play area to signal the boundary
 function BoundaryCue({ limit = 40, isPaused }) {
-  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: 0x6699ff, transparent: true, opacity: 0.16, side: THREE.DoubleSide }), [])
-  const height = 0.4
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: 0x3366ff, transparent: true, opacity: 0.28, side: THREE.DoubleSide }), [])
+  const height = 1.2
   const geomX = useMemo(() => new THREE.PlaneGeometry(limit * 2, height), [limit])
   const geomZ = useMemo(() => new THREE.PlaneGeometry(limit * 2, height), [limit])
   useFrame(() => {
     if (isPaused) return
     const t = performance.now() * 0.004
-    mat.opacity = 0.10 + 0.08 * (0.5 + 0.5 * Math.sin(t))
+    mat.opacity = 0.22 + 0.10 * (0.5 + 0.5 * Math.sin(t))
   })
   return (
     <group>
@@ -2090,4 +2566,108 @@ function HpFloater({ amount, start, playerPosRef, onDone }) {
       {text}
     </Text>
   )
+}
+
+// Visual ring indicating invulnerability around the player
+function InvulnRing({ radius = 12, isPaused, shape = 'circle' }) {
+  const ref = useRef()
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.5, side: THREE.DoubleSide }), [])
+  const circleGeom = useMemo(() => new THREE.RingGeometry(radius * 0.92, radius, 96), [radius])
+  const polyGeom = useMemo(() => {
+    const mkShape = (verts) => {
+      const s = new THREE.Shape()
+      s.moveTo(verts[0].x, verts[0].y)
+      for (let i = 1; i < verts.length; i++) s.lineTo(verts[i].x, verts[i].y)
+      s.lineTo(verts[0].x, verts[0].y)
+      // hole slightly inset to form a band
+      const hole = new THREE.Path()
+      const inset = 0.92
+      hole.moveTo(verts[0].x * inset, verts[0].y * inset)
+      for (let i = 1; i < verts.length; i++) hole.lineTo(verts[i].x * inset, verts[i].y * inset)
+      hole.lineTo(verts[0].x * inset, verts[0].y * inset)
+      s.holes.push(hole)
+      return new THREE.ShapeGeometry(s)
+    }
+    if (shape === 'hexagon') {
+      const v = []
+      for (let i = 0; i < 6; i++) {
+        const a = (-Math.PI / 2) + i * (2 * Math.PI / 6)
+        v.push(new THREE.Vector2(Math.cos(a) * radius, Math.sin(a) * radius))
+      }
+      return mkShape(v)
+    } else if (shape === 'rectangle') {
+      const hx = radius
+      const hz = radius * 0.7
+      const v = [
+        new THREE.Vector2(+hx, +hz),
+        new THREE.Vector2(-hx, +hz),
+        new THREE.Vector2(-hx, -hz),
+        new THREE.Vector2(+hx, -hz),
+      ]
+      return mkShape(v)
+    }
+    return null
+  }, [shape, radius])
+  useFrame((_, dt) => {
+    if (!ref.current) return
+    ref.current.position.set(0, 0.07, 0)
+    if (!isPaused) {
+      ref.current.rotation.z += dt * 0.5
+      const t = performance.now() * 0.003
+      mat.opacity = 0.35 + 0.15 * (0.5 + 0.5 * Math.sin(t))
+    }
+  })
+  return (
+    <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]} material={mat}>
+      {shape === 'circle' ? (
+        <primitive object={circleGeom} attach="geometry" />
+      ) : polyGeom ? (
+        <primitive object={polyGeom} attach="geometry" />
+      ) : (
+        <primitive object={circleGeom} attach="geometry" />
+      )}
+    </mesh>
+  )
+}
+
+// Camera rig that follows the player with smoothing and always looks at them
+function CameraRig({ playerPosRef, isPaused, offset = new THREE.Vector3(0, 35, 30) }) {
+  const { camera } = useThree()
+  const targetPos = useRef(new THREE.Vector3())
+  const lastPos = useRef(new THREE.Vector3().copy(camera.position))
+  useFrame((_, dt) => {
+    const p = playerPosRef.current
+    if (!p) return
+    // desired camera position relative to player
+    targetPos.current.set(p.x + offset.x, p.y + offset.y, p.z + offset.z)
+    // dynamic catch-up: speed up when far
+    const dist = lastPos.current.distanceTo(targetPos.current)
+    const lerpK = Math.max(0.08, Math.min(0.30, dist * 0.02))
+    lastPos.current.lerp(targetPos.current, 1 - Math.exp(-lerpK * (dt * 60)))
+    camera.position.copy(lastPos.current)
+    camera.lookAt(p.x, p.y, p.z)
+  })
+  return null
+}
+
+// Static camera positioned back and above, looking at the arena center. Zoom is enabled via controls.
+function StaticCameraRig({ position = [0, 60, 80], target = [0, 0, 0] }) {
+  const { camera } = useThree()
+  useEffect(() => {
+    camera.position.set(position[0], position[1], position[2])
+    camera.lookAt(target[0], target[1], target[2])
+  }, [camera, position, target])
+  return null
+}
+
+// Top-down camera that stays above the player and looks straight down for a 2D-style view
+function TopDownRig({ playerPosRef, height = 120 }) {
+  const { camera } = useThree()
+  useFrame(() => {
+    const p = playerPosRef.current
+    if (!p) return
+    camera.position.set(p.x, height, p.z + 0.0001)
+    camera.lookAt(p.x, 0.5, p.z)
+  })
+  return null
 }
