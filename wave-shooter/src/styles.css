@@ -43,6 +43,7 @@ body,
 
 .button {
     background: #111;
+    color: #fff;
     padding: 6px 10px;
     border-radius: 6px;
     border: 1px solid rgba(255, 255, 255, 0.06);
@@ -53,22 +54,52 @@ body,
     font-size: 13px
 }
 
-/* basic crosshair */
-.crosshair {
+/* pointer-linked crosshair */
+.cursor-crosshair {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 18px;
+    height: 18px;
+    pointer-events: none;
+    z-index: 200;
+}
+
+.cursor-crosshair::before,
+.cursor-crosshair::after {
+    content: '';
     position: absolute;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
-    pointer-events: none
+    display: block;
 }
 
-.crosshair:before {
-    content: '';
-    display: block;
+/* circle */
+.cursor-crosshair::before {
     width: 18px;
     height: 18px;
-    border: 2px solid rgba(255, 255, 255, 0.6);
-    border-radius: 50%
+    border: 2px solid #99ffcc;
+    border-radius: 50%;
+    box-shadow: 0 0 6px rgba(153, 255, 204, 0.6);
+}
+
+/* center dot */
+.cursor-crosshair::after {
+    width: 4px;
+    height: 4px;
+    background: #99ffcc;
+    border-radius: 50%;
+}
+
+/* High contrast crosshair */
+.cursor-crosshair.high-contrast::before {
+    border-color: #ffffff;
+    box-shadow: 0 0 10px rgba(255,255,255,0.9);
+}
+.cursor-crosshair.high-contrast::after {
+    background: #ffffff;
 }
 
 /* Pause overlay */
@@ -107,18 +138,33 @@ body,
 /* Pickup popups */
 .pickup-popup {
     position: fixed;
-    top: 50%;
+    top: 12%;
     left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.9);
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
     padding: 1rem 1.5rem;
     border-radius: 8px;
     border: 2px solid var(--popup-color, #22c55e);
     z-index: 500;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.5s ease;
     text-align: center;
     min-width: 200px;
 }
+
+/* Control guide (bottom-left) */
+.control-guide {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    background: rgba(0,0,0,0.45);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.35;
+    max-width: 320px;
+}
+.control-guide .title { font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+.control-guide .row { opacity: 0.9; }
 
 .pickup-popup.visible {
     opacity: 1;
@@ -139,3 +185,72 @@ body,
     font-size: 0.9rem;
     color: rgba(255, 255, 255, 0.8);
 }
+
+/* Error boundary overlay */
+.error-boundary {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1200;
+}
+
+.error-card {
+    background: var(--ui);
+    padding: 1rem 1.25rem;
+    border-radius: 10px;
+    width: min(560px, 92vw);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.error-card h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--accent);
+}
+
+.error-details {
+    max-height: 180px;
+    overflow: auto;
+    background: rgba(0,0,0,0.5);
+    padding: 8px;
+    border-radius: 6px;
+    margin-top: 8px;
+    white-space: pre-wrap;
+}
+
+.error-actions {
+    margin-top: 12px;
+}
+
+/* D-Buttons overlay */
+.dpad {
+    position: absolute;
+    right: 18px;
+    bottom: 18px;
+    width: 120px;
+    height: 120px;
+    pointer-events: auto;
+    z-index: 300;
+}
+
+.dpad-btn {
+    position: absolute;
+    width: 46px;
+    height: 46px;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.dpad-btn:active {
+    background: rgba(0,0,0,0.8);
+}
+
+.dpad .up { left: 37px; top: 0; }
+.dpad .down { left: 37px; bottom: 0; }
+.dpad .left { left: 0; top: 37px; }
+.dpad .right { right: 0; top: 37px; }
