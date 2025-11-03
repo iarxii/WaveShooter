@@ -52,6 +52,14 @@ Higher-level enemies unlock at higher levels to control memory and difficulty. L
 - Read the full design in `docs/Leveling_System.md`.
 - Balancing and unlocks are summarized in `Balancing_Table.md` and `Updated_Enemy_List.md`.
 
+## App structure and pages
+
+The app now uses routing with shared contexts:
+
+- Pages: Landing (`/`), Game (`/game`), Character Viewer (`/characters`). See `docs/App_Structure.md`.
+- Contexts: `GameContext` (best score/wave, performance mode, play time) and `HistoryContext` (last 50 runs).
+- The Game page renders the existing `src/App.jsx` (game canvas + HUD), so gameplay remains unchanged while navigation and state sharing improve.
+
 ## Quick start
 
 ```bash

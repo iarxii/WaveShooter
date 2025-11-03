@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Stats, Text } from '@react-three/drei'
 import * as THREE from 'three'
+import { useHistoryLog } from './contexts/HistoryContext.jsx'
 
 // GAME CONSTANTS
 const PLAYER_SPEED = 24 // faster than minions to keep mobility advantage
@@ -1912,6 +1913,7 @@ function ConeBoss({ id, pos, playerPosRef, onDamagePlayer, health, isPaused, spa
 }
 
 export default function App() {
+  const { addRun } = useHistoryLog()
   // game state
   const playerPosRef = useRef(new THREE.Vector3(0, 0, 0))
   const setPositionRef = (pos) => { playerPosRef.current.copy(pos) }
@@ -2101,8 +2103,8 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
   useEffect(() => { try { localStorage.setItem('highContrast', highContrast ? '1' : '0') } catch { /* ignore */ } }, [highContrast])
   useEffect(() => { try { localStorage.setItem('perfMode', performanceMode ? '1' : '0') } catch { /* ignore */ } }, [performanceMode])
   // Persist bests when they change
-  useEffect(() => { try { localStorage.setItem('bestScore', String(bestScore)) } catch {} }, [bestScore])
-  useEffect(() => { try { localStorage.setItem('bestWave', String(bestWave)) } catch {} }, [bestWave])
+  useEffect(() => { try { localStorage.setItem('bestScore', String(bestScore)) } catch { /* ignore write errors */ } }, [bestScore])
+  useEffect(() => { try { localStorage.setItem('bestWave', String(bestWave)) } catch { /* ignore write errors */ } }, [bestWave])
 
   // Update bests live during a run and trigger confetti once per run when breaking prior best
   const bestScoreBaselineRef = useRef(0)
@@ -2130,7 +2132,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
   const lastPlayTickRef = useRef(0)
   const [totalPlayMsView, setTotalPlayMsView] = useState(0)
   useEffect(() => {
-    try { totalPlayMsRef.current = parseInt(localStorage.getItem('totalPlayTimeMs') || '0', 10) || 0 } catch {}
+    try { totalPlayMsRef.current = parseInt(localStorage.getItem('totalPlayTimeMs') || '0', 10) || 0 } catch { /* ignore read errors */ }
     // Initialize view state
     setTotalPlayMsView(totalPlayMsRef.current|0)
   }, [])
@@ -2143,7 +2145,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         totalPlayMsRef.current += delta
         lastPlayTickRef.current = now
         // Persist every second
-        try { localStorage.setItem('totalPlayTimeMs', String(totalPlayMsRef.current|0)) } catch {}
+  try { localStorage.setItem('totalPlayTimeMs', String(totalPlayMsRef.current|0)) } catch { /* ignore write errors */ }
         // Reflect in UI
         setTotalPlayMsView(totalPlayMsRef.current|0)
       } else {
@@ -3146,11 +3148,20 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         setLives(0)
         setIsGameOver(true)
         setIsPaused(true)
+        // Log run history (score, wave, timestamp, perf mode)
+        try {
+          addRun && addRun({
+            score,
+            wave,
+            at: new Date().toISOString(),
+            performanceMode,
+          })
+        } catch { /* ignore history add errors */ }
       }
     } else {
       deathHandledRef.current = false
     }
-  }, [health, clearPortalTimers, spawnWave])
+  }, [health, clearPortalTimers, clearSpeedBoostTimers, spawnWave, addRun, score, wave, performanceMode])
 
   // Restart game function
   const restartGame = useCallback(() => {
