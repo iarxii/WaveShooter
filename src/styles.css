@@ -61,7 +61,7 @@ body,
     position: absolute;
     left: 16px;
     bottom: 16px;
-    display: flex;
+    display: none; /* moved to right-bottom-stack */
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
@@ -69,6 +69,22 @@ body,
 }
 .left-bottom-stack .control-guide {
     position: static; /* let it flow within stack */
+}
+
+/* Right-bottom stack: boss schedule + boss feed + control guide above D-pad */
+.right-bottom-stack {
+    position: absolute;
+    right: 16px;
+    /* Place above the D-pad (120px height + ~18px margin + extra gap) */
+    bottom: 150px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    z-index: 360; /* above dpad (z-index: 300) */
+}
+.right-bottom-stack .control-guide {
+    position: static;
 }
 
 /* Generic feed containers */
@@ -211,7 +227,7 @@ body,
     top: 12%;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.8);
     padding: 1rem 1.5rem;
     border-radius: 8px;
     border: 2px solid var(--popup-color, #22c55e);
@@ -235,6 +251,35 @@ body,
 }
 .control-guide .title { font-weight: 600; color: var(--accent); margin-bottom: 4px; }
 .control-guide .row { opacity: 0.9; }
+
+/* Collapsible panel chrome */
+.panel {
+    background: rgba(0,0,0,0.45);
+    border-radius: 8px;
+    overflow: hidden;
+    min-width: 240px;
+    max-width: 360px;
+}
+.panel .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.06);
+    cursor: pointer;
+    user-select: none;
+}
+.panel .panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0.9;
+}
+.panel .panel-content {
+    padding: 8px 10px;
+}
+.panel.collapsed .panel-content { display: none; }
+.panel .chev { font-size: 12px; opacity: 0.9; }
 
 .pickup-popup.visible {
     opacity: 1;

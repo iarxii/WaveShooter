@@ -3,13 +3,26 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Stats, Text } from '@react-three/drei'
 import * as THREE from 'three'
 import { useHistoryLog } from './contexts/HistoryContext.jsx'
+import { useGame } from './contexts/GameContext.jsx'
+import PlayerEntity from './entities/Player.jsx'
+import MinionEntity from './entities/Minion.jsx'
+import TriangleBossEntity from './entities/TriangleBoss.jsx'
+import PipeBossEntity from './entities/PipeBoss.jsx'
+import ClusterBossEntity from './entities/ClusterBoss.jsx'
+import ConeBossEntity from './entities/ConeBoss.jsx'
+import FlyingDroneEntity from './entities/FlyingDrone.jsx'
+import RosterEnemyEntity from './entities/RosterEnemy.jsx'
+import { heroColorFor } from './data/roster.js'
+import { ENEMIES as ROSTER } from './data/roster.js'
 
 // GAME CONSTANTS
 const PLAYER_SPEED = 24 // faster than minions to keep mobility advantage
 const PLAYER_SPEED_CAP = 50 // cap player base speed for control stability
-const SPEED_DEBUFF_FACTOR = 0.6
+const SPEED_DEBUFF_FACTOR = 0.9
 const SPEED_DEBUFF_DURATION_MS = 4000
-const BOUNDARY_LIMIT = 50
+const BOUNDARY_LIMIT = 60
+const GROUND_SIZE = 200 // planeGeometry args
+const GROUND_HALF = GROUND_SIZE / 2
 // Decoupled shape path radius for invulnerability runner (independent of arena boundary)
 const SHAPE_PATH_RADIUS = 24
 const ENEMY_SPEED = 18
@@ -19,11 +32,18 @@ const TRIANGLE_BOSS_SPEED_MULT = 2.3 // triangle boss moves slightly faster than
 const WAVE_INTERVAL = 2000 // ms between waves spawning
 const BULLET_SPEED = 38
 const BULLET_LIFETIME = 3000 // ms
-const FIRE_RATE = 200 // ms between shots
+const FIRE_RATE = 120 // ms between shots (faster)
+// Player bullet damage per hit (before enemy-specific scaling)
+const PLAYER_BULLET_DAMAGE = 2
 const BULLET_POOL_SIZE = 50
 const PICKUP_COLLECT_DISTANCE = 3.8
 const AIM_RAY_LENGTH = 8
-const MAX_PICKUPS = 25 // cap concurrent pickups to optimize memory and FPS
+const MAX_PICKUPS = 40 // increased economy: allow more concurrent pickups without choking FPS
+// Life pickup magnetization
+const LIFE_MAGNET_RANGE = 16 // u: start attracting within this radius
+const LIFE_MAGNET_MIN_SPEED = 6 // u/s at far edge of magnet range
+const LIFE_MAGNET_MAX_SPEED = 28 // u/s when very close
+// Global pickup visual scaling (now exposed via UI; see state `pickupScaleGlobal`)
 // Bomb ability constants
 const BOMB_DAMAGE = 4
 const BOMB_STUN_MS = 1400
@@ -33,6 +53,10 @@ const BOMB_UP_VEL = 12
 const BOMB_GRAVITY = 24
 const BOMB_SPAWN_INTERVAL_MS = 250 // 4 per second
 const BOMB_ABILITY_DURATION_MS = 6000 // extended: total 6s
+// Bouncer constants
+const BOUNCER_TELEGRAPH_MS = 4000
+const BOUNCER_UP_VEL = 16
+const BOUNCER_LIFETIME_MS = 3000
 // Speed boost planes (green triangles) constants
 const SPEED_BUFF_DURATION_MS = 4000
 const SPEED_BOOST_LIFETIME = 4500
@@ -73,6 +97,8 @@ const PORTALS_PER_WAVE_MAX = 4
 const PORTAL_RADIUS_MIN = 12
 const PORTAL_RADIUS_MAX = 20
 const PORTAL_STAGGER_MS = 260 // ms between enemy drops per portal
+// Temporary feature flag to fully disable arena growth logic for performance
+const ARENA_GROWTH_DISABLED = true
 const DROP_SPAWN_HEIGHT = 8 // y height enemies begin falling from
 const DROP_SPEED = 10 // units/sec downward during spawn
 
@@ -136,6 +162,28 @@ function getTierWeights(level){
   return band.weights
 }
 
+// Map simple color names in roster to hex colors
+function colorHex(name) {
+  const map = {
+    'Red': '#ff4444', 'Orange': '#f97316', 'Blue': '#3b82f6', 'Dark Blue': '#1e3a8a',
+    'Gray': '#9ca3af', 'Black': '#111827', 'Green': '#22c55e', 'Dark Green': '#065f46',
+    'Cyan': '#06b6d4', 'Dark Cyan': '#155e75', 'Pink': '#ec4899', 'Dark Pink': '#9d174d',
+    'Purple': '#a855f7', 'Yellow': '#eab308', 'Violet': '#8b5cf6', 'White': '#e5e7eb', 'Brown': '#92400e', 'Oval': '#a855f7'
+  }
+  return map[name] || '#ff0055'
+}
+
+// Choose a roster enemy by tier and level unlock
+function pickRosterByTier(level, tierNum) {
+  const candidates = ROSTER.filter(e => (e.unlock || 1) <= level && (e.tier || 1) === tierNum)
+  if (candidates.length === 0) {
+    // fallback: nearest lower tier, else any
+    const lower = ROSTER.filter(e => (e.unlock || 1) <= level).sort((a,b)=> (a.tier||1)-(b.tier||1))
+    return lower[0] || ROSTER[0]
+  }
+  return candidates[Math.floor(Math.random()*candidates.length)]
+}
+
 // Pickup notification popup component
 function PickupPopup({ pickup, onComplete }) {
   const [visible, setVisible] = useState(true)
@@ -167,12 +215,16 @@ function PickupPopup({ pickup, onComplete }) {
         : pickup.type === 'bombs'
           ? { name: 'Bomb Kit', effect: '4/s bombs for 6s', color: '#111827' }
         : pickup.type === 'speedboost'
-          ? { name: 'Speed Boost', effect: 'Speed 26–28 (4s)', color: '#22c55e' }
+          ? { name: 'Speed Boost', effect: 'Speed 36–38 (4s)', color: '#22c55e' }
         : pickup.type === 'dmgscale'
           ? { name: 'Enemy Fury', effect: `Damage x${(pickup.scale ?? 1).toFixed(2)}`, color: '#f97316' }
         : pickup.type === 'speedramp'
           ? { name: 'Speed Surge', effect: `Enemies x${(pickup.scale ?? 1).toFixed(2)} • Player +1`, color: '#22c55e' }
-          : { name: 'Debuff', effect: 'Speed Reduced -40% (4s)', color: '#f97316' }
+        : pickup.type === 'level'
+          ? { name: `Level ${pickup.level}`, effect: 'Stay sharp!', color: '#60a5fa' }
+          : pickup.type === 'boss'
+            ? { name: 'Boss Incoming', effect: `${pickup.name || 'Boss'} • Level ${pickup.level ?? ''}`.trim(), color: pickup.color || '#ffb020' }
+            : { name: 'Debuff', effect: 'Speed Reduced -10% (4s)', color: '#f97316' }
   
   return (
     <div 
@@ -181,6 +233,32 @@ function PickupPopup({ pickup, onComplete }) {
     >
       <div className="pickup-name">{info.name}</div>
       <div className="pickup-effect">{info.effect}</div>
+    </div>
+  )
+}
+
+// Small reusable collapsible panel for debug UI sections
+function CollapsiblePanel({ id, title, children, defaultOpen = true }) {
+  const [open, setOpen] = React.useState(() => {
+    try {
+      const v = localStorage.getItem(`panel:${id}:open`)
+      return v == null ? defaultOpen : v === '1'
+    } catch {
+      return defaultOpen
+    }
+  })
+  React.useEffect(() => {
+    try { localStorage.setItem(`panel:${id}:open`, open ? '1' : '0') } catch {}
+  }, [id, open])
+  return (
+    <div className={`panel ${open ? '' : 'collapsed'}`}>
+      <div className="panel-header" onClick={() => setOpen(o => !o)}>
+        <div className="panel-title">{title}</div>
+        <div className="chev">{open ? '▾' : '▸'}</div>
+      </div>
+      <div className="panel-content">
+        {children}
+      </div>
     </div>
   )
 }
@@ -332,15 +410,40 @@ function Pickup({ pos, type, amount=50, lifetimeMaxSec=20, onCollect, onExpire, 
     } else if (pulseSpeed.current > 0) {
       const p = 1 + Math.sin(performance.now() * 0.001 * (pulseSpeed.current * 60)) * 0.12
       const s = baseScale.current * p * scaleMul
-      ref.current.scale.set(s, s, s)
+  ref.current.scale.set(s, s, s)
     } else if (type === 'power') {
       const s = baseScale.current * scaleMul
-      ref.current.scale.set(s, s, s)
+  ref.current.scale.set(s, s, s)
     } else {
       const s = 0.5 * scaleMul
-      ref.current.scale.set(s, s, s)
+  ref.current.scale.set(s, s, s)
     }
     
+    // Life pickup magnet: when player within range, attract towards player
+    if (type === 'life' && playerPosRef?.current) {
+      const p = playerPosRef.current
+      const dx = p.x - ref.current.position.x
+      const dz = p.z - ref.current.position.z
+      const d2 = dx*dx + dz*dz
+      const r = LIFE_MAGNET_RANGE
+      if (d2 <= r*r) {
+        const d = Math.max(0.0001, Math.sqrt(d2))
+        const nx = dx / d
+        const nz = dz / d
+        const t = Math.max(0, Math.min(1, 1 - d / r))
+        const speed = LIFE_MAGNET_MIN_SPEED + t * (LIFE_MAGNET_MAX_SPEED - LIFE_MAGNET_MIN_SPEED)
+        // Prevent overshoot; if close, snap to player to ensure collect
+        const step = speed * dt
+        if (step >= d) {
+          ref.current.position.x = p.x
+          ref.current.position.z = p.z
+        } else {
+          ref.current.position.x += nx * step
+          ref.current.position.z += nz * step
+        }
+      }
+    }
+
     // Check collision with player (single-fire guard)
     if (!collectedRef.current) {
       const distance = ref.current.position.distanceTo(playerPosRef.current)
@@ -421,6 +524,50 @@ function SpeedBoostPlane({ pos, isPaused }) {
   )
 }
 
+// Bouncer telegraph: pulsing ring on ground for 4s
+function BouncerTelegraph({ pos }) {
+  const ref = useRef()
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.35, side: THREE.DoubleSide }), [])
+  const geom = useMemo(() => new THREE.RingGeometry(0.6, 1.0, 48), [])
+  useFrame(() => {
+    if (!ref.current) return
+    const t = performance.now() * 0.004
+    const s = 1 + 0.2 * Math.sin(t)
+    ref.current.scale.set(s, s, s)
+    mat.opacity = 0.25 + 0.15 * (0.5 + 0.5 * Math.sin(t * 1.6))
+  })
+  return (
+    <mesh ref={ref} position={[pos[0], 0.055, pos[2]]} rotation={[-Math.PI/2,0,0]} material={mat}>
+      <primitive object={geom} attach="geometry" />
+    </mesh>
+  )
+}
+
+// Bouncer entity: launches upward and despawns
+function Bouncer({ data, onExpire }) {
+  const ref = useRef()
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x002233, roughness: 0.6, metalness: 0.1 }), [])
+  const geom = useMemo(() => new THREE.CapsuleGeometry(0.3, 0.8, 6, 12), [])
+  useFrame((_, dt) => {
+    if (!ref.current) return
+    const now = performance.now()
+    const age = now - (data.bornAt || now)
+    // Move upward with slight easing
+    const vy = data.velY || BOUNCER_UP_VEL
+    const nx = data.pos[0]
+    const nz = data.pos[2]
+  const baseY = ref.current.position?.y ?? (data.pos[1] || 0.5)
+  const ny = baseY + vy * dt
+    ref.current.position.set(nx, ny, nz)
+    if (ny > 22 || age > BOUNCER_LIFETIME_MS) {
+      onExpire && onExpire(data.id)
+    }
+  })
+  return (
+    <mesh ref={ref} position={data.pos} geometry={geom} material={mat} />
+  )
+}
+
 // Translucent shield bubble around the player; color/size can be customized per use
 function ShieldBubble({ playerPosRef, isPaused, color = 0x66ccff, radius = 1.4, baseOpacity = 0.25 }) {
   const ref = useRef()
@@ -443,8 +590,34 @@ function ShieldBubble({ playerPosRef, isPaused, color = 0x66ccff, radius = 1.4, 
   )
 }
 
+// One-shot shimmer pulse around the player; fades out quickly
+function ShimmerPulse({ playerPosRef, isPaused, color = 0x66ccff, durationMs = 500, maxScale = 1.9, onDone }) {
+  const ref = useRef()
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 }), [color])
+  const geom = useMemo(() => new THREE.SphereGeometry(1.2, 20, 20), [])
+  const startRef = useRef(performance.now())
+  useFrame(() => {
+    if (!ref.current) return
+    const p = playerPosRef.current
+    ref.current.position.set(p.x, 0.5, p.z)
+    if (isPaused) return
+    const now = performance.now()
+    const t = Math.max(0, Math.min(1, (now - startRef.current) / durationMs))
+    // Ease-out opacity and scale up slightly with a soft pulse
+    const scale = 1 + (maxScale - 1) * (0.6 * t + 0.4 * Math.sin(t * Math.PI))
+    ref.current.scale.set(scale, scale, scale)
+    mat.opacity = 0.6 * (1 - t)
+    if (t >= 1) {
+      onDone && onDone()
+    }
+  })
+  return (
+    <mesh ref={ref} geometry={geom} material={mat} />
+  )
+}
+
 // Player (simple rectangle box) with WASD movement and mouse aiming
-function Player({ position, setPositionRef, onShoot, isPaused, autoFire, controlScheme = 'dpad', moveInputRef, moveSourceRef, onSlam, highContrast=false, portals=[], onDebuff, speedBoosts=[], onBoost, autoFollow, arcTriggerToken, resetToken=0, basePlayerSpeed=PLAYER_SPEED, autoAimEnabled=false, onBoundaryJumpChange, onLanding, dashTriggerToken=0, onDashStart, onDashEnd }) {
+function Player({ position, setPositionRef, onShoot, isPaused, autoFire, controlScheme = 'dpad', moveInputRef, moveSourceRef, onSlam, highContrast=false, portals=[], onDebuff, speedBoosts=[], onBoost, autoFollow, arcTriggerToken, resetToken=0, basePlayerSpeed=PLAYER_SPEED, autoAimEnabled=false, onBoundaryJumpChange, onLanding, dashTriggerToken=0, onDashStart, onDashEnd, invulnActive=false }) {
   const ref = useRef()
   const lastShot = useRef(0)
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
@@ -561,12 +734,12 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
         if (ref.current.position.y <= 0.5) {
           // Always perform a forward arc jump on release
           airVelY.current = LAUNCH_UP_VEL
-          const totalLen = 2 * BOUNDARY_LIMIT
+          const totalLen = 2 * (boundaryLimit ?? BOUNDARY_LIMIT)
           const desired = Math.max(4, LAUNCH_TARGET_FRACTION * totalLen)
           const target = new THREE.Vector3().copy(ref.current.position).addScaledVector(aimDirRef.current, desired)
           const margin = 1.0
-          target.x = Math.max(Math.min(target.x, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
-          target.z = Math.max(Math.min(target.z, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
+          target.x = Math.max(Math.min(target.x, (boundaryLimit ?? BOUNDARY_LIMIT) - margin), -(boundaryLimit ?? BOUNDARY_LIMIT) + margin)
+          target.z = Math.max(Math.min(target.z, (boundaryLimit ?? BOUNDARY_LIMIT) - margin), -(boundaryLimit ?? BOUNDARY_LIMIT) + margin)
           const disp = new THREE.Vector3().subVectors(target, ref.current.position)
           const dispLen = Math.max(0.001, Math.hypot(disp.x, disp.z))
           airFwdDir.current.set(disp.x / dispLen, 0, disp.z / dispLen)
@@ -613,12 +786,12 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
         if (ref.current.position.y <= 0.5) {
           // Always perform a forward arc jump on release
           airVelY.current = LAUNCH_UP_VEL
-          const totalLen = 2 * BOUNDARY_LIMIT
+          const totalLen = 2 * (boundaryLimit ?? BOUNDARY_LIMIT)
           const desired = Math.max(4, LAUNCH_TARGET_FRACTION * totalLen)
           const target = new THREE.Vector3().copy(ref.current.position).addScaledVector(aimDirRef.current, desired)
           const margin = 1.0
-          target.x = Math.max(Math.min(target.x, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
-          target.z = Math.max(Math.min(target.z, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
+          target.x = Math.max(Math.min(target.x, (boundaryLimit ?? BOUNDARY_LIMIT) - margin), -(boundaryLimit ?? BOUNDARY_LIMIT) + margin)
+          target.z = Math.max(Math.min(target.z, (boundaryLimit ?? BOUNDARY_LIMIT) - margin), -(boundaryLimit ?? BOUNDARY_LIMIT) + margin)
           const disp = new THREE.Vector3().subVectors(target, ref.current.position)
           const dispLen = Math.max(0.001, Math.hypot(disp.x, disp.z))
           airFwdDir.current.set(disp.x / dispLen, 0, disp.z / dispLen)
@@ -646,12 +819,12 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
       lastArcToken.current = arcTriggerToken
       // Same arc jump used in boundary launch: hop forward along aim
       airVelY.current = LAUNCH_UP_VEL
-      const totalLen = 2 * BOUNDARY_LIMIT
+  const totalLen = 2 * (boundaryLimit ?? BOUNDARY_LIMIT)
       const desired = Math.max(4, LAUNCH_TARGET_FRACTION * totalLen)
       const target = new THREE.Vector3().copy(ref.current.position).addScaledVector(aimDirRef.current, desired)
       const margin = 1.0
-      target.x = Math.max(Math.min(target.x, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
-      target.z = Math.max(Math.min(target.z, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
+  target.x = Math.max(Math.min(target.x, (boundaryLimit ?? BOUNDARY_LIMIT) - margin), -(boundaryLimit ?? BOUNDARY_LIMIT) + margin)
+  target.z = Math.max(Math.min(target.z, (boundaryLimit ?? BOUNDARY_LIMIT) - margin), -(boundaryLimit ?? BOUNDARY_LIMIT) + margin)
       const disp = new THREE.Vector3().subVectors(target, ref.current.position)
       const dispLen = Math.max(0.001, Math.hypot(disp.x, disp.z))
       airFwdDir.current.set(disp.x / dispLen, 0, disp.z / dispLen)
@@ -673,8 +846,8 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
       dashTime.current += dt
       ref.current.position.addScaledVector(dashVel.current, dt)
       // Clamp to arena bounds
-      ref.current.position.x = Math.max(Math.min(ref.current.position.x, BOUNDARY_LIMIT - 0.5), -BOUNDARY_LIMIT + 0.5)
-      ref.current.position.z = Math.max(Math.min(ref.current.position.z, BOUNDARY_LIMIT - 0.5), -BOUNDARY_LIMIT + 0.5)
+  ref.current.position.x = Math.max(Math.min(ref.current.position.x, (boundaryLimit ?? BOUNDARY_LIMIT) - 0.5), -(boundaryLimit ?? BOUNDARY_LIMIT) + 0.5)
+  ref.current.position.z = Math.max(Math.min(ref.current.position.z, (boundaryLimit ?? BOUNDARY_LIMIT) - 0.5), -(boundaryLimit ?? BOUNDARY_LIMIT) + 0.5)
       if (dashTime.current >= dashDuration) {
         dashing.current = false
         onDashEnd && onDashEnd({ x: ref.current.position.x, z: ref.current.position.z })
@@ -935,7 +1108,7 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
   debuffTimer.current = Math.max(0, debuffTimer.current - dt)
   boostHitCooldown.current = Math.max(0, boostHitCooldown.current - dt)
   boostTimer.current = Math.max(0, boostTimer.current - dt)
-  const debuffMul = debuffTimer.current > 0 ? SPEED_DEBUFF_FACTOR : 1
+  const debuffMul = (invulnActive ? 1 : (debuffTimer.current > 0 ? SPEED_DEBUFF_FACTOR : 1))
   const baseSpeed = (boostTimer.current > 0 ? boostSpeedRef.current : basePlayerSpeed)
   const speedMul = ((moveSourceRef && moveSourceRef.current === 'runner') ? RUNNER_SPEED_MULTIPLIER : 1) * debuffMul
   // base movement
@@ -947,20 +1120,20 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
     // Skip boundary launch while grace is active
     boundaryGraceRef.current = Math.max(0, boundaryGraceRef.current - dt)
     if (launchCooldown.current <= 0 && boundaryGraceRef.current <= 0) {
-      if (ref.current.position.x > BOUNDARY_LIMIT - 0.1 || ref.current.position.x < -BOUNDARY_LIMIT + 0.1 ||
-          ref.current.position.z > BOUNDARY_LIMIT - 0.1 || ref.current.position.z < -BOUNDARY_LIMIT + 0.1) {
+    if (ref.current.position.x > (boundaryLimit ?? BOUNDARY_LIMIT) - 0.1 || ref.current.position.x < -(boundaryLimit ?? BOUNDARY_LIMIT) + 0.1 ||
+      ref.current.position.z > (boundaryLimit ?? BOUNDARY_LIMIT) - 0.1 || ref.current.position.z < -(boundaryLimit ?? BOUNDARY_LIMIT) + 0.1) {
         // clamp to bounds
-        ref.current.position.x = Math.max(Math.min(ref.current.position.x, BOUNDARY_LIMIT), -BOUNDARY_LIMIT)
-        ref.current.position.z = Math.max(Math.min(ref.current.position.z, BOUNDARY_LIMIT), -BOUNDARY_LIMIT)
+  ref.current.position.x = Math.max(Math.min(ref.current.position.x, (boundaryLimit ?? BOUNDARY_LIMIT)), -(boundaryLimit ?? BOUNDARY_LIMIT))
+  ref.current.position.z = Math.max(Math.min(ref.current.position.z, (boundaryLimit ?? BOUNDARY_LIMIT)), -(boundaryLimit ?? BOUNDARY_LIMIT))
         // launch upward and forward along an arc, landing inward at ~30% of play length from the border
         airVelY.current = LAUNCH_UP_VEL
-        const totalLen = 2 * BOUNDARY_LIMIT
+  const totalLen = 2 * (boundaryLimit ?? BOUNDARY_LIMIT)
         const desired = Math.max(4, LAUNCH_TARGET_FRACTION * totalLen) // minimum to have a meaningful hop
         const target = new THREE.Vector3().copy(ref.current.position).addScaledVector(aimDirRef.current, desired)
         // clamp target inside boundary with small margin
         const margin = 1.0
-        target.x = Math.max(Math.min(target.x, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
-        target.z = Math.max(Math.min(target.z, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
+  target.x = Math.max(Math.min(target.x, (boundaryLimit ?? BOUNDARY_LIMIT) - margin), -(boundaryLimit ?? BOUNDARY_LIMIT) + margin)
+  target.z = Math.max(Math.min(target.z, (boundaryLimit ?? BOUNDARY_LIMIT) - margin), -(boundaryLimit ?? BOUNDARY_LIMIT) + margin)
         const disp = new THREE.Vector3().subVectors(target, ref.current.position)
         const dispLen = Math.max(0.001, Math.hypot(disp.x, disp.z))
         airFwdDir.current.set(disp.x / dispLen, 0, disp.z / dispLen)
@@ -1004,8 +1177,8 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
       }
     }
 
-    // Check collision with active portals to apply speed debuff
-    if (portalHitCooldown.current <= 0 && portals && portals.length) {
+  // Check collision with active portals to apply speed debuff (ignored while invulnerable)
+  if (!invulnActive && portalHitCooldown.current <= 0 && portals && portals.length) {
       const px = ref.current.position.x
       const pz = ref.current.position.z
       const R = 2.2
@@ -1033,8 +1206,9 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
         const dz = pz - sb.pos[2]
         if (dx*dx + dz*dz <= R*R) {
           boostTimer.current = SPEED_BUFF_DURATION_MS / 1000
-          // randomize target base speed between 26 and 28
-          boostSpeedRef.current = 26 + Math.random() * 2
+          // randomize target base speed between 36 and 38; ensure noticeable delta from base
+          const target = 36 + Math.random() * 2
+          boostSpeedRef.current = Math.max(target, basePlayerSpeed + 12)
           boostHitCooldown.current = 1.0
           onBoost && onBoost()
           break
@@ -1043,8 +1217,8 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
     }
 
     // Final bounds clamp to be safe
-    ref.current.position.x = Math.max(Math.min(ref.current.position.x, BOUNDARY_LIMIT), -BOUNDARY_LIMIT)
-    ref.current.position.z = Math.max(Math.min(ref.current.position.z, BOUNDARY_LIMIT), -BOUNDARY_LIMIT)
+  ref.current.position.x = Math.max(Math.min(ref.current.position.x, (boundaryLimit ?? BOUNDARY_LIMIT)), -(boundaryLimit ?? BOUNDARY_LIMIT))
+  ref.current.position.z = Math.max(Math.min(ref.current.position.z, (boundaryLimit ?? BOUNDARY_LIMIT)), -(boundaryLimit ?? BOUNDARY_LIMIT))
     setPositionRef(ref.current.position)
 
     // Charging visual indicators (no threshold; show landing marker immediately)
@@ -1059,12 +1233,12 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
       }
       if (landingRingRef.current) {
         // compute target relative offset for display
-        const totalLen = 2 * BOUNDARY_LIMIT
+  const totalLen = 2 * (boundaryLimit ?? BOUNDARY_LIMIT)
         const desired = Math.max(4, LAUNCH_TARGET_FRACTION * totalLen)
         const target = new THREE.Vector3().copy(ref.current.position).addScaledVector(aimDirRef.current, desired)
         const margin = 1.0
-        target.x = Math.max(Math.min(target.x, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
-        target.z = Math.max(Math.min(target.z, BOUNDARY_LIMIT - margin), -BOUNDARY_LIMIT + margin)
+  target.x = Math.max(Math.min(target.x, (boundaryLimit ?? BOUNDARY_LIMIT) - margin), -(boundaryLimit ?? BOUNDARY_LIMIT) + margin)
+  target.z = Math.max(Math.min(target.z, (boundaryLimit ?? BOUNDARY_LIMIT) - margin), -(boundaryLimit ?? BOUNDARY_LIMIT) + margin)
         // place ring relative to player group so it stays where shown during charge
         const offX = target.x - ref.current.position.x
         const offZ = target.z - ref.current.position.z
@@ -1084,7 +1258,7 @@ function Player({ position, setPositionRef, onShoot, isPaused, autoFire, control
     const dir = aimDirRef.current.clone()
     if (dir.lengthSq() < 1e-4) dir.set(0, 0, -1)
     dir.normalize()
-    const distance = 0.4 * BOUNDARY_LIMIT // ~20% of play area diameter
+  const distance = 0.4 * (boundaryLimit ?? BOUNDARY_LIMIT) // ~20% of play area diameter
     const speed = distance / dashDuration
     dashVel.current.set(dir.x * speed, 0, dir.z * speed)
     dashing.current = true
@@ -1478,442 +1652,17 @@ function TriangleBoss({ id, pos, playerPosRef, onDie, health, isPaused, spawnHei
   )
 }
 
-// Pipe boss: rises from ground and periodically launches flying drones
-function PipeBoss({ id, pos, playerPosRef, onDie, health, isPaused, onLaunchDrones }) {
-  const ref = useRef()
-  const riseTimer = useRef(0)
-  const launchedOnce = useRef(false)
-  const launchCooldown = useRef(0)
-  const stunTimer = useRef(0)
-  const knockback = useRef(new THREE.Vector3())
-  const RISE_DURATION = 3 // seconds
+// Pipe boss extracted to src/entities/PipeBoss.jsx
 
-  useFrame((_, dt) => {
-    if (!ref.current || isPaused) return
-    // Apply stun decay
-    if (stunTimer.current > 0) stunTimer.current = Math.max(0, stunTimer.current - dt)
-    const stunned = stunTimer.current > 0
+// Cluster boss extracted to src/entities/ClusterBoss.jsx
 
-    // Rising animation for first 3 seconds
-    if (riseTimer.current < RISE_DURATION) {
-      riseTimer.current = Math.min(RISE_DURATION, riseTimer.current + dt)
-      const k = riseTimer.current / RISE_DURATION
-      ref.current.position.y = 0.2 + k * 1.0 // rise from slightly below ground to 1.2 height
-      return
-    }
+// Flying drone extracted to src/entities/FlyingDrone.jsx
 
-    // Launch drones after rise, periodically
-    launchCooldown.current = Math.max(0, launchCooldown.current - dt)
-    if (!stunned && launchCooldown.current <= 0) {
-      const count = 2 + Math.floor(Math.random() * 5) // 2..6
-      onLaunchDrones && onLaunchDrones(count, [ref.current.position.x, 0.5, ref.current.position.z])
-      launchCooldown.current = 4 + Math.random() * 2 // 4-6s between launches
-      launchedOnce.current = true
-    }
-
-    // Apply knockback impulse with decay (stationary otherwise)
-    if (knockback.current.lengthSq() > 1e-6) {
-      ref.current.position.addScaledVector(knockback.current, dt)
-      const decay = Math.exp(-KNOCKBACK_DECAY.boss * SPEED_SCALE * dt)
-      knockback.current.multiplyScalar(decay)
-      if (knockback.current.lengthSq() < 1e-6) knockback.current.set(0, 0, 0)
-    }
-
-    // Basic collision: if player gets too close, deal contact damage via onDie
-    const d = ref.current.position.distanceTo(playerPosRef.current)
-    if (d < 1.8) onDie(id, true)
-  })
-
-  // Register into global enemy list
-  useEffect(() => {
-    if (!window.gameEnemies) window.gameEnemies = []
-    const enemyData = {
-      id,
-      ref,
-      isBoss: true,
-      isPipe: true,
-      impulse: (ix = 0, iz = 0, strength = 1) => {
-        knockback.current.x += ix * strength
-        knockback.current.z += iz * strength
-      },
-      stun: (ms = 2000) => {
-        const sec = Math.max(0, (ms | 0) / 1000)
-        stunTimer.current = Math.max(stunTimer.current, sec)
-      },
-    }
-    window.gameEnemies.push(enemyData)
-    return () => {
-      window.gameEnemies = window.gameEnemies.filter(e => e.id !== id)
-    }
-  }, [id])
-
-  return (
-    <group>
-      <mesh ref={ref} position={pos}>
-        <cylinderGeometry args={[1.2, 1.2, 1.6, 16]} />
-        <meshStandardMaterial color={0x6699cc} emissive={0x111111} metalness={0.3} roughness={0.5} />
-      </mesh>
-      <Text position={[pos[0], pos[1] + 2.2, pos[2]]} fontSize={0.35} color="#ffffff" anchorX="center" anchorY="bottom">
-        {`± ${health}/2`}
-      </Text>
-    </group>
-  )
-}
-
-// Cluster boss: clump of red orbs that splits into smaller orbs on death
-function ClusterBoss({ id, pos, playerPosRef, onDie, health, isPaused, onSplit }) {
-  const ref = useRef()
-  const stunTimer = useRef(0)
-  const knockback = useRef(new THREE.Vector3())
-  const speed = 8
-  useFrame((_, dt) => {
-    if (!ref.current || isPaused) return
-    if (stunTimer.current > 0) stunTimer.current = Math.max(0, stunTimer.current - dt)
-    const stunned = stunTimer.current > 0
-    const dir = new THREE.Vector3().subVectors(playerPosRef.current, ref.current.position)
-    dir.y = 0
-    const d = dir.length()
-    if (!stunned && d > 0.5) {
-      dir.normalize()
-      ref.current.position.addScaledVector(dir, speed * dt)
-    }
-    if (knockback.current.lengthSq() > 1e-6) {
-      ref.current.position.addScaledVector(knockback.current, dt)
-      const decay = Math.exp(-KNOCKBACK_DECAY.boss * SPEED_SCALE * dt)
-      knockback.current.multiplyScalar(decay)
-      if (knockback.current.lengthSq() < 1e-6) knockback.current.set(0, 0, 0)
-    }
-    if (ref.current.position.distanceTo(playerPosRef.current) < 1.5) onDie(id, true)
-  })
-  useEffect(() => {
-    if (!window.gameEnemies) window.gameEnemies = []
-    const enemyData = { id, ref, isBoss: true, isCluster: true, impulse: (ix=0,iz=0,s=1)=>{knockback.current.x+=ix*s;knockback.current.z+=iz*s}, stun:(ms=1000)=>{stunTimer.current=Math.max(stunTimer.current,(ms|0)/1000)} }
-    window.gameEnemies.push(enemyData)
-    return () => { window.gameEnemies = window.gameEnemies.filter(e => e.id !== id) }
-  }, [id])
-  // Visual: clump of 7 small spheres
-  const offsets = useMemo(() => {
-    const arr = []
-    const r = 0.7
-    for (let i=0;i<7;i++) {
-      const a = Math.random()*Math.PI*2
-      const rr = 0.2 + Math.random()*r
-      arr.push([Math.cos(a)*rr, 0, Math.sin(a)*rr])
-    }
-    return arr
-  }, [])
-  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: 0xff3333, emissive: 0x220000, roughness: 0.5 }), [])
-  const geom = useMemo(() => new THREE.SphereGeometry(0.5, 12, 12), [])
-  return (
-    <group>
-      <group ref={ref} position={pos}>
-        {offsets.map((o,i)=>(
-          <mesh key={i} position={o} geometry={geom} material={mat} />
-        ))}
-        <Text position={[0, 1.6, 0]} fontSize={0.35} color="#fff" anchorX="center" anchorY="bottom">{`± ${health}/3`}</Text>
-      </group>
-    </group>
-  )
-}
-
-// Flying drone: red capsule that orbits then dives toward player's last known position
-function FlyingDrone({ id, pos, playerPosRef, onDie, isPaused, boundaryJumpActiveRef, assets, trailBaseMat }) {
-  const ref = useRef()
-  const stateRef = useRef({ mode: 'orbit', t: 0, dir: new THREE.Vector3(1, 0, 0), diveTarget: new THREE.Vector3(), diveSpeed: 16 })
-  const speed = 10
-  const orbitAltitude = 4
-  const tmp = useRef(new THREE.Vector3())
-  const TRAIL_COUNT = 10
-  const lastPositions = useRef(Array.from({ length: TRAIL_COUNT }, () => new THREE.Vector3()))
-  const trailRefs = useRef([])
-  const trailTick = useRef(0)
-
-  useFrame((_, dt) => {
-    if (!ref.current || isPaused) return
-    const s = stateRef.current
-    s.t += dt
-
-    if (s.mode === 'orbit') {
-      // Maintain altitude and drift with slight attraction to player
-      ref.current.position.y = orbitAltitude
-      tmp.current.subVectors(playerPosRef.current, ref.current.position)
-      tmp.current.y = 0
-      const toPlayer = tmp.current.lengthSq() > 1e-6 ? tmp.current.normalize() : tmp.current.set(1, 0, 0)
-      // Blend current dir toward player with small random sway
-      s.dir.lerp(toPlayer, 0.6 * dt)
-      const sway = (Math.random() - 0.5) * 0.2
-      const cos = Math.cos(sway)
-      const sin = Math.sin(sway)
-      const dx = s.dir.x * cos - s.dir.z * sin
-      const dz = s.dir.x * sin + s.dir.z * cos
-      s.dir.set(dx, 0, dz).normalize()
-      // Move
-      ref.current.position.addScaledVector(s.dir, speed * dt)
-      // Bounds clamp
-      ref.current.position.x = Math.max(Math.min(ref.current.position.x, BOUNDARY_LIMIT - 1), -BOUNDARY_LIMIT + 1)
-      ref.current.position.z = Math.max(Math.min(ref.current.position.z, BOUNDARY_LIMIT - 1), -BOUNDARY_LIMIT + 1)
-      // Threat increase: dive if close to player OR after 5s timeout
-      const closeDx = ref.current.position.x - playerPosRef.current.x
-      const closeDz = ref.current.position.z - playerPosRef.current.z
-      const closeD2 = closeDx*closeDx + closeDz*closeDz
-      if (closeD2 < 7*7 || s.t >= 5) {
-        s.mode = 'dive'
-        s.diveTarget.set(playerPosRef.current.x, 0.5, playerPosRef.current.z)
-        // set direction toward dive target including downward component
-        tmp.current.subVectors(s.diveTarget, ref.current.position).normalize()
-        s.dir.copy(tmp.current)
-        // faster dive speed
-        s.diveSpeed = 18
-      }
-    } else if (s.mode === 'dive') {
-      // Accelerate slightly during dive
-      const diveSpeed = s.diveSpeed
-      ref.current.position.addScaledVector(s.dir, diveSpeed * dt)
-      // Collision with player
-      const dx = ref.current.position.x - playerPosRef.current.x
-      const dy = ref.current.position.y - 0.5
-      const dz = ref.current.position.z - playerPosRef.current.z
-      const d2 = dx*dx + dy*dy + dz*dz
-      if (d2 < 1.1*1.1) {
-        if (boundaryJumpActiveRef?.current) {
-          onDie(id, false) // killed by boundary jump collision
-        } else {
-          onDie(id, true) // damage player
-        }
-        return
-      }
-      // Hit ground => despawn
-      if (ref.current.position.y <= 0.6) {
-        onDie(id, false)
-        return
-      }
-    }
-
-    // Trail update when diving
-    if (stateRef.current.mode === 'dive') {
-      trailTick.current += dt
-      if (trailTick.current >= 0.04) {
-        trailTick.current = 0
-        // shift buffer
-        for (let i = TRAIL_COUNT - 1; i >= 1; i--) {
-          lastPositions.current[i].copy(lastPositions.current[i - 1])
-        }
-        lastPositions.current[0].copy(ref.current.position)
-        // update renderers
-        for (let i = 0; i < TRAIL_COUNT; i++) {
-          const m = trailRefs.current[i]
-          if (!m) continue
-          const p = lastPositions.current[i]
-          m.position.set(p.x, p.y, p.z)
-          const k = 1 - i / TRAIL_COUNT
-          m.scale.setScalar(0.6 * k + 0.2)
-          if (m.material && m.material.transparent) {
-            m.material.opacity = 0.5 * k
-          }
-        }
-      }
-    }
-  })
-
-  // Register for global interactions (bullets ignore flying due to check)
-  useEffect(() => {
-    if (!window.gameEnemies) window.gameEnemies = []
-    const enemyData = {
-      id,
-      ref,
-      isFlying: true,
-      impulse: () => {},
-      stun: () => {},
-    }
-    window.gameEnemies.push(enemyData)
-    return () => {
-      window.gameEnemies = window.gameEnemies.filter(e => e.id !== id)
-    }
-  }, [id])
-
-  return (
-    <group>
-      <group ref={ref} position={pos} rotation={[0, 0, 0]}>
-        {/* body */}
-        <mesh position={[0, 0, 0]} geometry={assets?.bodyGeom} material={assets?.bodyMat} />
-        {/* tips */}
-        <mesh position={[0, 0.5, 0]} geometry={assets?.tipGeom} material={assets?.tipMat} />
-        <mesh position={[0, -0.5, 0]} rotation={[Math.PI, 0, 0]} geometry={assets?.tipGeom} material={assets?.tipMat} />
-        {/* trail nodes */}
-        {Array.from({ length: TRAIL_COUNT }).map((_, i) => (
-          <mesh key={i}
-            geometry={assets?.trailGeom}
-            material={useMemo(() => (trailBaseMat ? trailBaseMat.clone() : new THREE.MeshBasicMaterial({ color: 0xff6666, transparent: true, opacity: 0.4 })), [trailBaseMat])}
-            ref={el => { if (el) trailRefs.current[i] = el }}
-          />
-        ))}
-      </group>
-    </group>
-  )
-}
-
-// Cone boss: waits for ~10s, then leaps to the player's position and slams down
-function ConeBoss({ id, pos, playerPosRef, onDamagePlayer, health, isPaused, spawnHeight, speedScale = 1 }) {
-  const ref = useRef()
-  const idleTimer = useRef(10) // seconds between jumps
-  const airVelY = useRef(0)
-  const airFwdVel = useRef(0)
-  const airFwdDir = useRef(new THREE.Vector3(0,0,0))
-  const isJumping = useRef(false)
-  const damageCooldown = useRef(0)
-  const knockback = useRef(new THREE.Vector3())
-  const stunTimer = useRef(0)
-  const isSpawning = useRef(!!spawnHeight && spawnHeight > (pos?.[1] ?? 0.5))
-  const GRAVITY = 24
-  const UP_VEL = 14 // slightly lower to shorten flight time
-  const LAND_DAMAGE_RADIUS = 4.4
-  const REST_DAMAGE_RADIUS = 1.6
-  const FLIGHT_TIME_SCALE = 0.6 // faster time to target
-  const JUMP_COOLDOWN = 3 // seconds between jumps at faster pace
-  const CONE_JUMP_MAX = 22
-  const meshRef = useRef()
-
-  // Initialize drop-in spawn position
-  useEffect(() => {
-    if (ref.current && isSpawning.current) {
-      ref.current.position.set(pos[0], spawnHeight, pos[2])
-    }
-  }, [pos, spawnHeight])
-
-  useFrame((_, dt) => {
-    if (!ref.current || isPaused) return
-
-    // Handle drop-in spawn
-    if (isSpawning.current) {
-      const groundY = pos?.[1] ?? 0.5
-      ref.current.position.y = Math.max(groundY, ref.current.position.y - DROP_SPEED * dt)
-      if (ref.current.position.y <= groundY + 1e-3) {
-        ref.current.position.y = groundY
-        isSpawning.current = false
-      }
-      return
-    }
-
-    // Stun handling
-    if (stunTimer.current > 0) stunTimer.current = Math.max(0, stunTimer.current - dt)
-    const stunned = stunTimer.current > 0
-    if (damageCooldown.current > 0) damageCooldown.current = Math.max(0, damageCooldown.current - dt)
-
-    // Airborne jump physics
-    if (isJumping.current) {
-      // vertical
-      ref.current.position.y += airVelY.current * dt
-      airVelY.current -= GRAVITY * dt
-      // forward carry
-      if (airFwdVel.current > 0) {
-        ref.current.position.x += airFwdDir.current.x * airFwdVel.current * dt
-        ref.current.position.z += airFwdDir.current.z * airFwdVel.current * dt
-      }
-      // landing
-      if (ref.current.position.y <= 0.5) {
-        ref.current.position.y = 0.5
-        airVelY.current = 0
-        airFwdVel.current = 0
-        isJumping.current = false
-        idleTimer.current = JUMP_COOLDOWN
-        // impact damage to player if close
-        const dx = ref.current.position.x - playerPosRef.current.x
-        const dz = ref.current.position.z - playerPosRef.current.z
-        if (dx*dx + dz*dz <= LAND_DAMAGE_RADIUS*LAND_DAMAGE_RADIUS) {
-          onDamagePlayer && onDamagePlayer(CONTACT_DAMAGE.cone)
-        }
-      }
-    } else if (!stunned) {
-      // Idle countdown
-      idleTimer.current = Math.max(0, idleTimer.current - dt)
-      if (idleTimer.current <= 0) {
-        // Begin jump towards player's current position using ballistic arc
-        const target = new THREE.Vector3(playerPosRef.current.x, 0.5, playerPosRef.current.z)
-        const cur = ref.current.position
-        const disp = new THREE.Vector3().subVectors(target, cur)
-        const dispLen = Math.max(0.001, Math.hypot(disp.x, disp.z))
-        airFwdDir.current.set(disp.x / dispLen, 0, disp.z / dispLen)
-        const tFlight = ((2 * UP_VEL) / GRAVITY) * FLIGHT_TIME_SCALE
-  airFwdVel.current = Math.min((dispLen / tFlight) * (speedScale || 1), CONE_JUMP_MAX)
-        airVelY.current = UP_VEL
-        isJumping.current = true
-      }
-      // At-rest collision damage if player walks into the cone
-      const dx = ref.current.position.x - playerPosRef.current.x
-      const dz = ref.current.position.z - playerPosRef.current.z
-      if (damageCooldown.current <= 0 && (dx*dx + dz*dz <= REST_DAMAGE_RADIUS*REST_DAMAGE_RADIUS)) {
-        onDamagePlayer && onDamagePlayer(CONTACT_DAMAGE.cone)
-        damageCooldown.current = 0.7
-      }
-    }
-
-    // Apply knockback impulse with exponential decay (frozen while stunned)
-    if (knockback.current.lengthSq() > 1e-6) {
-      if (!stunned) {
-        ref.current.position.addScaledVector(knockback.current, dt)
-      }
-      const decay = Math.exp(-(KNOCKBACK_DECAY.boss * SPEED_SCALE) * dt)
-      knockback.current.multiplyScalar(decay)
-      if (knockback.current.lengthSq() < 1e-6) knockback.current.set(0, 0, 0)
-    }
-
-    // Visual shake while stunned
-    if (meshRef.current) {
-      if (stunned) {
-        const t = performance.now() * 0.01 + id
-        meshRef.current.rotation.x = Math.sin(t * 0.7) * 0.12 + Math.PI
-        meshRef.current.rotation.z = Math.cos(t * 0.9) * 0.12
-      } else {
-        meshRef.current.rotation.x = Math.PI
-        meshRef.current.rotation.z = 0
-      }
-    }
-  })
-
-  // Register for external impulses and stun
-  useEffect(() => {
-    if (!window.gameEnemies) window.gameEnemies = []
-    const enemyData = {
-      id,
-      ref,
-      isBoss: true,
-      isCone: true,
-      impulse: (ix = 0, iz = 0, strength = 1) => {
-        knockback.current.x += ix * strength
-        knockback.current.z += iz * strength
-      },
-      stun: (ms = 5000) => {
-        const sec = Math.max(0, (ms|0) / 1000)
-        stunTimer.current = Math.max(stunTimer.current, sec)
-      }
-    }
-    window.gameEnemies.push(enemyData)
-    return () => {
-      window.gameEnemies = window.gameEnemies.filter(e => e.id !== id)
-    }
-  }, [id])
-
-  // Visuals
-  const maxHealth = 10
-  const healthRatio = health / maxHealth
-
-  return (
-    <group ref={ref} position={pos}>
-      {/* Visual mesh: cone rotated to stand on tip; offset up by half height so tip meets ground at group y */}
-      <mesh ref={meshRef} position={[0, 1.3, 0]} rotation={[Math.PI, 0, 0]}>
-        <cylinderGeometry args={[0, 1.6, 2.6, 16]} />
-        <meshStandardMaterial color={0xff7744} emissive={0x331100} opacity={0.35 + 0.65*healthRatio} transparent />
-      </mesh>
-      {/* HP label above cone */}
-      <Text position={[0, 3.6, 0]} fontSize={0.42} color="#ffffff" anchorX="center" anchorY="bottom">
-        {`± ${health}/${maxHealth}`}
-      </Text>
-    </group>
-  )
-}
+// Cone boss extracted to src/entities/ConeBoss.jsx
 
 export default function App() {
   const { addRun } = useHistoryLog()
+  const { selectedHero } = useGame()
   // game state
   const playerPosRef = useRef(new THREE.Vector3(0, 0, 0))
   const setPositionRef = (pos) => { playerPosRef.current.copy(pos) }
@@ -1922,9 +1671,13 @@ export default function App() {
   const [bullets, setBullets] = useState([])
   const [wave, setWave] = useState(0)
   const [score, setScore] = useState(0)
+  // Track score in a ref for baseline calculations without re-creating callbacks
+  const scoreRef = useRef(0)
+  useEffect(() => { scoreRef.current = score }, [score])
   const [bestScore, setBestScore] = useState(0)
   const [bestWave, setBestWave] = useState(0)
   const [health, setHealth] = useState(100)
+  const [armor, setArmor] = useState(500)
   const [lives, setLives] = useState(3)
   const [isGameOver, setIsGameOver] = useState(false)
   const [respawnCountdown, setRespawnCountdown] = useState(0)
@@ -1932,10 +1685,35 @@ export default function App() {
   const [isStarted, setIsStarted] = useState(false)
   const isStartedRef = useRef(false)
   const [boundaryJumpActive, setBoundaryJumpActive] = useState(false)
+  const [showStats, setShowStats] = useState(false)
+  const [showDreiStats, setShowDreiStats] = useState(true)
+  const [fps, setFps] = useState(0)
+  useEffect(() => {
+    if (!showStats) return
+    let frames = 0
+    let fid = 0
+    let last = performance.now()
+    const loop = () => { frames++; fid = requestAnimationFrame(loop) }
+    fid = requestAnimationFrame(loop)
+    const iid = setInterval(() => {
+      const now = performance.now()
+      const dt = Math.max(0.001, (now - last) / 1000)
+      last = now
+      const f = frames / dt
+      frames = 0
+      setFps(f)
+    }, 500)
+    return () => { cancelAnimationFrame(fid); clearInterval(iid) }
+  }, [showStats])
   // Feeds: pickups (top-right) and boss spawns (left-bottom)
   const [pickupFeed, setPickupFeed] = useState([]) // {id, text, color}
   const [bossFeed, setBossFeed] = useState([]) // {id, text, color}
   const pushBossFeedRef = useRef(null)
+  const [spawnPressureMul, setSpawnPressureMul] = useState(() => {
+    const v = parseFloat(localStorage.getItem('spawnPressureMul') || '')
+    return Number.isFinite(v) && v > 0 ? v : 0.9
+  })
+  const spawnPressureMulRef = useRef(0.9)
   const [autoFire, setAutoFire] = useState(true)
   const [pickupPopups, setPickupPopups] = useState([])
   const [portals, setPortals] = useState([])
@@ -1943,6 +1721,11 @@ export default function App() {
   const [aoes, setAoes] = useState([]) // ground slam visuals
   const [bombs, setBombs] = useState([]) // active bombs
   const [confetti, setConfetti] = useState([])
+  const [hazards, setHazards] = useState([]) // active hazard zones (toxin/corrosion)
+  const [shimmers, setShimmers] = useState([]) // one-shot shimmer cues (e.g., debuff cancel)
+  // Bouncers: ground telegraph that launches an object upward after delay
+  const [bouncerTelegraphs, setBouncerTelegraphs] = useState([])
+  const [bouncers, setBouncers] = useState([])
   const [controlScheme, setControlScheme] = useState('dpad') // 'wasd' | 'dpad' (default to D-Buttons)
   const [performanceMode, setPerformanceMode] = useState(false)
   const [playerResetToken, setPlayerResetToken] = useState(0)
@@ -1951,12 +1734,24 @@ export default function App() {
   // Shape Runner feature is now a pickup-only visual; auto-move removed
   const [highContrast, setHighContrast] = useState(false)
   const [hpEvents, setHpEvents] = useState([]) // floating HP change indicators
+  const [armorEvents, setArmorEvents] = useState([])
   const [powerEffect, setPowerEffect] = useState({ active: false, amount: 0 })
   const powerRemainingRef = useRef(0) // ms remaining for effect
+  // Per-level score baseline to compute penalties on continue
+  const levelScoreBaselineRef = useRef(0)
   const [invulnEffect, setInvulnEffect] = useState({ active: false })
   const invulnRemainingRef = useRef(0)
   const invulnActiveRef = useRef(false)
   useEffect(() => { invulnActiveRef.current = invulnEffect.active }, [invulnEffect.active])
+  // Test flag to force invulnerability (debug)
+  const [invulnTest, setInvulnTest] = useState(() => {
+    try { return localStorage.getItem('invulnTest') === '1' } catch { return false }
+  })
+  const invulnTestRef = useRef(false)
+  useEffect(() => {
+    invulnTestRef.current = !!invulnTest
+    try { localStorage.setItem('invulnTest', invulnTest ? '1' : '0') } catch {}
+  }, [invulnTest])
   // Boundary jump invulnerability (only during edge-launched jumps)
   const boundaryJumpActiveRef = useRef(false)
   // Dash invulnerability window
@@ -1968,7 +1763,7 @@ export default function App() {
 
   const isPlayerInvulnerable = useCallback(() => {
     const now = nowMs()
-    return invulnActiveRef.current || boundaryJumpActiveRef.current || (now < postInvulnShieldUntilRef.current) || (now < dashInvulnUntilRef.current)
+    return invulnTestRef.current || invulnActiveRef.current || boundaryJumpActiveRef.current || (now < postInvulnShieldUntilRef.current) || (now < dashInvulnUntilRef.current)
   }, [])
   // Bomb kit effect
   const [bombEffect, setBombEffect] = useState({ active: false })
@@ -1979,6 +1774,12 @@ export default function App() {
   const boostRemainingRef = useRef(0)
   const [debuffEffect, setDebuffEffect] = useState({ active: false })
   const debuffRemainingRef = useRef(0)
+  const [corrosionEffect, setCorrosionEffect] = useState({ active: false })
+  const corrosionRemainingRef = useRef(0)
+  const corrosionTickTimerRef = useRef(0)
+  // Carcinogenic Field: reduces healing effectiveness temporarily
+  const [regenDebuff, setRegenDebuff] = useState({ active: false })
+  const regenDebuffRemainingRef = useRef(0)
   const [arcTriggerToken, setArcTriggerToken] = useState(0)
   const [autoFollowHeld, setAutoFollowHeld] = useState(false)
   const [autoFollowHeld2, setAutoFollowHeld2] = useState(false)
@@ -1987,12 +1788,25 @@ export default function App() {
   useEffect(() => { autoFollowHeldRef.current = autoFollowHeld }, [autoFollowHeld])
   useEffect(() => { autoFollowHeld2Ref.current = autoFollowHeld2 }, [autoFollowHeld2])
   const [cameraMode, setCameraMode] = useState('follow') // 'follow' | 'static' | 'topdown'
-  // Pickup scale modifier derived from camera mode
+  // Top-down camera speed multiplier (applies to player and enemies when in Top-Down mode)
+  const [topDownSpeedMul, setTopDownSpeedMul] = useState(() => {
+    const v = parseFloat(localStorage.getItem('topDownSpeedMul') || '')
+    return Number.isFinite(v) && v > 0 ? v : 1.8
+  })
+  const cameraSpeedMulRef = useRef(1)
+  useEffect(() => {
+    localStorage.setItem('topDownSpeedMul', String(topDownSpeedMul))
+  }, [topDownSpeedMul])
+  useEffect(() => {
+    cameraSpeedMulRef.current = (cameraMode === 'topdown') ? (topDownSpeedMul || 1) : 1
+  }, [cameraMode, topDownSpeedMul])
+  // Global pickup scale (UI-controlled)
+  const [pickupScaleGlobal, setPickupScaleGlobal] = useState(1.5)
+  // Pickup scale modifier derived from camera mode and global setting
   const pickupScaleMul = useMemo(() => {
-    if (cameraMode === 'topdown') return 2.0
-    if (cameraMode === 'static') return 1.5
-    return 1.3 // follow
-  }, [cameraMode])
+    const camMul = (cameraMode === 'topdown') ? 2.0 : (cameraMode === 'static' ? 1.5 : 1.3)
+    return camMul * (pickupScaleGlobal || 1)
+  }, [cameraMode, pickupScaleGlobal])
   // Dash/camera smoothing state
   const [isDashing, setIsDashing] = useState(false)
   const [cameraBoostUntilMs, setCameraBoostUntilMs] = useState(0)
@@ -2001,10 +1815,23 @@ export default function App() {
   const dashCooldownRef = useRef(0)
   useEffect(() => { dashCooldownRef.current = dashCooldownMs }, [dashCooldownMs])
   const [dashTriggerToken, setDashTriggerToken] = useState(0)
+
+  // Arena sizing & growth
+  const [boundaryLimit, setBoundaryLimit] = useState(BOUNDARY_LIMIT)
+  const [arenaGrowEnabled, setArenaGrowEnabled] = useState(false)
+  const [arenaGrowthMode, setArenaGrowthMode] = useState(() => localStorage.getItem('arenaGrowthMode') || 'milestone')
+  const [arenaGrowthRate, setArenaGrowthRate] = useState(0.01) // units per second (time mode)
+  const [arenaGrowthPerMilestone, setArenaGrowthPerMilestone] = useState(() => {
+    const v = parseFloat(localStorage.getItem('arenaGrowthPerMilestone') || '')
+    return Number.isFinite(v) ? v : 5
+  })
+  const [maxArenaLimit, setMaxArenaLimit] = useState(Math.min(BOUNDARY_LIMIT * 1.5, Math.floor(GROUND_HALF * 0.9)))
   const enemyId = useRef(1)
   const pickupId = useRef(1)
   const portalId = useRef(1)
   const speedBoostId = useRef(1)
+  // Alternate diagonal for milestone life pickups so they spawn at opposite corners each milestone
+  const lifeCornerToggleRef = useRef(false)
   // removed waveTimer (switched to pause-aware timeout loop)
   const bulletPool = useRef(new BulletPool(BULLET_POOL_SIZE))
 // Simple instanced confetti burst
@@ -2069,16 +1896,62 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
   const deathHandledRef = useRef(false)
   const portalTimersRef = useRef([])
   const speedBoostTimersRef = useRef([])
+  const bouncerTimersRef = useRef([])
   const portalsRef = useRef([])
   useEffect(() => { portalsRef.current = portals.map(p => p.pos) }, [portals])
   // expose a damage function for special enemies (like ConeBoss)
   const damagePlayer = useCallback((dmg) => {
-    if (isPlayerInvulnerable()) return
+    if (isPlayerInvulnerable()) {
+      // When invulnerable and an enemy collides, stun the colliding enemy instead of despawning
+      try {
+        if (window.gameEnemies && window.gameEnemies.length) {
+          const px = playerPosRef.current.x
+          const pz = playerPosRef.current.z
+          let best = null
+          for (const ge of window.gameEnemies) {
+            if (!ge?.ref?.current) continue
+            const ex = ge.ref.current.position.x
+            const ez = ge.ref.current.position.z
+            const dx = ex - px
+            const dz = ez - pz
+            const d2 = dx*dx + dz*dz
+            // Use a generous radius to catch landing cones and close contacts
+            if (d2 <= 4.8*4.8) {
+              if (!best || d2 < best.d2) best = { ge, d2, dx, dz }
+            }
+          }
+          if (best) {
+            // Stun for 3s and push slightly away from player
+            best.ge.stun?.(3000)
+            const d = Math.sqrt(Math.max(best.d2, 1e-6))
+            const nx = best.dx / d
+            const nz = best.dz / d
+            best.ge.impulse?.(nx, nz, 40)
+          }
+        }
+      } catch { /* ignore */ }
+      return
+    }
     const scale = damageScaleRef.current || 1
-    const final = Math.max(1, Math.ceil((dmg || 1) * scale))
-    setHealth(h => Math.max(h - final, 0))
-    const idEvt = Date.now() + Math.random()
-    setHpEvents(evts => [...evts, { id: idEvt, amount: -final, start: performance.now() }])
+    let remaining = Math.max(1, Math.ceil((dmg || 1) * scale))
+    setArmor(a => {
+      if (a > 0 && remaining > 0) {
+        const take = Math.min(a, remaining)
+        const idEvt = Date.now() + Math.random()
+        setArmorEvents(evts => [...evts, { id: idEvt, amount: -take, start: performance.now() }])
+        remaining -= take
+        return a - take
+      }
+      return a
+    })
+    if (remaining > 0) {
+      setHealth(h => {
+        const take = Math.min(h, remaining)
+        const idEvt = Date.now() + Math.random()
+        setHpEvents(evts => [...evts, { id: idEvt, amount: -take, start: performance.now() }])
+        return Math.max(h - remaining, 0)
+      })
+    }
   }, [isPlayerInvulnerable])
   
   // Load persisted settings once
@@ -2091,6 +1964,17 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
       if (hc != null) setHighContrast(hc === '1' || hc === 'true')
       const pm = localStorage.getItem('perfMode')
       if (pm != null) setPerformanceMode(pm === '1' || pm === 'true')
+      const psg = parseFloat(localStorage.getItem('pickupScaleGlobal') || '3')
+      if (!Number.isNaN(psg) && psg > 0) setPickupScaleGlobal(Math.max(0.5, Math.min(4.0, psg)))
+      // Arena persisted settings
+      const bls = parseFloat(localStorage.getItem('boundaryLimit') || String(BOUNDARY_LIMIT))
+      if (!Number.isNaN(bls)) setBoundaryLimit(Math.max(20, Math.min(GROUND_HALF * 0.9, bls)))
+      const aen = localStorage.getItem('arenaGrowEnabled')
+      if (aen != null) setArenaGrowEnabled(aen === 'true')
+      const agr = parseFloat(localStorage.getItem('arenaGrowthRate') || '0.01')
+      if (!Number.isNaN(agr)) setArenaGrowthRate(Math.max(0, Math.min(0.2, agr)))
+      const mal = parseFloat(localStorage.getItem('maxArenaLimit') || String(Math.floor(GROUND_HALF * 0.9)))
+      if (!Number.isNaN(mal)) setMaxArenaLimit(Math.max(30, Math.min(GROUND_HALF * 0.9, mal)))
       const bs = parseInt(localStorage.getItem('bestScore') || '0', 10)
       const bw = parseInt(localStorage.getItem('bestWave') || '0', 10)
       if (!Number.isNaN(bs)) setBestScore(bs)
@@ -2099,12 +1983,39 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
   }, [])
   // Persist on change
   useEffect(() => { try { localStorage.setItem('controlScheme', controlScheme) } catch { /* ignore */ } }, [controlScheme])
+  useEffect(() => { spawnPressureMulRef.current = spawnPressureMul; try { localStorage.setItem('spawnPressureMul', String(spawnPressureMul)) } catch {} }, [spawnPressureMul])
   // removed shapeRunner persistence
   useEffect(() => { try { localStorage.setItem('highContrast', highContrast ? '1' : '0') } catch { /* ignore */ } }, [highContrast])
   useEffect(() => { try { localStorage.setItem('perfMode', performanceMode ? '1' : '0') } catch { /* ignore */ } }, [performanceMode])
+  useEffect(() => { try { localStorage.setItem('pickupScaleGlobal', String(pickupScaleGlobal)) } catch { /* ignore */ } }, [pickupScaleGlobal])
+  useEffect(() => { try { localStorage.setItem('boundaryLimit', String(boundaryLimit)) } catch { /* ignore */ } }, [boundaryLimit])
+  useEffect(() => { try { localStorage.setItem('arenaGrowEnabled', String(arenaGrowEnabled)) } catch { /* ignore */ } }, [arenaGrowEnabled])
+  useEffect(() => { try { localStorage.setItem('arenaGrowthRate', String(arenaGrowthRate)) } catch { /* ignore */ } }, [arenaGrowthRate])
+  useEffect(() => { try { localStorage.setItem('arenaGrowthMode', String(arenaGrowthMode)) } catch { /* ignore */ } }, [arenaGrowthMode])
+  useEffect(() => { try { localStorage.setItem('arenaGrowthPerMilestone', String(arenaGrowthPerMilestone)) } catch { /* ignore */ } }, [arenaGrowthPerMilestone])
+  useEffect(() => { try { localStorage.setItem('maxArenaLimit', String(maxArenaLimit)) } catch { /* ignore */ } }, [maxArenaLimit])
   // Persist bests when they change
   useEffect(() => { try { localStorage.setItem('bestScore', String(bestScore)) } catch { /* ignore write errors */ } }, [bestScore])
   useEffect(() => { try { localStorage.setItem('bestWave', String(bestWave)) } catch { /* ignore write errors */ } }, [bestWave])
+
+  // Arena growth tick: increase boundary size over time if enabled, pause-aware (time mode only)
+  useEffect(() => {
+    if (ARENA_GROWTH_DISABLED) return
+    if (!arenaGrowEnabled || arenaGrowthMode !== 'time') return
+    let cancelled = false
+    const tick = () => {
+      if (cancelled) return
+      if (!isPausedRef.current) {
+        const cap = Math.min(maxArenaLimit, Math.floor(GROUND_HALF * 0.9))
+        setBoundaryLimit(prev => Math.min(cap, (prev ?? BOUNDARY_LIMIT) + arenaGrowthRate))
+      }
+      setTimeout(tick, 1000)
+    }
+    const t = setTimeout(tick, 1000)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [arenaGrowEnabled, arenaGrowthMode, arenaGrowthRate, maxArenaLimit])
+  // Milestone growth guard (to avoid double-apply on continues)
+  const lastGrowthWaveAppliedRef = useRef(0)
 
   // Update bests live during a run and trigger confetti once per run when breaking prior best
   const bestScoreBaselineRef = useRef(0)
@@ -2293,9 +2204,29 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
     speedBoostTimersRef.current = []
   }, [])
 
+  // Bouncer helpers
+  const openBouncerAt = useCallback((pos) => {
+    const id = Date.now() + Math.random()
+    // Add telegraph now
+    setBouncerTelegraphs(prev => [...prev, { id, pos }])
+    const t = setTimeout(() => {
+      // Remove telegraph
+      setBouncerTelegraphs(prev => prev.filter(b => b.id !== id))
+      // Spawn launched bouncer
+      const bid = id
+      setBouncers(prev => [...prev, { id: bid, pos: [pos[0], 0.5, pos[2]], velY: BOUNCER_UP_VEL, bornAt: performance.now() }])
+    }, BOUNCER_TELEGRAPH_MS)
+    bouncerTimersRef.current.push(t)
+  }, [])
+
+  const clearBouncerTimers = useCallback(() => {
+    bouncerTimersRef.current.forEach(t => clearTimeout(t))
+    bouncerTimersRef.current = []
+  }, [])
+
   useEffect(() => {
-    return () => clearSpeedBoostTimers()
-  }, [clearSpeedBoostTimers])
+    return () => { clearSpeedBoostTimers(); clearBouncerTimers() }
+  }, [clearSpeedBoostTimers, clearBouncerTimers])
 
   const scheduleEnemyBatchAt = useCallback((pos, count, options = {}) => {
     const { isTriangle = false, isCone = false, waveNumber = 1, extraDelayMs = 0, kind = null } = options
@@ -2324,7 +2255,8 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           // Respect max 6 cones at once
           setEnemies(prev => {
             const cones = prev.filter(e => e.isCone).length
-            if (cones >= 6) return prev
+            const maxCones = LEVEL_CONFIG?.caps?.conesMax ?? 6
+            if (cones >= maxCones) return prev
             return [...prev, {
               id,
               pos: spawnPos,
@@ -2340,6 +2272,8 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           if (kind === 'cluster') {
             setEnemies(prev => [...prev, { id, pos: spawnPos, isCluster: true, isBoss: true, waveNumber, health: 3, maxHealth: 3, spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2 }])
             pushBossFeedRef.current && pushBossFeedRef.current('Cluster boss spawned', '#ff3333')
+            // Boss intro popup
+            setPickupPopups(prev => [...prev, { id: Date.now() + Math.random(), pickup: { type: 'boss', name: 'Cluster Boss', level: waveNumber, color: '#ff3333' } }])
           } else if (kind === 'bossMinion') {
             setEnemies(prev => [...prev, { id, pos: spawnPos, isBoss: true, formationTarget: new THREE.Vector3(pos[0], 0.5, pos[2]), waveNumber, health: 3, maxHealth: 3, spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2 }])
           } else if (kind === 'minion') {
@@ -2364,9 +2298,16 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
   // spawn a wave using latest state (no stale closures) and compute count by nextWave
   const spawnWave = useCallback(() => {
     if (isPausedRef.current) return
+    // Establish per-level baseline: points at the start of this level
+    levelScoreBaselineRef.current = scoreRef.current || 0
     setWave(w => {
       const nextWave = w + 1
       const level = nextWave
+      // Level intro popup
+      try {
+        const popupId = Date.now() + Math.random()
+        setPickupPopups(prev => [...prev, { id: popupId, pickup: { type: 'level', level: nextWave } }])
+      } catch { /* ignore */ }
       // Update damage scale by wave and notify player
       const newScale = Math.min(DAMAGE_SCALE_MAX, 1 + (Math.max(1, nextWave) - 1) * DAMAGE_SCALE_PER_WAVE)
       if (Math.abs(newScale - (damageScaleRef.current || 1)) > 1e-6) {
@@ -2379,17 +2320,26 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
       const newEnemyScale = Math.min(ENEMY_SPEED_SCALE_MAX, 1 + (Math.max(1, nextWave) - 1) * ENEMY_SPEED_SCALE_PER_WAVE)
       if (Math.abs(newEnemyScale - (enemySpeedScaleRef.current || 1)) > 1e-6) {
         enemySpeedScaleRef.current = newEnemyScale
-        setEnemySpeedScale(newEnemyScale)
+  setEnemySpeedScale(newEnemyScale)
         setPlayerBaseSpeed(s => Math.min(PLAYER_SPEED_CAP, s + 1))
         const popupId = Date.now() + Math.random()
         setPickupPopups(prev => [...prev, { id: popupId, pickup: { type: 'speedramp', scale: newEnemyScale, player: true } }])
       }
-      // Milestone life pickup: every 5 waves, spawn one rare life pickup near center
-      if (nextWave % 5 === 0) {
-        if (Math.random() < 0.7) { // rare-ish gate on top of milestone
-          const pos = [center.x + (Math.random() - 0.5) * 6, 0.5, center.z + (Math.random() - 0.5) * 6]
-          spawnPickup('life', pos)
-        }
+      // Milestone life pickup: every 10 waves, spawn exactly one life pickup at a corner.
+      // Alternates opposing corners each milestone (diagonal toggles).
+    if (nextWave % 10 === 0) {
+  const lim = (boundaryLimit ?? BOUNDARY_LIMIT) - 1.5
+        const usePrimaryDiagonal = lifeCornerToggleRef.current
+        const pos = usePrimaryDiagonal ? [ lim, 0.5,  lim] : [ -lim, 0.5, -lim]
+        // Flip for next milestone so the next life appears at the opposite corner
+        lifeCornerToggleRef.current = !lifeCornerToggleRef.current
+        spawnPickup('life', pos)
+      }
+      // Milestone arena growth: disabled when ARENA_GROWTH_DISABLED
+      if (!ARENA_GROWTH_DISABLED && arenaGrowEnabled && arenaGrowthMode === 'milestone' && nextWave % 10 === 0 && nextWave > (lastGrowthWaveAppliedRef.current || 0)) {
+        const cap = Math.min(maxArenaLimit, Math.floor(GROUND_HALF * 0.9))
+        setBoundaryLimit(prev => Math.min(cap, (prev ?? BOUNDARY_LIMIT) + (arenaGrowthPerMilestone || 0)))
+        lastGrowthWaveAppliedRef.current = nextWave
       }
       // Leveling system: compute caps, budget, and plan spawns
       const activeMax = getActiveMax(level, performanceMode)
@@ -2401,7 +2351,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
       const budget = getBudget(level)
       let budgetLeft = budget
 
-      const portalsCount = Math.min(PORTALS_PER_WAVE_MAX, Math.max(PORTALS_PER_WAVE_MIN, 2 + Math.floor(nextWave / 4)))
+  const portalsCount = Math.min(PORTALS_PER_WAVE_MAX, Math.max(PORTALS_PER_WAVE_MIN, 2 + Math.floor(nextWave / 4)))
       const baseAngle = Math.random() * Math.PI * 2
 
       // Helper to place a portal and schedule one enemy with kind and delay
@@ -2423,6 +2373,8 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         const extraDelay = 2000 + Math.random() * 2000
         openPortalAt(p, PORTAL_LIFETIME + 1500 + extraDelay)
         scheduleEnemyBatchAt(p, 1, { isTriangle: true, waveNumber: nextWave, extraDelayMs: 500 + extraDelay })
+        // Boss intro popup
+        setPickupPopups(prev => [...prev, { id: Date.now() + Math.random(), pickup: { type: 'boss', name: 'Triangle Boss', level: nextWave, color: '#8b5cf6' } }])
         bossSlotsRem -= 1
         expectedAdds += 1
         budgetLeft = Math.max(0, budgetLeft - LEVEL_CONFIG.costs.triangle)
@@ -2438,15 +2390,17 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         const extraDelay = 2000 + Math.random() * 2000
         openPortalAt(p, PORTAL_LIFETIME + 800 + extraDelay)
         scheduleEnemyBatchAt(p, 1, { isCone: true, waveNumber: nextWave, extraDelayMs: 300 + extraDelay })
+        // Boss intro popup
+        setPickupPopups(prev => [...prev, { id: Date.now() + Math.random(), pickup: { type: 'boss', name: 'Cone Boss', level: nextWave, color: '#f59e0b' } }])
         bossSlotsRem -= 1
         expectedAdds += 1
         budgetLeft = Math.max(0, budgetLeft - LEVEL_CONFIG.costs.cone)
       }
 
       // Pipe boss
-      if (level >= LEVEL_CONFIG.unlocks.pipe && Math.random() < LEVEL_CONFIG.chances.pipe && bossSlotsRem > 0 && remainingSlots - expectedAdds > 0) {
-        const cornerBias = Math.random() < 0.6
-        const lim = BOUNDARY_LIMIT - 2
+  if (level >= LEVEL_CONFIG.unlocks.pipe && Math.random() < LEVEL_CONFIG.chances.pipe && bossSlotsRem > 0 && remainingSlots - expectedAdds > 0) {
+    const cornerBias = Math.random() < 0.6
+  const lim = (boundaryLimit ?? BOUNDARY_LIMIT) - 2
         let px = 0, pz = 0
         if (cornerBias) {
           px = (Math.random() < 0.5 ? -1 : 1) * lim
@@ -2463,17 +2417,21 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         const id = enemyId.current++
         setEnemies(prev => [...prev, { id, pos: [px, 0.2, pz], isPipe: true, isBoss: true, health: 2, maxHealth: 2 }])
         pushBossFeedRef.current && pushBossFeedRef.current('Pipe boss spawned', '#ff3333')
+        // Boss intro popup
+        setPickupPopups(prev => [...prev, { id: Date.now() + Math.random(), pickup: { type: 'boss', name: 'Pipe Boss', level: nextWave, color: '#ff3333' } }])
         bossSlotsRem -= 1
         expectedAdds += 1
         budgetLeft = Math.max(0, budgetLeft - LEVEL_CONFIG.costs.pipe)
       }
 
-      // Compute how many basic enemies we can add this wave
+  // Compute how many basic enemies we can add this wave
       const slotsForBasics = Math.max(0, remainingSlots - expectedAdds)
-      let basicsToSpawn = Math.min(slotsForBasics, Math.max(0, Math.floor(budgetLeft / LEVEL_CONFIG.costs.minion)))
+  // Apply spawn pressure scaling to reduce spawn counts while keeping pressure
+  let basicsToSpawn = Math.min(slotsForBasics, Math.max(0, Math.floor(budgetLeft / LEVEL_CONFIG.costs.minion)))
+  basicsToSpawn = Math.max(0, Math.floor(basicsToSpawn * (spawnPressureMulRef.current || 1)))
 
       // Distribute basics across portals
-      const perPortal = Math.max(1, Math.floor(basicsToSpawn / portalsCount))
+  const perPortal = Math.max(1, Math.floor(basicsToSpawn / portalsCount))
 
       // Evenly spaced directions with slight jitter
       for (let i = 0; i < portalsCount; i++) {
@@ -2505,11 +2463,40 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
               kind = 'bossMinion'; bossSlotsRem = Math.max(0, bossSlotsRem - 1); budgetLeft = Math.max(0, budgetLeft - LEVEL_CONFIG.costs.bossMinion)
             }
           } else {
-            // Default to minion (T1), ignore T3/T4 for basic slots
+            // Default to roster-based minion selection
             kind = 'minion'; budgetLeft = Math.max(0, budgetLeft - LEVEL_CONFIG.costs.minion)
           }
           basicsToSpawn -= 1
-          scheduleEnemyBatchAt(p, 1, { waveNumber: nextWave, extraDelayMs: extraDelay + (k*PORTAL_STAGGER_MS), kind })
+          // For basic minions, pick a roster enemy with matching tier
+          if (kind === 'minion') {
+            const tierNum = (pickTier === 'T1' ? 1 : pickTier === 'T2' ? 2 : pickTier === 'T3' ? 3 : 4)
+            const picked = pickRosterByTier(level, tierNum)
+            const ecolor = colorHex(picked.color)
+            const eid = enemyId.current++
+            const spawnPos = [p[0], 0.5, p[2]]
+            // Compute move speed in world units (minion range ≈ 6..12 u/s)
+            const sp = Math.max(2.0, Math.min(3.2, (picked?.stats?.speed || 2.5)))
+            const moveSpeed = Math.min(12, 6 + (sp - 2.0) * 4) * (enemySpeedScaleRef.current || 1) * (cameraSpeedMulRef.current || 1)
+            setEnemies(prev => [...prev, {
+              id: eid,
+              pos: spawnPos,
+              isRoster: true,
+              rosterName: picked.name,
+              rosterColor: ecolor,
+              rosterShape: picked.shape || 'Circle',
+              waveNumber: nextWave,
+              health: Math.max(1, picked?.stats?.health || 2),
+              maxHealth: Math.max(1, picked?.stats?.health || 2),
+              spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2,
+              // traits (minimal initial wiring)
+              stunImmune: /CRE/.test(picked.name),
+              cloneOnHalf: picked.name.includes('E. coli ESBL'),
+              bulletDamageScale: picked.name.includes('MRSA') ? 0.8 : (picked.name.includes('VRE') ? 0.5 : 1),
+              moveSpeed
+            }])
+          } else {
+            scheduleEnemyBatchAt(p, 1, { waveNumber: nextWave, extraDelayMs: extraDelay + (k*PORTAL_STAGGER_MS), kind })
+          }
         }
       }
 
@@ -2525,6 +2512,20 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
       }
 
       // (Triangle/Cone/Pipe spawning moved into leveled plan above)
+
+      // Also seed a few bouncers at wave start to ensure presence from level 1
+  try {
+    const waveForBouncers = nextWave
+  const lim = (boundaryLimit ?? BOUNDARY_LIMIT) - 2
+        const bc = Math.min(3, 1 + Math.floor((waveForBouncers - 1) / 6))
+        for (let i = 0; i < bc; i++) {
+          const angle = Math.random() * Math.PI * 2
+          const radius = 6 + Math.random() * (lim - 6)
+          const bx = center.x + Math.cos(angle) * radius
+          const bz = center.z + Math.sin(angle) * radius
+          openBouncerAt([bx, 0.5, bz])
+        }
+      } catch { /* no-op */ }
 
       return nextWave
     })
@@ -2549,7 +2550,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
     const py = playerPosition.y + 0.5
     const pz = playerPosition.z
 
-    // While shape runner is active (stun mode), emit 4 forward streams instead of 1
+  // While shape runner is active (stun mode), emit 4 forward streams
     if (stunMode) {
       const fx = direction[0]
       const fz = direction[2]
@@ -2580,9 +2581,8 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
       return
     }
 
-    // If medium-tier power (70..89), emit a triple stream with a slight arc in front
-  if (!stunMode && powerEffect.active && powerEffect.amount >= 70 && powerEffect.amount <= 89) {
-      // Base forward dir
+    // Default fire: triple stream; Power-up: 5-stream fan
+    {
       const fx = direction[0]
       const fz = direction[2]
       // Right vector on XZ plane (perpendicular)
@@ -2591,20 +2591,19 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
       const rlen = Math.hypot(rx, rz) || 1
       rx /= rlen; rz /= rlen
 
-      // Slight arc emitter positions, ahead of player
-      const ahead = 0.8
-      const side = 0.4
-      const offsetsDeg = [-8, 0, 8]
+      const ahead = 0.85
+      const side = 0.45
+      const offsetsDeg = powerEffect.active ? [-12, -6, 0, 6, 12] : [-8, 0, 8]
       for (let i = 0; i < offsetsDeg.length; i++) {
         const deg = offsetsDeg[i]
         const rad = deg * Math.PI / 180
         const cos = Math.cos(rad)
         const sin = Math.sin(rad)
-        // rotate forward by small yaw
         const dx = fx * cos - fz * sin
         const dz = fx * sin + fz * cos
-        // emitter position forms a shallow arc in front
-        const sx = (i === 0 ? -side : (i === 2 ? side : 0))
+        const sx = (offsetsDeg.length === 3)
+          ? (i === 0 ? -side : (i === 2 ? side : 0))
+          : (i === 0 ? -side : (i === 1 ? -side*0.5 : (i === 3 ? side*0.5 : (i === 4 ? side : 0))))
         const ex = px + fx * ahead + rx * sx
         const ez = pz + fz * ahead + rz * sx
         bulletPool.current.getBullet([ex, py, ez], [dx, 0, dz], style)
@@ -2612,10 +2611,6 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
       setBullets(bulletPool.current.getActiveBullets())
       return
     }
-
-    // Default: single bullet
-    const bullet = bulletPool.current.getBullet([px, py, pz], direction, style)
-    if (bullet) setBullets(bulletPool.current.getActiveBullets())
   }, [powerEffect, invulnEffect.active, autoFollowHeld, autoFollowHeld2])
 
   // Handle bullet expiration
@@ -2666,6 +2661,8 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         })
       } else if (type === 'life') {
         setPickups(p => {
+          // Ensure only one life pickup exists concurrently
+          if (p.some(x => x.type === 'life')) return p
           if (p.length >= MAX_PICKUPS) return p
           return [...p, { id, pos, type: 'life', lifetimeMaxSec: 18 }]
         })
@@ -2677,32 +2674,60 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
   const onEnemyDie = useCallback((id, hitPlayer=false) => {
     setEnemies(prev => {
       const enemy = prev.find(e => e.id === id)
-      // If enemy hit the player, apply contact damage based on type
+      if (!enemy) return prev.filter(e => e.id !== id)
+      // If enemy hit the player
       if (hitPlayer) {
-        if (!isPlayerInvulnerable()) {
+        if (isPlayerInvulnerable()) {
+          // Stun instead of despawn when invulnerable
+          try {
+            const ge = (window.gameEnemies || []).find(x => x.id === id)
+            if (ge) {
+              ge.stun?.(3000)
+              // Push away from player to prevent immediate retrigger
+              const ex = ge.ref?.current?.position?.x ?? enemy.pos?.[0] ?? 0
+              const ez = ge.ref?.current?.position?.z ?? enemy.pos?.[2] ?? 0
+              const dx = ex - playerPosRef.current.x
+              const dz = ez - playerPosRef.current.z
+              const d = Math.hypot(dx, dz) || 1
+              ge.impulse?.(dx / d, dz / d, 40)
+            }
+          } catch { /* ignore */ }
+          // Keep enemy alive
+          return prev
+        } else {
+          // Apply contact damage and despawn
           const base = enemy?.isTriangle ? CONTACT_DAMAGE.triangle : (enemy?.isBoss ? CONTACT_DAMAGE.boss : CONTACT_DAMAGE.minion)
           const scale = damageScaleRef.current || 1
           const dmg = Math.max(1, Math.ceil((base || 1) * scale))
-          setHealth(h => Math.max(h - dmg, 0))
-          // show HP change
-          const idEvt = Date.now() + Math.random()
-          setHpEvents(evts => [...evts, { id: idEvt, amount: -dmg, start: performance.now() }])
+          damagePlayer(dmg)
+          return prev.filter(e => e.id !== id)
         }
       } else {
-        // Award score if killed by player
+        // Enemy died from non-player collision or damage; award score and remove
         const points = enemy?.isTriangle ? 100 : (enemy?.isBoss ? 50 : 10)
         setScore(s => s + points)
-  // drop chance tuned for faster game pace
-  if (Math.random() < 0.20) {
-    const r2 = Math.random()
-    if (r2 < 0.10) spawnPickup('invuln')
-    else if (r2 < 0.18) spawnPickup('bombs') // rare bomb kit
-  else spawnPickup(Math.random() < 0.85 ? 'power' : 'health') // health ~15% of split on generic drops
-  }
+        // Increased drop economy with scaling at higher waves
+        // Baseline gate and weights, scale up after wave 8
+        const wv = wave || 0
+        const diff = Math.max(0, wv - 8)
+        const scale = Math.min(1, diff / 10) // 0..1 over ~10 waves
+        // Couple total drop chance with spawn pressure (fewer enemies → higher drop chance, and vice versa)
+        const pressure = Math.max(0.5, Math.min(1.6, spawnPressureMulRef.current || 1))
+        const pickupFactor = Math.max(0.7, Math.min(1.5, 1 / pressure))
+        const gateBase = 0.55 + 0.25 * scale
+        const gate = Math.max(0.10, Math.min(0.95, gateBase * pickupFactor))
+        if (Math.random() < gate) {
+          const r2 = Math.random()
+          const pInv = 0.12 + 0.20 * scale
+          const pBomb = 0.32 + 0.28 * scale
+          if (r2 < pInv) spawnPickup('invuln')
+          else if (r2 < pBomb) spawnPickup('bombs')
+          else spawnPickup(Math.random() < 0.70 ? 'power' : 'health')
+        }
+        return prev.filter(e => e.id !== id)
       }
-      return prev.filter(e => e.id !== id)
     })
-  }, [spawnPickup])
+  }, [spawnPickup, isPlayerInvulnerable, wave])
 
   // (moved) spawnPickup and weightedPowerAmount are defined above onEnemyDie
 
@@ -2728,7 +2753,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         if (!eData) continue
         if (ge.isFlying) continue // drones are immune to bullets
         enemyPos.copy(ge.ref.current.position)
-        const hitRadius = eData.isBoss ? 1.8 : (eData.isTriangle ? 2.5 : 0.8)
+        const hitRadius = eData.isBoss ? 1.8 : (eData.isTriangle ? 2.5 : (eData.isRoster ? 0.9 : 0.8))
         const dist = bulletPos.distanceTo(enemyPos)
         if (dist < hitRadius) {
           hitEnemy = ge
@@ -2770,18 +2795,73 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           continue
         }
 
-        // Apply damage
+        // Apply damage (respect Enzyme Shield and resilience windows on certain roster enemies)
         const hitId = hitEnemy.id
         setEnemies(prev => {
           let died = false
           const updated = prev.map(e => {
             if (e.id !== hitId) return e
-            const newHealth = (e.health ?? 1) - 1
+            // Enzyme Shield: nullify bullet damage during active window
+            if (e.isRoster && hitEnemy.enzymeShieldActive) {
+              return e
+            }
+            // A. baumannii XDR: temporary invulnerability after taking damage
+            const now = performance.now()
+            if (e.isRoster && e.rosterName && e.rosterName.includes('A. baumannii XDR')) {
+              if (hitEnemy.resilienceInvulnUntil && now < hitEnemy.resilienceInvulnUntil) {
+                return e // ignore damage during resilience window
+              }
+            }
+
+            // Compute scaled bullet damage and fraction accumulator
+            let dmgUnits = PLAYER_BULLET_DAMAGE
+            let scale = e.bulletDamageScale || 1
+            // Enterobacter ESBL: Adaptive Shield — extra defense near allies
+            if (e.isRoster && e.rosterName && e.rosterName.includes('Enterobacter ESBL') && window.gameEnemies) {
+              try {
+                const self = hitEnemy.ref?.current?.position
+                if (self) {
+                  let allies = 0
+                  for (const ge of window.gameEnemies) {
+                    if (!ge?.ref?.current || ge.id === hitEnemy.id) continue
+                    const d = ge.ref.current.position.distanceTo(self)
+                    if (d <= 5) { allies++; if (allies >= 1) break }
+                  }
+                  if (allies >= 1) scale *= 0.7
+                }
+              } catch {}
+            }
+            const add = dmgUnits * scale
+            const store = (e._dmgStore || 0) + add
+            let takeHp = 0
+            let acc = store
+            while (acc >= 1 && (e.health - takeHp) > 0) { acc -= 1; takeHp += 1 }
+            const newHealth = (e.health ?? 1) - takeHp
+            const newStore = acc
+
+            // Mutation Surge: speed burst on damage for E. coli CRE
+            if (takeHp > 0 && e.isRoster && e.rosterName && e.rosterName.includes('E. coli CRE')) {
+              hitEnemy.mutSpeedUntil = now + 4000
+            }
+            // Extreme Resilience: start resilience window after taking damage (A. baumannii XDR)
+            if (takeHp > 0 && e.isRoster && e.rosterName && e.rosterName.includes('A. baumannii XDR')) {
+              hitEnemy.resilienceInvulnUntil = now + 1500
+            }
+            // Roster trait: Rapid Division (clone on crossing 50%)
+            if (e.isRoster && e.cloneOnHalf && !e.cloned && newHealth <= Math.floor((e.maxHealth||1)/2)) {
+              e.cloned = true
+              const nid = enemyId.current++
+              const jitter = 0.6
+              const nx = (e.pos?.[0] ?? enemyPos.x) + (Math.random()-0.5)*jitter
+              const nz = (e.pos?.[2] ?? enemyPos.z) + (Math.random()-0.5)*jitter
+              const nh = Math.max(1, Math.ceil((e.maxHealth||2)/2))
+              setEnemies(pp => [...pp, { id: nid, pos: [nx, 0.5, nz], isRoster: true, rosterName: e.rosterName, rosterColor: e.rosterColor, health: nh, maxHealth: nh, spawnHeight: DROP_SPAWN_HEIGHT + Math.random()*2, stunImmune: e.stunImmune, cloneOnHalf: false, bulletDamageScale: e.bulletDamageScale }])
+            }
             if (newHealth <= 0) {
               died = true
               return null
             }
-            return { ...e, health: newHealth }
+            return { ...e, health: newHealth, _dmgStore: newStore }
           }).filter(Boolean)
           if (died) setTimeout(() => onEnemyDie(hitId, false), 0)
           return updated
@@ -2807,17 +2887,42 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
       if (cancelled) return
       if (!isPausedRef.current) {
         spawnWave()
-  // slightly higher ambient pickup spawns after waves for faster pace
-  if (Math.random() < 0.35) spawnPickup(Math.random() < 0.15 ? 'health' : 'power') // health ~15% of ambient split
-  if (Math.random() < 0.06) spawnPickup('bombs') // very rare ambient bomb kit
-  // rare invulnerability pickup, similar rarity to high-tier power-ups
-  if (Math.random() < 0.05) spawnPickup('invuln')
+  // Ambient pickup spawns after waves — couple with spawn pressure as well
+  {
+    const pressure = Math.max(0.5, Math.min(1.6, spawnPressureMulRef.current || 1))
+    const pickupFactor = Math.max(0.7, Math.min(1.5, 1 / pressure))
+    // Power/health common drop
+    const commonP = Math.max(0.30, Math.min(0.99, 0.90 * pickupFactor))
+    if (Math.random() < commonP) spawnPickup(Math.random() < 0.30 ? 'health' : 'power')
+    // Bombs/invuln scale slightly with wave and pressure
+    const wv = wave || 0
+    const s = Math.min(0.4, Math.max(0, (wv - 8) * 0.02))
+    const pBomb = Math.max(0.02, Math.min(0.60, (0.18 + s) * pickupFactor))
+    const pInv  = Math.max(0.01, Math.min(0.50, (0.12 + s) * pickupFactor))
+    if (Math.random() < pBomb) spawnPickup('bombs')
+    if (Math.random() < pInv)  spawnPickup('invuln')
+    // occasional second ambient pickup
+    const secondP = Math.max(0.10, Math.min(0.90, 0.50 * pickupFactor))
+    if (Math.random() < secondP) spawnPickup(Math.random() < 0.25 ? 'health' : 'power')
+  }
+        // Spawn multiple bouncers per cycle starting from wave 1; scale gently with wave
+        const wv = wave || 0
+        const extra = Math.min(3, Math.floor(wv / 4))
+    const count = 2 + extra + (Math.random() < 0.4 ? 1 : 0)
+  const lim = (boundaryLimit ?? BOUNDARY_LIMIT) - 2
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2
+          const radius = 6 + Math.random() * (lim - 6)
+          const px = Math.cos(angle) * radius
+          const pz = Math.sin(angle) * radius
+          openBouncerAt([px, 0.5, pz])
+        }
       }
-      timer = setTimeout(tick, 12000)
+      timer = setTimeout(tick, 9000)
     }
-    timer = setTimeout(tick, 12000)
+    timer = setTimeout(tick, 9000)
     return () => { cancelled = true; if (timer) clearTimeout(timer) }
-  }, [spawnWave, spawnPickup, isStarted])
+  }, [spawnWave, spawnPickup, isStarted, openBouncerAt])
 
   const pushPickupFeed = useCallback((pickup) => {
     const info = pickup.type === 'health'
@@ -2853,7 +2958,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
 
   const onPickupCollect = useCallback((id) => {
     const pickup = pickups.find(pk => pk.id === id)
-    if (!pickup) return
+  if (!pickup) return
     
     setPickups(prev => prev.filter(pk => pk.id !== id))
     // Stream the pickup feed (replaces popup)
@@ -2861,9 +2966,11 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
     
     // Apply pickup effect
     if (pickup.type === 'health') {
-      setHealth(h => Math.min(h + 25, 100))
+      const base = 25
+      const eff = (regenDebuffRemainingRef.current > 0) ? Math.round(base * 0.5) : base
+      setHealth(h => Math.min(h + eff, 100))
       const idEvt = Date.now() + Math.random()
-      setHpEvents(evts => [...evts, { id: idEvt, amount: +25, start: performance.now() }])
+      setHpEvents(evts => [...evts, { id: idEvt, amount: +eff, start: performance.now() }])
     } else {
       if (pickup.type === 'power') {
         // power-up: add score by amount and enable bullet effect for duration
@@ -2879,6 +2986,14 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         // Activate ref immediately to avoid any frame where damage can sneak in
         invulnActiveRef.current = true
         setInvulnEffect({ active: true, shape })
+        // Clear any active slow debuff immediately; if one existed, trigger a blue shimmer cue
+        const hadDebuff = (debuffRemainingRef.current > 0)
+        debuffRemainingRef.current = 0
+        setDebuffEffect({ active: false })
+        if (hadDebuff) {
+          const id = Date.now() + Math.random()
+          setShimmers(prev => [...prev, { id }])
+        }
       } else if (pickup.type === 'bombs') {
         // Activate bomb kit effect: 4 bombs/sec for 4s (16 bombs total)
         bombEffectTimeRef.current = BOMB_ABILITY_DURATION_MS
@@ -2985,6 +3100,59 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
     return () => { cancelled = true; clearTimeout(t) }
   }, [debuffEffect.active])
 
+  // Regen debuff timer (pause-aware)
+  useEffect(() => {
+    if (!regenDebuff.active) return
+    let cancelled = false
+    const tick = () => {
+      if (cancelled) return
+      if (!isPausedRef.current) {
+        regenDebuffRemainingRef.current = Math.max(0, (regenDebuffRemainingRef.current|0) - 100)
+        if (regenDebuffRemainingRef.current <= 0) {
+          setRegenDebuff({ active: false })
+          return
+        }
+      }
+      setTimeout(tick, 100)
+    }
+    const t = setTimeout(tick, 100)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [regenDebuff.active])
+
+  // Corrosion effect timer (pause-aware): damages armor over time
+  useEffect(() => {
+    if (!corrosionEffect.active) return
+    let cancelled = false
+    const tick = () => {
+      if (cancelled) return
+      if (!isPausedRef.current) {
+        const dt = 100
+        corrosionRemainingRef.current = Math.max(0, (corrosionRemainingRef.current|0) - dt)
+        corrosionTickTimerRef.current += dt
+        // apply 3 armor damage every 0.5s
+        while (corrosionTickTimerRef.current >= 500 && corrosionRemainingRef.current > 0) {
+          corrosionTickTimerRef.current -= 500
+          // damage armor-only by 3
+          setArmor(a => {
+            if (a <= 0) return a
+            const take = Math.min(a, 3)
+            const idEvt = Date.now() + Math.random()
+            setArmorEvents(evts => [...evts, { id: idEvt, amount: -take, start: performance.now() }])
+            return a - take
+          })
+        }
+        if (corrosionRemainingRef.current <= 0) {
+          setCorrosionEffect({ active: false })
+          corrosionTickTimerRef.current = 0
+          return
+        }
+      }
+      setTimeout(tick, 100)
+    }
+    const t = setTimeout(tick, 100)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [corrosionEffect.active])
+
   // Invulnerability effect timer (pause-aware, 5s)
   useEffect(() => {
     if (!invulnEffect.active) return
@@ -3089,6 +3257,77 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
     return () => { cancelled = true; clearTimeout(t) }
   }, [invulnEffect.active, invulnEffect.shape, onEnemyDie])
 
+  // Hazard zone ticking: apply damage and slow/debuffs to player when inside zones
+  useEffect(() => {
+    if (!hazards.length) return
+    let cancelled = false
+    const tick = () => {
+      if (cancelled) return
+      if (!isPausedRef.current) {
+        const px = playerPosRef.current.x
+        const pz = playerPosRef.current.z
+        const now = performance.now()
+        hazards.forEach(h => {
+          if (now > (h.createdAt + (h.durationMs||6000))) return
+          const dx = px - h.pos[0]
+          const dz = pz - h.pos[2]
+          const r = h.radius || 4
+          if (dx*dx + dz*dz <= r*r) {
+            // Slow effect (reuse debuffEffect)
+            if (h.slow && (!debuffEffect.active || debuffRemainingRef.current < 200)) {
+              debuffRemainingRef.current = Math.max(debuffRemainingRef.current||0, 500)
+              setDebuffEffect({ active: true })
+            }
+            // Damage tick based on tickMs and track last tick per hazard
+            if (!h._lastTickAt) h._lastTickAt = now
+            if (now - h._lastTickAt >= (h.tickMs || 1000)) {
+              h._lastTickAt = now
+              const hasDps = typeof h.dps === 'number' && h.dps > 0
+              if (h.type === 'corrosive') {
+                // armor-specific: apply corrosion debuff for 5s
+                corrosionRemainingRef.current = Math.max(corrosionRemainingRef.current||0, 5000)
+                setCorrosionEffect({ active: true })
+              } else if (h.type === 'carcinogen') {
+                regenDebuffRemainingRef.current = Math.max(regenDebuffRemainingRef.current||0, 4000)
+                setRegenDebuff({ active: true })
+              } else if (h.type === 'toxin') {
+                if (hasDps) damagePlayer(h.dps)
+              } else {
+                if (hasDps) damagePlayer(h.dps)
+              }
+            }
+          }
+        })
+      }
+      setTimeout(tick, 100)
+    }
+    const t = setTimeout(tick, 100)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [hazards, debuffEffect.active, damagePlayer])
+
+  // Biofilm Armor: A. baumannii MDR regenerates 10% max HP every 5s (pause-aware)
+  useEffect(() => {
+    let cancelled = false
+    const tick = () => {
+      if (cancelled) return
+      if (!isPausedRef.current) {
+        setEnemies(prev => prev.map(e => {
+          if (!(e?.isRoster) || !e.rosterName || !e.rosterName.includes('A. baumannii MDR')) return e
+          const elapsed = (e._regenElapsed || 0) + 500
+          if (elapsed >= 5000) {
+            const heal = Math.max(1, Math.ceil((e.maxHealth || 1) * 0.10))
+            const nh = Math.min((e.health || 1) + heal, e.maxHealth || 1)
+            return { ...e, health: nh, _regenElapsed: elapsed - 5000 }
+          }
+          return { ...e, _regenElapsed: elapsed }
+        }))
+      }
+      setTimeout(tick, 500)
+    }
+    const t = setTimeout(tick, 500)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [])
+
   // High-value radial barrage (3 waves/sec) while effect active and amount>=90
   useEffect(() => {
     if (!powerEffect.active || powerEffect.amount < 90) return
@@ -3118,9 +3357,12 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
       setPickups([])
       setBullets([])
       setPortals([])
-      setSpeedBoosts([])
+  setSpeedBoosts([])
+  setBouncerTelegraphs([])
+  setBouncers([])
       clearPortalTimers()
-      clearSpeedBoostTimers()
+  clearSpeedBoostTimers()
+  clearBouncerTimers()
       bulletPool.current.clear()
 
       if (livesRef.current > 1) {
@@ -3136,10 +3378,17 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
             clearInterval(interval)
             setRespawnCountdown(0)
             setHealth(100)
+            setArmor(500)
             setPlayerResetToken(t => t + 1)
             setIsPaused(false)
             // Kick off next wave immediately
             spawnWave()
+            // Auto-launch at level 21+ on life respawn to help avoid high-speed enemies
+            try {
+              if ((wave || 0) >= 20) {
+                setArcTriggerToken(t => t + 1)
+              }
+            } catch { /* ignore */ }
           }
         }, 1000)
         return () => clearInterval(interval)
@@ -3169,6 +3418,8 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
     setPickups([])
     setBullets([])
     bulletPool.current.clear()
+    setBouncerTelegraphs([])
+    setBouncers([])
     setHealth(100)
     setScore(0)
     setWave(0)
@@ -3182,8 +3433,42 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
     window.gameEnemies = []
     clearPortalTimers()
     clearSpeedBoostTimers()
+    clearBouncerTimers()
     setPlayerResetToken(t => t + 1)
   }, [clearPortalTimers])
+
+  // Continue on same level with a 10% score penalty
+  const continueSameLevel = useCallback(() => {
+    // Apply penalty: 10% of points gained during the failed level only
+    const gainedThisLevel = Math.max(0, (scoreRef.current || 0) - (levelScoreBaselineRef.current || 0))
+    const penalty = Math.floor(gainedThisLevel * 0.10)
+    if (penalty > 0) {
+      setScore(s => Math.max(0, s - penalty))
+    }
+    // Clear world state
+    setEnemies([])
+    setPickups([])
+    setBullets([])
+    bulletPool.current.clear()
+    setBouncerTelegraphs([])
+    setBouncers([])
+    setPortals([])
+    setSpeedBoosts([])
+    clearPortalTimers()
+    clearSpeedBoostTimers()
+    clearBouncerTimers()
+    // Restore player state
+    setHealth(100)
+    setArmor(500)
+    setLives(1)
+    setPlayerResetToken(t => t + 1)
+    // Unpause and clear game-over flag
+    setIsGameOver(false)
+    setIsPaused(false)
+    // Spawn the same level: decrement once, then call spawnWave (which increments)
+    setWave(w => Math.max(0, w - 1))
+    spawnWave()
+  }, [spawnWave, clearPortalTimers, clearSpeedBoostTimers, clearBouncerTimers])
 
   // ground plane grid material
   const grid = useMemo(() => new THREE.GridHelper(200, 40, 0xb8c2cc, 0xe2e8f0), [])
@@ -3248,7 +3533,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           <meshStandardMaterial color={0xeaeef3} roughness={1} />
         </mesh>
         {/* Boundary visual cue */}
-        <BoundaryCue limit={BOUNDARY_LIMIT} isPaused={isPaused} />
+  <BoundaryCue limit={boundaryLimit ?? BOUNDARY_LIMIT} isPaused={isPaused} />
         <primitive object={grid} position={[0, 0.001, 0]} />
 
         {/* Active portals */}
@@ -3261,14 +3546,22 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           <SpeedBoostPlane key={sb.id} pos={sb.pos} isPaused={isPaused} />
         ))}
 
-        <Player 
+        {/* Bouncer telegraphs and launched bouncers */}
+        {!isPaused && bouncerTelegraphs.map(bt => (
+          <BouncerTelegraph key={bt.id} pos={bt.pos} />
+        ))}
+        {!isPaused && bouncers.map(b => (
+          <Bouncer key={b.id} data={b} onExpire={(id) => setBouncers(prev => prev.filter(x => x.id !== id))} />
+        ))}
+
+        <PlayerEntity 
           position={[0, 0.5, 0]} 
           setPositionRef={setPositionRef} 
           onShoot={handleShoot}
           isPaused={isPaused}
           autoFire={autoFire}
           resetToken={playerResetToken}
-          basePlayerSpeed={playerBaseSpeed}
+          basePlayerSpeed={playerBaseSpeed * ((cameraMode === 'topdown') ? (topDownSpeedMul || 1) : 1)}
           autoAimEnabled={cameraMode === 'follow' || cameraMode === 'topdown'}
           controlScheme={controlScheme}
           moveInputRef={moveInputRef}
@@ -3276,6 +3569,10 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           highContrast={highContrast}
           portals={portals}
           speedBoosts={speedBoosts}
+          bouncers={bouncers}
+          boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
+          invulnActive={invulnEffect.active || invulnTest}
+          primaryColor={parseInt(heroColorFor(selectedHero).replace('#','0x'))}
           autoFollow={{ 
             active: (invulnEffect.active && (autoFollowHeld || autoFollowHeld2)), 
             radius: SHAPE_PATH_RADIUS, 
@@ -3316,8 +3613,11 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
                 }
               })
             }
-            // Visualize the impact
-            setAoes(prev => [...prev, { id: Date.now() + Math.random(), pos: center, start: performance.now(), radius }])
+            // Visualize the impact (cap AOEs to last 12)
+            setAoes(prev => {
+              const next = [...prev, { id: Date.now() + Math.random(), pos: center, start: performance.now(), radius }]
+              return next.length > 12 ? next.slice(next.length - 12) : next
+            })
           }}
           onSlam={(slam) => {
             // Create AOE visual and push back enemies
@@ -3352,8 +3652,11 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
                 }
               })
             }
-            // Add AOE visual
-            setAoes(prev => [...prev, { id: Date.now(), pos: [center[0], 0.06, center[2]], start: performance.now(), radius }])
+            // Add AOE visual (cap to last 12)
+            setAoes(prev => {
+              const next = [...prev, { id: Date.now(), pos: [center[0], 0.06, center[2]], start: performance.now(), radius }]
+              return next.length > 12 ? next.slice(next.length - 12) : next
+            })
           }}
           onDebuff={() => {
             const popupId = Date.now()
@@ -3384,7 +3687,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
 
         {!isPaused && enemies.map(e => (
           e.isTriangle ? (
-            <TriangleBoss 
+            <TriangleBossEntity 
               key={e.id} 
               id={e.id} 
               pos={e.pos} 
@@ -3393,10 +3696,10 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
               health={e.health}
               isPaused={isPaused}
               spawnHeight={e.spawnHeight}
-              speedScale={enemySpeedScale}
+              speedScale={enemySpeedScale * ((cameraMode === 'topdown') ? (topDownSpeedMul || 1) : 1)}
             />
           ) : e.isCone ? (
-            <ConeBoss
+            <ConeBossEntity
               key={e.id}
               id={e.id}
               pos={e.pos}
@@ -3405,10 +3708,10 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
               health={e.health}
               isPaused={isPaused}
               spawnHeight={e.spawnHeight}
-              speedScale={enemySpeedScale}
+              speedScale={enemySpeedScale * ((cameraMode === 'topdown') ? (topDownSpeedMul || 1) : 1)}
             />
           ) : e.isPipe ? (
-            <PipeBoss
+            <PipeBossEntity
               key={e.id}
               id={e.id}
               pos={e.pos}
@@ -3417,28 +3720,31 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
               health={e.health}
               isPaused={isPaused}
               onLaunchDrones={(count, fromPos) => {
-                // Cap total active drones to avoid overload
-                setEnemies(prev => {
-                  const activeDrones = prev.filter(x => x.isFlying).length
-                  const allowed = Math.max(0, 16 - activeDrones)
-                  const toSpawn = Math.min(count, allowed)
-                  if (toSpawn <= 0) return prev
-                  const arr = [...prev]
-                  for (let i = 0; i < toSpawn; i++) {
-                    const id = enemyId.current++
-                    // small offset ring around the pipe
-                    const a = Math.random() * Math.PI * 2
-                    const r = 1.2 + Math.random() * 0.8
-                    const px = fromPos[0] + Math.cos(a) * r
-                    const pz = fromPos[2] + Math.sin(a) * r
-                    arr.push({ id, pos: [px, 4, pz], isFlying: true, health: 1, maxHealth: 1 })
-                  }
-                  return arr
-                })
+                  // Respect drone unlock and cap total active drones
+                  const level = wave || 1
+                  if (level < (LEVEL_CONFIG?.unlocks?.drone ?? 1)) return
+                  const maxDrones = LEVEL_CONFIG?.caps?.drones ?? 16
+                  setEnemies(prev => {
+                    const activeDrones = prev.filter(x => x.isFlying).length
+                    const allowed = Math.max(0, maxDrones - activeDrones)
+                    const toSpawn = Math.min(count, allowed)
+                    if (toSpawn <= 0) return prev
+                    const arr = [...prev]
+                    for (let i = 0; i < toSpawn; i++) {
+                      const id = enemyId.current++
+                      // small offset ring around the pipe
+                      const a = Math.random() * Math.PI * 2
+                      const r = 1.2 + Math.random() * 0.8
+                      const px = fromPos[0] + Math.cos(a) * r
+                      const pz = fromPos[2] + Math.sin(a) * r
+                      arr.push({ id, pos: [px, 4, pz], isFlying: true, health: 1, maxHealth: 1 })
+                    }
+                    return arr
+                  })
               }}
             />
-          ) : e.isCluster ? (
-            <ClusterBoss
+            ) : e.isCluster ? (
+            <ClusterBossEntity
               key={e.id}
               id={e.id}
               pos={e.pos}
@@ -3448,7 +3754,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
               isPaused={isPaused}
             />
           ) : e.isFlying ? (
-            <FlyingDrone
+            <FlyingDroneEntity
               key={e.id}
               id={e.id}
               pos={e.pos}
@@ -3458,9 +3764,34 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
               boundaryJumpActiveRef={boundaryJumpActiveRef}
               assets={{ bodyGeom: droneBodyGeom, tipGeom: droneTipGeom, trailGeom: droneTrailGeom, bodyMat: droneBodyMat, tipMat: droneTipMat }}
               trailBaseMat={droneTrailBaseMat}
+              boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
+              speedScale={enemySpeedScale * ((cameraMode === 'topdown') ? (topDownSpeedMul || 1) : 1)}
+            />
+          ) : e.isRoster ? (
+            <RosterEnemyEntity
+              key={e.id}
+              id={e.id}
+              pos={e.pos}
+              playerPosRef={playerPosRef}
+              onDie={onEnemyDie}
+              isPaused={isPaused}
+              health={e.health}
+              maxHealth={e.maxHealth}
+              color={parseInt((e.rosterColor || '#ff0055').replace('#','0x'))}
+              spawnHeight={e.spawnHeight}
+              label={e.rosterName}
+              stunImmune={!!e.stunImmune}
+              speedScale={enemySpeedScale * ((cameraMode === 'topdown') ? (topDownSpeedMul || 1) : 1)}
+              moveSpeed={e.moveSpeed || 10}
+              shape={e.rosterShape || 'Circle'}
+              onHazard={(hz) => {
+                // Add hazard zones managed by App
+                const id = Date.now() + Math.random()
+                setHazards(prev => [...prev, { id, ...hz, createdAt: performance.now() }])
+              }}
             />
           ) : (
-            <Minion 
+            <MinionEntity 
               key={e.id} 
               id={e.id} 
               pos={e.pos} 
@@ -3472,7 +3803,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
               health={e.health}
               isPaused={isPaused}
               spawnHeight={e.spawnHeight}
-              speedScale={enemySpeedScale}
+              speedScale={enemySpeedScale * ((cameraMode === 'topdown') ? (topDownSpeedMul || 1) : 1)}
             />
           )
         ))}
@@ -3526,8 +3857,11 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
                   return updated
                 })
               }
-              // Visual explosion cue
-              setAoes(prev => [...prev, { id: Date.now() + Math.random(), pos: [cx, 0.06, cz], start: performance.now(), radius: BOMB_AOE_RADIUS }])
+              // Visual explosion cue (cap to last 12)
+              setAoes(prev => {
+                const next = [...prev, { id: Date.now() + Math.random(), pos: [cx, 0.06, cz], start: performance.now(), radius: BOMB_AOE_RADIUS }]
+                return next.length > 12 ? next.slice(next.length - 12) : next
+              })
               // remove bomb
               setBombs(prev => prev.filter(x => x.id !== id))
             }}
@@ -3565,21 +3899,23 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           />
         ))}
 
-    <OrbitControls 
-      enableRotate={false} 
-      enablePan={false} 
-      enableZoom={cameraMode === 'static'}
-      maxPolarAngle={Math.PI / 2.2} 
-      minPolarAngle={Math.PI / 3} 
-    />
+    {cameraMode === 'static' && (
+      <OrbitControls 
+        enableRotate={false} 
+        enablePan={false} 
+        enableZoom
+        maxPolarAngle={Math.PI / 2.2} 
+        minPolarAngle={Math.PI / 3} 
+      />
+    )}
     {cameraMode === 'follow' && (
       <CameraRig playerPosRef={playerPosRef} isPaused={isPaused} isDashing={isDashing} boostUntilMs={cameraBoostUntilMs} />
     )}
     {cameraMode === 'static' && (
-      <StaticCameraRig />
+      <StaticCameraRig boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT} />
     )}
     {cameraMode === 'topdown' && (
-      <TopDownRig playerPosRef={playerPosRef} />
+      <TopDownRig playerPosRef={playerPosRef} boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT} />
     )}
         {/* AOE visuals */}
         {aoes.map(a => (
@@ -3589,20 +3925,26 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         {hpEvents.map(evt => (
           <HpFloater key={evt.id} amount={evt.amount} start={evt.start} playerPosRef={playerPosRef} onDone={() => setHpEvents(e => e.filter(x => x.id !== evt.id))} />
         ))}
+        {/* Armor change floaters */}
+        {armorEvents.map(evt => (
+          <HpFloater key={evt.id} amount={evt.amount} start={evt.start} playerPosRef={playerPosRef} onDone={() => setArmorEvents(e => e.filter(x => x.id !== evt.id))} />
+        ))}
 
         {/* Buff/debuff indicators above player */}
         {(() => {
           const items = []
-          if (invulnEffect.active) items.push({ key: 'inv', label: 'INVULN', color: '#facc15' })
+          if (invulnEffect.active || invulnTest) items.push({ key: 'inv', label: 'INVULN', color: '#facc15' })
           if (powerEffect.active) items.push({ key: 'pow', label: `POWER ${powerEffect.amount}`, color: '#60a5fa' })
           if (bombEffect.active) items.push({ key: 'bomb', label: 'BOMBS', color: '#ffffff' })
           if (boostEffect.active) items.push({ key: 'boost', label: 'BOOST', color: '#22c55e' })
           if (debuffEffect.active) items.push({ key: 'slow', label: 'SLOW', color: '#f97316' })
+          if (regenDebuff.active) items.push({ key: 'regen', label: 'REGEN-', color: '#10b981' })
+          if (corrosionEffect.active) items.push({ key: 'cor', label: 'CORROSION', color: '#9ca3af' })
           return items.length ? <BuffIndicators playerPosRef={playerPosRef} items={items} /> : null
         })()}
 
         {/* Invulnerability visuals */}
-        {invulnEffect.active && (
+        {(invulnEffect.active || invulnTest) && (
           <>
             <InvulnRing radius={SHAPE_PATH_RADIUS} isPaused={isPaused} shape={invulnEffect.shape || 'circle'} />
             {/* Yellow translucent orb while invulnerability is active */}
@@ -3612,14 +3954,28 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         {boundaryJumpActive && (
           <ShieldBubble playerPosRef={playerPosRef} isPaused={isPaused} color={0x66ccff} radius={1.4} baseOpacity={0.25} />
         )}
+        {/* One-shot shimmer effects (e.g., when invulnerability cancels a debuff) */}
+        {shimmers.map(s => (
+          <ShimmerPulse key={s.id} playerPosRef={playerPosRef} isPaused={isPaused} color={0x66ccff} durationMs={560} maxScale={1.9}
+            onDone={() => setShimmers(prev => prev.filter(x => x.id !== s.id))}
+          />
+        ))}
         {confetti.map(c => (
           <ConfettiBurst key={c.id} start={c.start} onDone={() => setConfetti(prev => prev.filter(x => x.id !== c.id))} />
         ))}
+        {/* Hazard zones */}
+        {hazards.map(h => (
+          <HazardZone key={h.id} data={h} isPaused={isPaused} onExpire={(id)=> setHazards(prev => prev.filter(x => x.id !== id))} />
+        ))}
 
-        <Stats />
+        {showDreiStats && <Stats />}
       </Canvas>
 
   <div ref={crosshairRef} className={`cursor-crosshair ${highContrast ? 'high-contrast' : ''}`} />
+      {/* Center popups: pickups, level intros, boss intros */}
+      {pickupPopups.map(pp => (
+        <PickupPopup key={pp.id} pickup={pp.pickup} onComplete={() => removePickupPopup(pp.id)} />
+      ))}
       {/* D-Buttons overlay */}
       {controlScheme === 'dpad' && (
         <DPad onVectorChange={(x, z) => { dpadVecRef.current.x = x; dpadVecRef.current.z = z }} />
@@ -3629,8 +3985,9 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
       {!isStarted && (
         <div className="pause-overlay">
           <div className="pause-content">
-            <h2>Wave Shooter</h2>
+            <h2>Healthcare Heroes: Harzard Wave Battle</h2>
             <p>Best — Score: <strong>{bestScore}</strong> • Wave: <strong>{bestWave}</strong></p>
+            {/* add a preview of the selected hero character and the option to switch characters here as well, include the character's abilities and stats */}
             <div style={{height:10}} />
             <button
               className="button"
@@ -3655,19 +4012,31 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
                 <p>Score: <strong>{score}</strong> • Wave: <strong>{wave}</strong></p>
                 <p className="small">Best — Score: <strong>{bestScore}</strong> • Wave: <strong>{bestWave}</strong></p>
                 <div style={{height:10}} />
-                <button
-                  className="button"
-                  onClick={() => {
-                    setIsGameOver(false)
-                    setLives(3)
-                    setRespawnCountdown(0)
-                    restartGame()
-                    setIsPaused(false)
-                    spawnWave()
-                  }}
-                >
-                  Restart
-                </button>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'center' }}>
+                  <button
+                    className="button"
+                    onClick={() => {
+                      setIsGameOver(false)
+                      setLives(3)
+                      setRespawnCountdown(0)
+                      restartGame()
+                      setIsPaused(false)
+                      spawnWave()
+                    }}
+                  >
+                    Restart (Fresh)
+                  </button>
+                  <button
+                    className="button"
+                    onClick={() => {
+                      continueSameLevel()
+                    }}
+                    title="Continue this level with a 10% score penalty"
+                  >
+                    Continue Level (-10% Score)
+                  </button>
+                </div>
+                <small style={{marginTop:8,color:'#e0e0e0ff',fontSize:9}}>Note: Only reduces the points you earned in this level by 10%, not your full run score.</small>
               </>
             ) : respawnCountdown > 0 ? (
               <>
@@ -3685,30 +4054,34 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
       )}
 
       {/* Feeds & overlays */}
-      {/* Top-right stack: HUD + pickup feed */}
+      {/* Top-right stack: HUD + pickup feed (collapsible) */}
       <div className="hud-stack">
-        <div className="hud small">
-          <div>Enemies: {enemies.length}</div>
-          <div>Flying: {enemies.filter(e => e.isFlying).length}</div>
-          <div>Pickups: {pickups.length}</div>
-          <div>Bullets: {bullets.length}</div>
-          <div>Status: {isPaused ? 'PAUSED' : 'PLAYING'}</div>
-          <div>Scheme: {controlScheme.toUpperCase()}</div>
-          <div>Speed: Enemies x{enemySpeedScale.toFixed(2)} • Player {playerBaseSpeed}</div>
-          <div>Play time: {formatHMS(totalPlayMsView)}</div>
-          <div>Level: {wave}</div>
-          {(() => { const bossUsed = enemies.filter(e => e.isBoss || e.isTriangle || e.isCone || e.isPipe).length; const bossCap = getBossMax(wave, performanceMode); return (
-            <div>Bosses: {bossUsed}/{bossCap}</div>
-          )})()}
-        </div>
-        <div className="feed feed-pickups small">
-          {pickupFeed.map(msg => (
-            <div key={msg.id} className="feed-item" style={{ '--dot': msg.color }}>
-              <div className="feed-dot" />
-              <div style={{ color: msg.color }}>{msg.text}</div>
-            </div>
-          ))}
-        </div>
+        <CollapsiblePanel id="debug-hud" title="Debug HUD" defaultOpen={true}>
+          <div className="hud small">
+            <div>Enemies: {enemies.length}</div>
+            <div>Flying: {enemies.filter(e => e.isFlying).length}</div>
+            <div>Pickups: {pickups.length}</div>
+            <div>Bullets: {bullets.length}</div>
+            <div>Status: {isPaused ? 'PAUSED' : 'PLAYING'}</div>
+            <div>Scheme: {controlScheme.toUpperCase()}</div>
+            <div>Speed: Enemies x{(enemySpeedScale * ((cameraMode === 'topdown') ? (topDownSpeedMul || 1) : 1)).toFixed(2)} • Player {(playerBaseSpeed * ((cameraMode === 'topdown') ? (topDownSpeedMul || 1) : 1)).toFixed(1)}</div>
+            <div>Play time: {formatHMS(totalPlayMsView)}</div>
+            <div>Wave Level: {wave}</div>
+            {(() => { const bossUsed = enemies.filter(e => e.isBoss || e.isTriangle || e.isCone || e.isPipe).length; const bossCap = getBossMax(wave, performanceMode); return (
+              <div>Bosses: {bossUsed}/{bossCap}</div>
+            )})()}
+          </div>
+        </CollapsiblePanel>
+        <CollapsiblePanel id="pickup-feed" title="Pickup Feed" defaultOpen={true}>
+          <div className="feed feed-pickups small">
+            {pickupFeed.map(msg => (
+              <div key={msg.id} className="feed-item" style={{ '--dot': msg.color }}>
+                <div className="feed-dot" />
+                <div style={{ color: msg.color }}>{msg.text}</div>
+              </div>
+            ))}
+          </div>
+        </CollapsiblePanel>
       </div>
 
       <div className="ui">
@@ -3746,9 +4119,122 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           <input type="checkbox" checked={performanceMode} onChange={e => setPerformanceMode(e.target.checked)} />
           Performance Mode (lower caps)
         </label>
+        <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+          <input type="checkbox" checked={invulnTest} onChange={e => setInvulnTest(e.target.checked)} />
+          Invulnerability (Test)
+        </label>
         <div className="tiny" style={{opacity:0.8}}>
           Active cap: {getActiveMax(wave || 1, performanceMode)} • Boss cap: {getBossMax(wave || 1, performanceMode)}
         </div>
+        <div style={{height:6}} />
+        <div className="small" style={{marginTop:4}}>Pickup Scale: <strong>{pickupScaleGlobal.toFixed(1)}x</strong></div>
+        <input
+          type="range"
+          min={0.5}
+          max={4.0}
+          step={0.1}
+          value={pickupScaleGlobal}
+          onChange={e => setPickupScaleGlobal(parseFloat(e.target.value))}
+          style={{ width: '100%' }}
+          aria-label="Pickup scale multiplier"
+        />
+        <div style={{height:10}} />
+        <div className="small"><strong>Arena</strong></div>
+        <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="checkbox" checked={arenaGrowEnabled} onChange={e => setArenaGrowEnabled(e.target.checked)} />
+          Enable arena growth over time
+        </label>
+        <div className="tiny" style={{opacity:0.8}}>Current size: ±{Number((boundaryLimit ?? BOUNDARY_LIMIT)).toFixed(1)} • Max cap: ±{Math.min(maxArenaLimit, Math.floor(GROUND_HALF*0.9))}</div>
+        <div className="small" style={{marginTop:6}}>Growth mode</div>
+        <select value={arenaGrowthMode} onChange={e => setArenaGrowthMode(e.target.value)} style={{ width:'100%', padding:'4px', borderRadius:6, background:'#111', color:'#fff', border:'1px solid rgba(255,255,255,0.1)'}} disabled={!arenaGrowEnabled}>
+          <option value="milestone">Every 10 levels</option>
+          <option value="time">Over time (per second)</option>
+        </select>
+        {arenaGrowthMode === 'time' ? (
+          <>
+            <div className="small" style={{marginTop:4}}>Growth rate: <strong>+{arenaGrowthRate.toFixed(2)}/s</strong></div>
+            <input
+              type="range"
+              min={0}
+              max={0.2}
+              step={0.01}
+              value={arenaGrowthRate}
+              onChange={e => setArenaGrowthRate(parseFloat(e.target.value))}
+              style={{ width: '100%' }}
+              aria-label="Arena growth rate per second"
+              disabled={!arenaGrowEnabled}
+            />
+          </>
+        ) : (
+          <>
+            <div className="small" style={{marginTop:4}}>Growth per 10 levels: <strong>+{arenaGrowthPerMilestone.toFixed(1)}</strong></div>
+            <input
+              type="range"
+              min={0}
+              max={20}
+              step={0.5}
+              value={arenaGrowthPerMilestone}
+              onChange={e => setArenaGrowthPerMilestone(parseFloat(e.target.value))}
+              style={{ width: '100%' }}
+              aria-label="Arena growth per 10 levels"
+              disabled={!arenaGrowEnabled}
+            />
+          </>
+        )}
+        <div className="small" style={{marginTop:4}}>Max arena size (±limit)</div>
+        <input
+          type="range"
+          min={30}
+          max={Math.floor(GROUND_HALF*0.9)}
+          step={1}
+          value={maxArenaLimit}
+          onChange={e => setMaxArenaLimit(parseFloat(e.target.value))}
+          style={{ width: '100%' }}
+          aria-label="Max arena half-size limit"
+        />
+        <div style={{display:'flex', gap:8, marginTop:6}}>
+          <button className="button" onClick={() => setBoundaryLimit(BOUNDARY_LIMIT)}>Reset Size</button>
+          <button className="button" onClick={() => setBoundaryLimit(Math.min(maxArenaLimit, Math.floor(GROUND_HALF*0.9)))}>Snap to Max</button>
+        </div>
+        <div style={{height:6}} />
+        <div className="small"><strong>Camera & Speed</strong></div>
+        <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="checkbox" checked={showStats} onChange={e => setShowStats(e.target.checked)} />
+          Performance stats (FPS)
+        </label>
+        <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="checkbox" checked={showDreiStats} onChange={e => setShowDreiStats(e.target.checked)} />
+          Dev resource overlay (drei Stats)
+        </label>
+        {showStats && (
+          <div className="tiny" style={{opacity:0.8}}>FPS: {fps.toFixed(1)}</div>
+        )}
+        <div className="small">Camera Mode: <strong>{cameraMode.toUpperCase()}</strong></div>
+        <div className="small" style={{marginTop:4}}>Top-down speed multiplier: <strong>{topDownSpeedMul.toFixed(2)}x</strong></div>
+        <input
+          type="range"
+          min={0.5}
+          max={3.0}
+          step={0.1}
+          value={topDownSpeedMul}
+          onChange={e => setTopDownSpeedMul(parseFloat(e.target.value))}
+          style={{ width: '100%' }}
+          aria-label="Top-down camera speed multiplier"
+        />
+        <div className="tiny" style={{opacity:0.8}}>Applies when camera is in Top-Down (8). Enemies and player move faster.</div>
+        <div style={{height:6}} />
+        <div className="small" style={{marginTop:8}}>Spawn pressure: <strong>{(spawnPressureMul * 100).toFixed(0)}%</strong></div>
+        <input
+          type="range"
+          min={0.5}
+          max={1.2}
+          step={0.01}
+          value={spawnPressureMul}
+          onChange={e => setSpawnPressureMul(parseFloat(e.target.value))}
+          style={{ width: '100%' }}
+          aria-label="Spawn pressure multiplier"
+        />
+        <div className="tiny" style={{opacity:0.8}}>Lower values spawn fewer basic enemies per wave while keeping overall pacing.</div>
         <div style={{height:6}} />
   <div className="small">Controls: D-Buttons (default) or WASD • Mouse aim & click to shoot</div>
         <div className="small">F to toggle Auto-Fire • ESC/SPACE to pause</div>
@@ -3770,37 +4256,41 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
 
       
 
-      {/* Left-bottom stack: Boss feed above control guide */}
-      <div className="left-bottom-stack">
-        {/* Boss schedule */}
-        <div className="hud small" style={{ marginBottom: 8 }}>
-          {(() => { const triIn = (wave % 3 === 0 ? 0 : (3 - (wave % 3))); return (
-            <>
-              <div><strong>Level:</strong> {wave}</div>
-              <div>Triangle boss: every 3 levels • next in {triIn}</div>
-              <div>Cone boss: L{LEVEL_CONFIG.unlocks.cone}+ • {Math.round(LEVEL_CONFIG.chances.cone*100)}% chance</div>
-              <div>Pipe boss: L{LEVEL_CONFIG.unlocks.pipe}+ • {Math.round(LEVEL_CONFIG.chances.pipe*100)}% chance</div>
-            </>
-          )})()}
-        </div>
-        <div className="feed feed-bosses small">
-          {bossFeed.map(msg => (
-            <div key={msg.id} className="feed-item" style={{ '--dot': msg.color }}>
-              <div className="feed-dot" />
-              <div style={{ color: msg.color }}>{msg.text}</div>
-            </div>
-          ))}
-        </div>
-        {/* Control guide */}
-        <div className="control-guide">
-          <div className="title">Controls</div>
-          <div className="row">Move: D-Buttons (default) or WASD/Arrow Keys</div>
-          <div className="row">Aim: Mouse pointer • Fire: Left click</div>
-          <div className="row">Jump: Ctrl/Enter (hold for arc) or Right click (hold for arc)</div>
-          <div className="row">Auto-Fire: F • Pause: ESC/SPACE</div>
-          <div className="row">Invulnerability: collect yellow capsule (5s) • Auto-follow ring: hold 1 (CCW) or 2 (CW)</div>
-          <div className="row">Camera: 9 Follow • 0 Static (zoom) • 8 Top-Down</div>
-        </div>
+      {/* Right-bottom stack: Boss schedule/feed + control guide above D-pad (collapsible) */}
+      <div className="right-bottom-stack">
+        <CollapsiblePanel id="boss-schedule" title="Boss Schedule" defaultOpen={true}>
+          <div className="hud small" style={{ margin: 0 }}>
+            {(() => { const triIn = (wave % 3 === 0 ? 0 : (3 - (wave % 3))); return (
+              <>
+                <div><strong>Level:</strong> {wave}</div>
+                <div>Triangle boss: every 3 levels • next in {triIn}</div>
+                <div>Cone boss: L{LEVEL_CONFIG.unlocks.cone}+ • {Math.round(LEVEL_CONFIG.chances.cone*100)}% chance</div>
+                <div>Pipe boss: L{LEVEL_CONFIG.unlocks.pipe}+ • {Math.round(LEVEL_CONFIG.chances.pipe*100)}% chance</div>
+              </>
+            )})()}
+          </div>
+        </CollapsiblePanel>
+        <CollapsiblePanel id="boss-feed" title="Boss Spawns" defaultOpen={true}>
+          <div className="feed feed-bosses small">
+            {bossFeed.map(msg => (
+              <div key={msg.id} className="feed-item" style={{ '--dot': msg.color }}>
+                <div className="feed-dot" />
+                <div style={{ color: msg.color }}>{msg.text}</div>
+              </div>
+            ))}
+          </div>
+        </CollapsiblePanel>
+        <CollapsiblePanel id="controls" title="Controls" defaultOpen={false}>
+          <div className="control-guide" style={{ position: 'static' }}>
+            <div className="title">Controls</div>
+            <div className="row">Move: D-Buttons (default) or WASD/Arrow Keys</div>
+            <div className="row">Aim: Mouse pointer • Fire: Left click</div>
+            <div className="row">Jump: Ctrl/Enter (hold for arc) or Right click (hold for arc)</div>
+            <div className="row">Auto-Fire: F • Pause: ESC/SPACE</div>
+            <div className="row">Invulnerability: collect yellow capsule (5s) • Auto-follow ring: hold 1 (CCW) or 2 (CW)</div>
+            <div className="row">Camera: 9 Follow • 0 Static (zoom) • 8 Top-Down</div>
+          </div>
+        </CollapsiblePanel>
       </div>
 
     </div>
@@ -3860,6 +4350,31 @@ function AOEBlast({ pos, start, radius = 9, onDone }) {
   })
   return (
     <mesh ref={ref} position={pos} rotation={[-Math.PI / 2, 0, 0]} material={mat}>
+      <primitive object={geom} attach="geometry" />
+    </mesh>
+  )
+}
+
+// Hazard zone visual and tick logic
+function HazardZone({ data, isPaused, onExpire }) {
+  const ref = useRef()
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: new THREE.Color(data.color || '#eab308'), transparent: true, opacity: 0.2, side: THREE.DoubleSide }), [data.color])
+  const geom = useMemo(() => new THREE.CircleGeometry(data.radius || 4, 32), [data.radius])
+  useFrame(() => {
+    if (!ref.current) return
+    const t = performance.now()
+    // Fade in/out slightly
+    const life = (data.durationMs || 6000)
+    const k = Math.max(0, Math.min(1, (t - data.createdAt) / life))
+    mat.opacity = 0.25 * (0.8 + 0.2 * Math.sin(t * 0.005)) * (1 - 0.2*k)
+    if (!isPaused && t >= (data.createdAt + (data.durationMs || 6000))) {
+      onExpire && onExpire(data.id)
+    }
+  })
+  // Ensure hazards draw slightly above ground to prevent z-fighting
+  const pos = useMemo(() => [data.pos?.[0] ?? 0, 0.06, data.pos?.[2] ?? 0], [data.pos])
+  return (
+    <mesh ref={ref} position={pos} rotation={[-Math.PI/2,0,0]} material={mat}>
       <primitive object={geom} attach="geometry" />
     </mesh>
   )
@@ -4081,17 +4596,30 @@ function CameraRig({ playerPosRef, isPaused, offset = new THREE.Vector3(0, 35, 3
 }
 
 // Static camera positioned back and above, looking at the arena center. Zoom is enabled via controls.
-function StaticCameraRig({ position = [0, 60, 80], target = [0, 0, 0] }) {
+function StaticCameraRig({ position = [0, 60, 80], target = [0, 0, 0], boundaryLimit }) {
   const { camera } = useThree()
   useEffect(() => {
-    camera.position.set(position[0], position[1], position[2])
+    // Compute distance along the specified direction so the arena fits entirely
+    const fovRad = THREE.MathUtils.degToRad(camera.fov || 75)
+    const BL = boundaryLimit ?? BOUNDARY_LIMIT
+    const requiredHeight = (Math.SQRT2 * BL) / Math.tan(fovRad / 2) * 1.05
+    const dx = position[0] - target[0]
+    const dy = position[1] - target[1]
+    const dz = position[2] - target[2]
+    const len = Math.max(1e-6, Math.hypot(dx, dy, dz))
+    const ux = dx / len, uy = dy / len, uz = dz / len
+    const dist = requiredHeight / Math.max(1e-3, uy)
+    const nx = target[0] + ux * dist
+    const ny = target[1] + uy * dist
+    const nz = target[2] + uz * dist
+    camera.position.set(nx, ny, nz)
     camera.lookAt(target[0], target[1], target[2])
-  }, [camera, position, target])
+  }, [camera, position, target, boundaryLimit])
   return null
 }
 
 // Top-down camera that stays above the player and looks straight down for a 2D-style view
-function TopDownRig({ playerPosRef }) {
+function TopDownRig({ playerPosRef, boundaryLimit }) {
   const { camera, size } = useThree()
   const heightRef = useRef(120)
   const computeHeight = useCallback(() => {
@@ -4099,13 +4627,14 @@ function TopDownRig({ playerPosRef }) {
     // For a perspective camera looking straight down, the ground coverage radius is h * tan(fov/2).
     // To fit a square of side 2*BOUNDARY_LIMIT, we need radius >= sqrt(2)*BOUNDARY_LIMIT.
     const fovRad = THREE.MathUtils.degToRad(camera.fov || 75)
-    const required = (Math.SQRT2 * BOUNDARY_LIMIT) / Math.tan(fovRad / 2)
+    const BL = boundaryLimit ?? BOUNDARY_LIMIT
+    const required = (Math.SQRT2 * BL) / Math.tan(fovRad / 2)
     // Add a small margin so edges aren't clipped
     return required * 1.05
-  }, [camera])
+  }, [camera, boundaryLimit])
   useEffect(() => {
     heightRef.current = computeHeight()
-  }, [computeHeight, size.width, size.height])
+  }, [computeHeight, size.width, size.height, boundaryLimit])
   useFrame(() => {
     const p = playerPosRef.current
     if (!p) return

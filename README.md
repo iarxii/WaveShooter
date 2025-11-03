@@ -46,11 +46,24 @@ Extras: object-pooled bullets, pause-aware spawns, distance-scaled knockback, au
 
 See `Concept.md` for the game concept and roadmap.
 
+## Recent Gameplay Tweaks
+
+- Bouncers (new): Cyan ground rings telegraph for 4s, then a unit launches straight upward and despawns. Adds vertical motion moments and spacing pressure without cluttering the ground.
+- Hazards lifted: All hazard visuals render slightly above the floor to prevent z-fighting.
+- Movement tuning: Slow debuff reduced to 10% (was 40%). Speed boosts now guarantee a noticeable increase (at least +12 over your base speed, typically ~36–38) for 4s.
+- Drops: Invulnerability and Bomb Kit drops are significantly more common and scale up at higher waves.
+- Firepower: Faster fire rate (120ms), higher bullet damage, default triple-shot. Power-ups upgrade to a 5-stream fan; rare 90–100 power still triggers radial barrages.
+- QoL: Life pickups now magnetize toward the player within a generous radius so you don’t have to pixel-perfectly collide at the corners under pressure.
+ - Invulnerability now clears and blocks portal slow: picking up Invulnerability removes existing slow debuffs and prevents portal slow while active.
+ - Visibility: Pickup sizes are multiplied by a global scale you can adjust in the UI (0.5×–4.0×). Default is 3×, layered on top of camera-based scaling.
+ - Feedback: When Invulnerability cancels an existing slow debuff, a brief blue shimmer pulses around the player as a visual confirmation.
+
 ## Leveling system
 Higher-level enemies unlock at higher levels to control memory and difficulty. Level currently equals Wave.
 
 - Read the full design in `docs/Leveling_System.md`.
 - Balancing and unlocks are summarized in `Balancing_Table.md` and `Updated_Enemy_List.md`.
+ - Roster mechanics and new hazard/armor systems are documented in `docs/mechanics_effects.md`.
 
 ## App structure and pages
 
@@ -95,7 +108,7 @@ See `ACCESSIBILITY.md` for details and roadmap.
 	- Power-ups roll an amount between 50–100 with a weighted distribution:
 		- 50–80 common (~70%), 81–89 less common (~25%), 90–100 rare (~5%).
 	- Higher amounts scale size; 90–100 become a pulsing diamond.
-	- While a power-up effect is active, new bullets are larger and blue; for 70–89, triple-shot is enabled; for 90–100, radial barrages fire 3 waves/sec.
+	- Default fire is a triple stream. While a power-up is active, bullets are larger/blue and fire in a 5-stream fan; for 90–100, radial barrages fire 3 waves/sec.
 - Invulnerability (yellow capsule):
 	- Visualizes a circle/hexagon/rectangle ring at arena center.
 	- Hold 1 (CCW) or 2 (CW) to auto-follow the ring perimeter.

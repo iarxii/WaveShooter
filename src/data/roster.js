@@ -1,0 +1,168 @@
+// Centralized roster data for Enemies and Heroes.
+// Keep in sync with Updated_Enemy_List.md, Balancing_Table.md, and Hero_List.md.
+
+// Tiers: T1=1 (Common), T2=2 (Uncommon), T3=3 (Rare), T4=4 (Apex/Hazard)
+
+export const ENEMIES = [
+  // Pathogens
+  {
+    name: 'MRSA', type: 'Pathogen', scientificName: 'Methicillin-resistant Staphylococcus aureus',
+    realWorldEffect: 'Resistant to antibiotics; causes skin and bloodstream infections',
+    gameplayEffect: 'Resistance Aura — reduces player damage by 20%',
+    shape: 'Hexagon', color: 'Red', tier: 1, unlock: 5,
+    stats: { health: 3, speed: 2.5, damage: 2 }, maxConcurrent: 10,
+  },
+  {
+    name: 'VRE', type: 'Pathogen', scientificName: 'Vancomycin-resistant Enterococcus',
+    realWorldEffect: 'UTIs and bloodstream infections; highly drug-resistant',
+    gameplayEffect: 'Fortified Shell — 50% less damage from ranged attacks',
+    shape: 'Square', color: 'Orange', tier: 1, unlock: 5,
+    stats: { health: 3, speed: 2.0, damage: 2 }, maxConcurrent: 8,
+  },
+  {
+    name: 'K. pneumoniae ESBL', type: 'Pathogen', scientificName: 'Klebsiella pneumoniae (ESBL-producing)',
+    realWorldEffect: 'Breaks down antibiotics; pneumonia and sepsis',
+    gameplayEffect: 'Enzyme Shield — periodically nullifies bullets for 3s',
+    shape: 'Pentagon', color: 'Blue', tier: 2, unlock: 6,
+    stats: { health: 4, speed: 2.2, damage: 3 }, maxConcurrent: 8,
+  },
+  {
+    name: 'K. pneumoniae CRE', type: 'Pathogen', scientificName: 'Klebsiella pneumoniae (Carbapenem-resistant)',
+    realWorldEffect: 'Resistant to last-resort antibiotics; severe infections',
+    gameplayEffect: 'Carbapenem Wall — immune to stun effects',
+    shape: 'Hexagon', color: 'Dark Blue', tier: 3, unlock: 10,
+    stats: { health: 5, speed: 2.0, damage: 4 }, maxConcurrent: 4,
+  },
+  {
+    name: 'A. baumannii MDR', type: 'Pathogen', scientificName: 'Acinetobacter baumannii (Multidrug-resistant)',
+    realWorldEffect: 'Ventilator-associated pneumonia and wound infections',
+    gameplayEffect: 'Biofilm Armor — regenerates 10% health every 5s',
+    shape: 'Octagon', color: 'Gray', tier: 2, unlock: 7,
+    stats: { health: 4, speed: 2.3, damage: 3 }, maxConcurrent: 6,
+  },
+  {
+    name: 'A. baumannii XDR', type: 'Pathogen', scientificName: 'Acinetobacter baumannii (Extensively drug-resistant)',
+    realWorldEffect: 'Resistant to nearly all antibiotics',
+    gameplayEffect: 'Extreme Resilience — temporary invulnerability after taking damage',
+    shape: 'Octagon', color: 'Black', tier: 3, unlock: 12,
+    stats: { health: 6, speed: 1.8, damage: 4 }, maxConcurrent: 3,
+  },
+  {
+    name: 'P. aeruginosa MDR', type: 'Pathogen', scientificName: 'Pseudomonas aeruginosa (Multidrug-resistant)',
+    realWorldEffect: 'Infections in burns and wounds',
+    gameplayEffect: 'Toxin Spray — creates a slowing zone',
+    shape: 'Triangle', color: 'Green', tier: 1, unlock: 8,
+    stats: { health: 3, speed: 2.5, damage: 2 }, maxConcurrent: 10,
+  },
+  {
+    name: 'P. aeruginosa XDR', type: 'Pathogen', scientificName: 'Pseudomonas aeruginosa (Extensively drug-resistant)',
+    realWorldEffect: 'Highly resistant; severe infections',
+    gameplayEffect: 'Corrosive Burst — damages player armor over time',
+    shape: 'Triangle', color: 'Dark Green', tier: 3, unlock: 12,
+    stats: { health: 5, speed: 2.0, damage: 3 }, maxConcurrent: 3,
+  },
+  {
+    name: 'Enterobacter ESBL', type: 'Pathogen', scientificName: 'Enterobacter spp (ESBL-producing)',
+    realWorldEffect: 'Resistant to beta-lactam antibiotics',
+    gameplayEffect: 'Adaptive Shield — defense boost near allies',
+    shape: 'Diamond', color: 'Cyan', tier: 2, unlock: 7,
+    stats: { health: 4, speed: 2.2, damage: 3 }, maxConcurrent: 8,
+  },
+  {
+    name: 'Enterobacter CRE', type: 'Pathogen', scientificName: 'Enterobacter spp (Carbapenem-resistant)',
+    realWorldEffect: 'Severe infections; limited treatment options',
+    gameplayEffect: 'Cluster Defense — buffs nearby allies’ speed',
+    shape: 'Diamond', color: 'Dark Cyan', tier: 3, unlock: 11,
+    stats: { health: 5, speed: 2.0, damage: 4 }, maxConcurrent: 4,
+  },
+  {
+    name: 'E. coli ESBL', type: 'Pathogen', scientificName: 'Escherichia coli (ESBL-producing)',
+    realWorldEffect: 'Common cause of UTIs; antibiotic resistance',
+    gameplayEffect: 'Rapid Division — spawns a clone at 50% health',
+    shape: 'Circle', color: 'Pink', tier: 1, unlock: 5,
+    stats: { health: 3, speed: 2.5, damage: 2 }, maxConcurrent: 12,
+  },
+  {
+    name: 'E. coli CRE', type: 'Pathogen', scientificName: 'Escherichia coli (Carbapenem-resistant)',
+    realWorldEffect: 'Severe infections; high mortality risk',
+    gameplayEffect: 'Mutation Surge — gains speed when damaged',
+    shape: 'Circle', color: 'Dark Pink', tier: 2, unlock: 9,
+    stats: { health: 4, speed: 2.3, damage: 3 }, maxConcurrent: 6,
+  },
+  {
+    name: 'Candida auris', type: 'Pathogen (Fungal)', scientificName: 'Candida auris',
+    realWorldEffect: 'Bloodstream infections; multidrug-resistant',
+    gameplayEffect: 'Spore Cloud — reduces visibility',
+    shape: 'Oval', color: 'Purple', tier: 2, unlock: 8,
+    stats: { health: 3, speed: 2.0, damage: 2 }, maxConcurrent: 5,
+  },
+  {
+    name: 'C. difficile', type: 'Pathogen', scientificName: 'Clostridioides difficile',
+    realWorldEffect: 'Severe diarrhea and colitis',
+    gameplayEffect: 'Toxin Cloud — slows player by 40%',
+    shape: 'Circle', color: 'Yellow', tier: 1, unlock: 6,
+    stats: { health: 3, speed: 2.0, damage: 2 }, maxConcurrent: 12,
+  },
+  // Mutagens / Hazards
+  {
+    name: 'UV Radiation', type: 'Mutagen', scientificName: 'Ultraviolet Light',
+    realWorldEffect: 'Causes DNA mutations; linked to skin cancer',
+    gameplayEffect: 'Mutation Burst — increases enemy speed by 30%',
+    shape: 'Triangle', color: 'Violet', tier: 3, unlock: 10,
+    stats: { health: 2, speed: 3.0, damage: 3 }, maxConcurrent: 2,
+  },
+  {
+    name: 'Benzene', type: 'Mutagen', scientificName: 'C₆H₆',
+    realWorldEffect: 'Chemical mutagen linked to leukemia',
+    gameplayEffect: 'Carcinogenic Field — reduces player health regen',
+    shape: 'Rectangle', color: 'Green', tier: 3, unlock: 11,
+    stats: { health: 2, speed: 2.8, damage: 3 }, maxConcurrent: 2,
+  },
+  {
+    name: 'X-rays', type: 'Mutagen', scientificName: 'Ionizing Radiation',
+    realWorldEffect: 'Chromosomal damage; cancer risk',
+    gameplayEffect: 'Radiation Pulse — periodic AoE damage',
+    shape: 'Star', color: 'White', tier: 4, unlock: 12,
+    stats: { health: 2, speed: 3.2, damage: 4 }, maxConcurrent: 1,
+  },
+  {
+    name: 'Nitrosamines', type: 'Mutagen', scientificName: 'N‑Nitroso compounds',
+    realWorldEffect: 'Potent carcinogens found in processed foods',
+    gameplayEffect: 'Toxic Mist — slowly drains player health',
+    shape: 'Crescent', color: 'Brown', tier: 4, unlock: 13,
+    stats: { health: 2, speed: 2.9, damage: 3 }, maxConcurrent: 1,
+  },
+]
+
+export const HEROES = [
+  { name: 'Dr. Dokta', role: 'Hero', ability: 'Healing Pulse', cooldown: 20, notes: 'Restores area health' },
+  { name: 'Sr. Sesta', role: 'Hero', ability: 'Sterile Field', cooldown: 18, notes: 'Creates safe zone' },
+  { name: 'Nurse Temba', role: 'Hero', ability: 'Rapid Response', cooldown: 18, notes: 'Emergency heals/dash' },
+  { name: 'Jenita', role: 'Hero', ability: 'Clean Sweep', cooldown: 16, notes: 'Cleanses hazards' },
+  { name: 'Mr. Hanz', role: 'Hero', ability: 'Sanitizer Blast', cooldown: 15, notes: 'Burst damage cone' },
+  { name: 'Nthabiseng', role: 'Hero', ability: 'ARV Shield', cooldown: 16, notes: 'Protective barrier' },
+  { name: 'Dina', role: 'Hero', ability: 'Nutrition Boost', cooldown: 17, notes: 'Short regen buff' },
+  { name: 'Ray', role: 'Hero', ability: 'Radiation Block', cooldown: 18, notes: 'Hazard resistance' },
+]
+
+// Helpers for filtering/sorting in UIs
+export function filterEnemies({ minLevel = 1, tier = 'all' } = {}){
+  return ENEMIES.filter(e => e.unlock >= minLevel)
+    .filter(e => tier === 'all' ? true : e.tier === Number(tier))
+    .sort((a,b)=> a.unlock - b.unlock || a.tier - b.tier)
+}
+
+// Simple color mapping for heroes (placeholder visuals)
+export const HERO_COLORS = {
+  'Dr. Dokta': '#22c55e',
+  'Sr. Sesta': '#60a5fa',
+  'Nurse Temba': '#f97316',
+  'Jenita': '#eab308',
+  'Mr. Hanz': '#ef4444',
+  'Nthabiseng': '#a855f7',
+  'Dina': '#06b6d4',
+  'Ray': '#f43f5e',
+}
+export function heroColorFor(name) {
+  return HERO_COLORS[name] || '#22c55e'
+}

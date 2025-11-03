@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { HEROES } from '../data/roster.js'
 
 const GameContext = createContext(null)
 
@@ -8,6 +9,7 @@ export function GameProvider({ children }) {
   const [bestWave, setBestWave] = useState(0)
   const [performanceMode, setPerformanceMode] = useState(false)
   const [totalPlayTimeMs, setTotalPlayTimeMs] = useState(0)
+  const [selectedHero, setSelectedHero] = useState(HEROES?.[0]?.name || 'Dr. Dokta')
 
   // Load initial from localStorage (kept in sync by the Game)
   useEffect(() => {
@@ -16,10 +18,12 @@ export function GameProvider({ children }) {
       const bw = parseInt(localStorage.getItem('bestWave') || '0', 10)
       const pm = localStorage.getItem('perfMode')
       const tp = parseInt(localStorage.getItem('totalPlayTimeMs') || '0', 10)
+      const sh = localStorage.getItem('selectedHero')
       if (!Number.isNaN(bs)) setBestScore(bs)
       if (!Number.isNaN(bw)) setBestWave(bw)
       if (!Number.isNaN(tp)) setTotalPlayTimeMs(tp)
       setPerformanceMode(pm === '1' || pm === 'true')
+      if (sh) setSelectedHero(sh)
     } catch { /* ignore read errors */ }
   }, [])
 
@@ -38,9 +42,15 @@ export function GameProvider({ children }) {
     return () => clearInterval(int)
   }, [])
 
+  // Persist selected hero on change
+  useEffect(() => {
+    try { localStorage.setItem('selectedHero', selectedHero) } catch { /* ignore */ }
+  }, [selectedHero])
+
   const value = useMemo(() => ({
     bestScore, bestWave, performanceMode, setPerformanceMode, totalPlayTimeMs,
-  }), [bestScore, bestWave, performanceMode, totalPlayTimeMs])
+    selectedHero, setSelectedHero,
+  }), [bestScore, bestWave, performanceMode, totalPlayTimeMs, selectedHero])
 
   return (
     <GameContext.Provider value={value}>{children}</GameContext.Provider>
