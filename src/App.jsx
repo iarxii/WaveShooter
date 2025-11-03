@@ -83,6 +83,58 @@ const CONTACT_DAMAGE = {
   cone: 42,
 }
 
+// Leveling configuration (data-driven)
+const LEVEL_CONFIG = {
+  levelIsWave: true,
+  budget: { base: 8, perLevel: 2, over10: 3 },
+  caps: {
+    activeBase: 16, // ActiveMax(L) = min(activeBase + floor(L/2), activeMax)
+    activePer2Levels: 1,
+    activeMax: 48,
+    bossBands: [ [1,4,1], [5,8,2], [9,999,3] ],
+    drones: 16,
+    conesMax: 6
+  },
+  costs: { minion: 1, bossMinion: 3, cluster: 8, triangle: 10, pipe: 12, cone: 12 },
+  unlocks: {
+    minion: 1,
+    bossMinion: 4,
+    triangle: 3,
+    cone: 6,
+    pipe: 7,
+    cluster: 8,
+    drone: 7
+  },
+  tierWeights: [
+    { range: [1,4],  weights: { T1: 1.0 } },
+    { range: [5,7],  weights: { T1: 0.8, T2: 0.2 } },
+    { range: [8,10], weights: { T1: 0.6, T2: 0.3, T3: 0.1 } },
+    { range: [11,12],weights: { T1: 0.4, T2: 0.35, T3: 0.2, T4: 0.05 } },
+    { range: [13,99],weights: { T1: 0.3, T2: 0.35, T3: 0.25, T4: 0.1 } }
+  ],
+  // Boss spawn chances when eligible
+  chances: { cone: 0.8, pipe: 0.6 }
+}
+
+function getBudget(level){
+  if (level <= 10) return LEVEL_CONFIG.budget.base + LEVEL_CONFIG.budget.perLevel * level
+  return (LEVEL_CONFIG.budget.base + LEVEL_CONFIG.budget.perLevel * 10) + LEVEL_CONFIG.budget.over10 * (level - 10)
+}
+function getActiveMax(level, perfMode){
+  const base = LEVEL_CONFIG.caps.activeBase + Math.floor(level/2) * LEVEL_CONFIG.caps.activePer2Levels
+  const clamp = perfMode ? Math.min(LEVEL_CONFIG.caps.activeMax, 24) : LEVEL_CONFIG.caps.activeMax
+  return Math.min(base, clamp)
+}
+function getBossMax(level, perfMode){
+  const band = LEVEL_CONFIG.caps.bossBands.find(([lo,hi]) => level>=lo && level<=hi) || LEVEL_CONFIG.caps.bossBands[LEVEL_CONFIG.caps.bossBands.length-1]
+  const max = band[2]
+  return perfMode ? Math.min(max, 2) : max
+}
+function getTierWeights(level){
+  const band = LEVEL_CONFIG.tierWeights.find(b => level>=b.range[0] && level<=b.range[1]) || LEVEL_CONFIG.tierWeights[LEVEL_CONFIG.tierWeights.length-1]
+  return band.weights
+}
+
 // Pickup notification popup component
 function PickupPopup({ pickup, onComplete }) {
   const [visible, setVisible] = useState(true)
@@ -1890,6 +1942,7 @@ export default function App() {
   const [bombs, setBombs] = useState([]) // active bombs
   const [confetti, setConfetti] = useState([])
   const [controlScheme, setControlScheme] = useState('dpad') // 'wasd' | 'dpad' (default to D-Buttons)
+  const [performanceMode, setPerformanceMode] = useState(false)
   const [playerResetToken, setPlayerResetToken] = useState(0)
   const [playerBaseSpeed, setPlayerBaseSpeed] = useState(PLAYER_SPEED)
   const [enemySpeedScale, setEnemySpeedScale] = useState(1)
@@ -2034,6 +2087,8 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
   // shapeRunner persisted flags no longer used
       const hc = localStorage.getItem('highContrast')
       if (hc != null) setHighContrast(hc === '1' || hc === 'true')
+      const pm = localStorage.getItem('perfMode')
+      if (pm != null) setPerformanceMode(pm === '1' || pm === 'true')
       const bs = parseInt(localStorage.getItem('bestScore') || '0', 10)
       const bw = parseInt(localStorage.getItem('bestWave') || '0', 10)
       if (!Number.isNaN(bs)) setBestScore(bs)
@@ -2044,6 +2099,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
   useEffect(() => { try { localStorage.setItem('controlScheme', controlScheme) } catch { /* ignore */ } }, [controlScheme])
   // removed shapeRunner persistence
   useEffect(() => { try { localStorage.setItem('highContrast', highContrast ? '1' : '0') } catch { /* ignore */ } }, [highContrast])
+  useEffect(() => { try { localStorage.setItem('perfMode', performanceMode ? '1' : '0') } catch { /* ignore */ } }, [performanceMode])
   // Persist bests when they change
   useEffect(() => { try { localStorage.setItem('bestScore', String(bestScore)) } catch {} }, [bestScore])
   useEffect(() => { try { localStorage.setItem('bestWave', String(bestWave)) } catch {} }, [bestWave])
@@ -2240,7 +2296,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
   }, [clearSpeedBoostTimers])
 
   const scheduleEnemyBatchAt = useCallback((pos, count, options = {}) => {
-    const { isTriangle = false, isCone = false, waveNumber = 1, extraDelayMs = 0 } = options
+    const { isTriangle = false, isCone = false, waveNumber = 1, extraDelayMs = 0, kind = null } = options
     for (let i = 0; i < count; i++) {
       const handle = setTimeout(() => {
         if (isPausedRef.current) return
@@ -2279,32 +2335,23 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           })
           pushBossFeedRef.current && pushBossFeedRef.current('Cone boss spawned', '#f59e0b')
         } else {
-          // 40% chance to spawn a cluster boss instead of a normal minion
-          const makeCluster = Math.random() < 0.4
-          if (makeCluster) {
-            setEnemies(prev => [...prev, {
-              id,
-              pos: spawnPos,
-              isCluster: true,
-              isBoss: true,
-              waveNumber,
-              health: 3,
-              maxHealth: 3,
-              spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2,
-            }])
+          if (kind === 'cluster') {
+            setEnemies(prev => [...prev, { id, pos: spawnPos, isCluster: true, isBoss: true, waveNumber, health: 3, maxHealth: 3, spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2 }])
             pushBossFeedRef.current && pushBossFeedRef.current('Cluster boss spawned', '#ff3333')
+          } else if (kind === 'bossMinion') {
+            setEnemies(prev => [...prev, { id, pos: spawnPos, isBoss: true, formationTarget: new THREE.Vector3(pos[0], 0.5, pos[2]), waveNumber, health: 3, maxHealth: 3, spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2 }])
+          } else if (kind === 'minion') {
+            setEnemies(prev => [...prev, { id, pos: spawnPos, isBoss: false, formationTarget: new THREE.Vector3(pos[0], 0.5, pos[2]), waveNumber, health: 1, maxHealth: 1, spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2 }])
           } else {
-            const boss = Math.random() < 0.12
-            setEnemies(prev => [...prev, {
-              id,
-              pos: spawnPos,
-              isBoss: boss,
-              formationTarget: new THREE.Vector3(pos[0], 0.5, pos[2]),
-              waveNumber,
-              health: boss ? 3 : 1,
-              maxHealth: boss ? 3 : 1,
-              spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2,
-            }])
+            // Backward-compatible random behavior
+            const makeCluster = Math.random() < 0.4
+            if (makeCluster) {
+              setEnemies(prev => [...prev, { id, pos: spawnPos, isCluster: true, isBoss: true, waveNumber, health: 3, maxHealth: 3, spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2 }])
+              pushBossFeedRef.current && pushBossFeedRef.current('Cluster boss spawned', '#ff3333')
+            } else {
+              const boss = Math.random() < 0.12
+              setEnemies(prev => [...prev, { id, pos: spawnPos, isBoss: boss, formationTarget: new THREE.Vector3(pos[0], 0.5, pos[2]), waveNumber, health: boss ? 3 : 1, maxHealth: boss ? 3 : 1, spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2 }])
+            }
           }
         }
       }, extraDelayMs + i * PORTAL_STAGGER_MS)
@@ -2317,6 +2364,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
     if (isPausedRef.current) return
     setWave(w => {
       const nextWave = w + 1
+      const level = nextWave
       // Update damage scale by wave and notify player
       const newScale = Math.min(DAMAGE_SCALE_MAX, 1 + (Math.max(1, nextWave) - 1) * DAMAGE_SCALE_PER_WAVE)
       if (Math.abs(newScale - (damageScaleRef.current || 1)) > 1e-6) {
@@ -2341,36 +2389,30 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           spawnPickup('life', pos)
         }
       }
+      // Leveling system: compute caps, budget, and plan spawns
+      const activeMax = getActiveMax(level, performanceMode)
+      const bossMax = getBossMax(level, performanceMode)
+      const currentEnemies = (window.gameEnemies?.length || 0)
+      const currentBosses = (window.gameEnemies?.filter(e => e.isBoss || e.isTriangle || e.isCone || e.isPipe)?.length || 0)
+      let bossSlotsRem = Math.max(0, bossMax - currentBosses)
+      const remainingSlots = Math.max(0, activeMax - currentEnemies)
+      const budget = getBudget(level)
+      let budgetLeft = budget
+
       const portalsCount = Math.min(PORTALS_PER_WAVE_MAX, Math.max(PORTALS_PER_WAVE_MIN, 2 + Math.floor(nextWave / 4)))
-      const totalEnemies = 6 + Math.floor(w / 2)
-      const perPortal = Math.max(2, Math.floor(totalEnemies / portalsCount))
-
-      // Evenly spaced directions with slight jitter
       const baseAngle = Math.random() * Math.PI * 2
-      for (let i = 0; i < portalsCount; i++) {
-        const angle = baseAngle + (i * (Math.PI * 2) / portalsCount) + (Math.random() - 0.5) * 0.25
-        const radius = PORTAL_RADIUS_MIN + Math.random() * (PORTAL_RADIUS_MAX - PORTAL_RADIUS_MIN)
-        const px = center.x + Math.cos(angle) * radius
-        const pz = center.z + Math.sin(angle) * radius
-        const p = [px, 0.5, pz]
-        const extraDelay = 2000 + Math.random() * 2000 // 2-4s warmup
+
+      // Helper to place a portal and schedule one enemy with kind and delay
+      const scheduleOneAt = (p, idx, kind) => {
+        const extraDelay = 2000 + Math.random() * 2000
         openPortalAt(p, PORTAL_LIFETIME + extraDelay)
-        scheduleEnemyBatchAt(p, perPortal, { waveNumber: nextWave, extraDelayMs: extraDelay })
+        scheduleEnemyBatchAt(p, 1, { waveNumber: nextWave, extraDelayMs: extraDelay + (idx*PORTAL_STAGGER_MS), kind })
       }
 
-      // Spawn 1-2 green speed boost planes per wave nearby, lifetime similar to portals
-      const boostCount = Math.min(2, 1 + Math.floor(Math.random() * 2))
-      for (let i = 0; i < boostCount; i++) {
-        const angle = baseAngle + Math.random() * Math.PI * 2
-        const radius = SPEED_BOOST_RADIUS_MIN + Math.random() * (SPEED_BOOST_RADIUS_MAX - SPEED_BOOST_RADIUS_MIN)
-        const px = center.x + Math.cos(angle) * radius
-        const pz = center.z + Math.sin(angle) * radius
-        const pos = [px, 0.5, pz]
-        openSpeedBoostAt(pos)
-      }
-
-      // Triangle boss every 3 waves from its own portal
-      if (nextWave % 3 === 0) {
+      // Plan bosses: Triangle (every 3), Cone (chance), Pipe (chance), respecting unlocks and bossSlots
+      let expectedAdds = 0
+      // Triangle boss
+      if (level >= LEVEL_CONFIG.unlocks.triangle && level % 3 === 0 && bossSlotsRem > 0 && remainingSlots - expectedAdds > 0) {
         const angle = baseAngle + Math.random() * Math.PI * 2
         const radius = PORTAL_RADIUS_MAX + 4
         const px = center.x + Math.cos(angle) * radius
@@ -2378,12 +2420,14 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         const p = [px, 0.5, pz]
         const extraDelay = 2000 + Math.random() * 2000
         openPortalAt(p, PORTAL_LIFETIME + 1500 + extraDelay)
-        // base 500ms theatrical delay + warmup
         scheduleEnemyBatchAt(p, 1, { isTriangle: true, waveNumber: nextWave, extraDelayMs: 500 + extraDelay })
+        bossSlotsRem -= 1
+        expectedAdds += 1
+        budgetLeft = Math.max(0, budgetLeft - LEVEL_CONFIG.costs.triangle)
       }
 
-      // Frequently spawn Cone bosses from their own portals (capped to 6 globally)
-      if (Math.random() < 0.8) {
+      // Cone boss
+      if (level >= LEVEL_CONFIG.unlocks.cone && Math.random() < LEVEL_CONFIG.chances.cone && bossSlotsRem > 0 && remainingSlots - expectedAdds > 0) {
         const angle = baseAngle + Math.random() * Math.PI * 2
         const radius = PORTAL_RADIUS_MAX + 6
         const px = center.x + Math.cos(angle) * radius
@@ -2392,11 +2436,13 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         const extraDelay = 2000 + Math.random() * 2000
         openPortalAt(p, PORTAL_LIFETIME + 800 + extraDelay)
         scheduleEnemyBatchAt(p, 1, { isCone: true, waveNumber: nextWave, extraDelayMs: 300 + extraDelay })
-        scheduleEnemyBatchAt(p, 1, { isCone: true, waveNumber: nextWave, extraDelayMs: 700 + extraDelay })
+        bossSlotsRem -= 1
+        expectedAdds += 1
+        budgetLeft = Math.max(0, budgetLeft - LEVEL_CONFIG.costs.cone)
       }
 
-      // Occasionally spawn a Pipe boss at arena edges/corners; weaker health
-      if (Math.random() < 0.6) {
+      // Pipe boss
+      if (level >= LEVEL_CONFIG.unlocks.pipe && Math.random() < LEVEL_CONFIG.chances.pipe && bossSlotsRem > 0 && remainingSlots - expectedAdds > 0) {
         const cornerBias = Math.random() < 0.6
         const lim = BOUNDARY_LIMIT - 2
         let px = 0, pz = 0
@@ -2415,7 +2461,68 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         const id = enemyId.current++
         setEnemies(prev => [...prev, { id, pos: [px, 0.2, pz], isPipe: true, isBoss: true, health: 2, maxHealth: 2 }])
         pushBossFeedRef.current && pushBossFeedRef.current('Pipe boss spawned', '#ff3333')
+        bossSlotsRem -= 1
+        expectedAdds += 1
+        budgetLeft = Math.max(0, budgetLeft - LEVEL_CONFIG.costs.pipe)
       }
+
+      // Compute how many basic enemies we can add this wave
+      const slotsForBasics = Math.max(0, remainingSlots - expectedAdds)
+      let basicsToSpawn = Math.min(slotsForBasics, Math.max(0, Math.floor(budgetLeft / LEVEL_CONFIG.costs.minion)))
+
+      // Distribute basics across portals
+      const perPortal = Math.max(1, Math.floor(basicsToSpawn / portalsCount))
+
+      // Evenly spaced directions with slight jitter
+      for (let i = 0; i < portalsCount; i++) {
+        const angle = baseAngle + (i * (Math.PI * 2) / portalsCount) + (Math.random() - 0.5) * 0.25
+        const radius = PORTAL_RADIUS_MIN + Math.random() * (PORTAL_RADIUS_MAX - PORTAL_RADIUS_MIN)
+        const px = center.x + Math.cos(angle) * radius
+        const pz = center.z + Math.sin(angle) * radius
+        const p = [px, 0.5, pz]
+        const extraDelay = 2000 + Math.random() * 2000 // 2-4s warmup
+        openPortalAt(p, PORTAL_LIFETIME + extraDelay)
+        // Spawn per-portal enemies using tier weights and boss/budget caps
+        const weights = getTierWeights(level)
+        for (let k = 0; k < perPortal; k++) {
+          if (basicsToSpawn <= 0) break
+          // Decide tier for this slot
+          const r = Math.random()
+          let pickTier = 'T1'
+          let acc = 0
+          for (const key of ['T1','T2','T3','T4']) {
+            if (weights[key]) { acc += weights[key]; if (r <= acc) { pickTier = key; break } }
+          }
+          let kind = 'minion'
+          if (pickTier === 'T2' && level >= LEVEL_CONFIG.unlocks.bossMinion && bossSlotsRem > 0) {
+            // 50/50 bossMinion vs cluster if cluster unlocked and boss slot available
+            const clusterOK = level >= LEVEL_CONFIG.unlocks.cluster
+            if (clusterOK && Math.random() < 0.5) {
+              kind = 'cluster'; bossSlotsRem = Math.max(0, bossSlotsRem - 1); budgetLeft = Math.max(0, budgetLeft - LEVEL_CONFIG.costs.cluster)
+            } else {
+              kind = 'bossMinion'; bossSlotsRem = Math.max(0, bossSlotsRem - 1); budgetLeft = Math.max(0, budgetLeft - LEVEL_CONFIG.costs.bossMinion)
+            }
+          } else {
+            // Default to minion (T1), ignore T3/T4 for basic slots
+            kind = 'minion'; budgetLeft = Math.max(0, budgetLeft - LEVEL_CONFIG.costs.minion)
+          }
+          basicsToSpawn -= 1
+          scheduleEnemyBatchAt(p, 1, { waveNumber: nextWave, extraDelayMs: extraDelay + (k*PORTAL_STAGGER_MS), kind })
+        }
+      }
+
+      // Spawn 1-2 green speed boost planes per wave nearby, lifetime similar to portals
+      const boostCount = Math.min(2, 1 + Math.floor(Math.random() * 2))
+      for (let i = 0; i < boostCount; i++) {
+        const angle = baseAngle + Math.random() * Math.PI * 2
+        const radius = SPEED_BOOST_RADIUS_MIN + Math.random() * (SPEED_BOOST_RADIUS_MAX - SPEED_BOOST_RADIUS_MIN)
+        const px = center.x + Math.cos(angle) * radius
+        const pz = center.z + Math.sin(angle) * radius
+        const pos = [px, 0.5, pz]
+        openSpeedBoostAt(pos)
+      }
+
+      // (Triangle/Cone/Pipe spawning moved into leveled plan above)
 
       return nextWave
     })
@@ -3069,6 +3176,9 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
 
   // ground plane grid material
   const grid = useMemo(() => new THREE.GridHelper(200, 40, 0xb8c2cc, 0xe2e8f0), [])
+  // live enemy list ref for planners
+  const enemiesRef = useRef([])
+  useEffect(() => { enemiesRef.current = enemies }, [enemies])
   const crosshairRef = useRef(null)
   const rafRef = useRef(0)
   
@@ -3575,6 +3685,10 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           <div>Scheme: {controlScheme.toUpperCase()}</div>
           <div>Speed: Enemies x{enemySpeedScale.toFixed(2)} • Player {playerBaseSpeed}</div>
           <div>Play time: {formatHMS(totalPlayMsView)}</div>
+          <div>Level: {wave}</div>
+          {(() => { const bossUsed = enemies.filter(e => e.isBoss || e.isTriangle || e.isCone || e.isPipe).length; const bossCap = getBossMax(wave, performanceMode); return (
+            <div>Bosses: {bossUsed}/{bossCap}</div>
+          )})()}
         </div>
         <div className="feed feed-pickups small">
           {pickupFeed.map(msg => (
@@ -3617,6 +3731,14 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           High-contrast aim & crosshair
         </label>
         <div style={{height:6}} />
+        <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="checkbox" checked={performanceMode} onChange={e => setPerformanceMode(e.target.checked)} />
+          Performance Mode (lower caps)
+        </label>
+        <div className="tiny" style={{opacity:0.8}}>
+          Active cap: {getActiveMax(wave || 1, performanceMode)} • Boss cap: {getBossMax(wave || 1, performanceMode)}
+        </div>
+        <div style={{height:6}} />
   <div className="small">Controls: D-Buttons (default) or WASD • Mouse aim & click to shoot</div>
         <div className="small">F to toggle Auto-Fire • ESC/SPACE to pause</div>
         <div style={{height:10}} />
@@ -3639,6 +3761,17 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
 
       {/* Left-bottom stack: Boss feed above control guide */}
       <div className="left-bottom-stack">
+        {/* Boss schedule */}
+        <div className="hud small" style={{ marginBottom: 8 }}>
+          {(() => { const triIn = (wave % 3 === 0 ? 0 : (3 - (wave % 3))); return (
+            <>
+              <div><strong>Level:</strong> {wave}</div>
+              <div>Triangle boss: every 3 levels • next in {triIn}</div>
+              <div>Cone boss: L{LEVEL_CONFIG.unlocks.cone}+ • {Math.round(LEVEL_CONFIG.chances.cone*100)}% chance</div>
+              <div>Pipe boss: L{LEVEL_CONFIG.unlocks.pipe}+ • {Math.round(LEVEL_CONFIG.chances.pipe*100)}% chance</div>
+            </>
+          )})()}
+        </div>
         <div className="feed feed-bosses small">
           {bossFeed.map(msg => (
             <div key={msg.id} className="feed-item" style={{ '--dot': msg.color }}>

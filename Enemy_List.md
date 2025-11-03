@@ -11,6 +11,8 @@ Based on the current codebase, here are all the enemy types and their properties
 - **Special**: Can spawn as boss variant (12% chance)
 - **Knockback**: 12.0 strength, 8.0 decay
 - **Spawn Rate**: Regular enemies in all waves
+- **Level Unlock**: 1 (Tier: T1 Common)
+- **Max Concurrent Guidance**: Counts toward global active cap (see docs/Leveling_System.md). Minion weight scales up with level.
 
 ## 2. **Boss Minion** (Enhanced Minion)
 - **Appearance**: Orange hexagon (1.6 radius cylinder, 6 sides)
@@ -20,6 +22,8 @@ Based on the current codebase, here are all the enemy types and their properties
 - **Behavior**: Same as minion but slower and tankier
 - **Knockback**: 8.0 strength, 6.0 decay
 - **Spawn Rate**: 12% chance when spawning regular minions
+- **Level Unlock**: 4 (Tier: T2 Uncommon). Boss variant chance ramps with level (e.g., +1% every 2 levels up to 20%).
+- **Max Concurrent Guidance**: Included within minion/global caps.
 
 ## 3. **Triangle Boss**
 - **Appearance**: Purple triangular prism (2.2 radius, 3 sides)
@@ -33,6 +37,8 @@ Based on the current codebase, here are all the enemy types and their properties
 - **Special**: Warning indicator when charging
 - **Knockback**: 7.0 strength, 6.0 decay
 - **Spawn Rate**: Every 3rd wave
+- **Level Unlock**: 3 (Tier: Boss T3 Rare)
+- **Max Concurrent Guidance**: Typically 1–2 active; counts against boss budget.
 
 ## 4. **Cone Boss**
 - **Appearance**: Orange cone standing on tip (1.6 radius base, 2.6 height)
@@ -47,6 +53,8 @@ Based on the current codebase, here are all the enemy types and their properties
 - **Special**: Ballistic jump physics with gravity
 - **Knockback**: Uses boss values (8.0 strength, 6.0 decay)
 - **Spawn Rate**: 80% chance per wave, max 6 concurrent
+- **Level Unlock**: 6 (Tier: Boss T3 Rare)
+- **Max Concurrent Guidance**: Max 6 as designed (cap decreases on low-spec devices via global cap).
 
 ## 5. **Pipe Boss**
 - **Appearance**: Blue metallic cylinder (1.2 radius, 1.6 height)
@@ -60,6 +68,8 @@ Based on the current codebase, here are all the enemy types and their properties
 - **Special**: Drone factory - creates Flying Drones
 - **Knockback**: 8.0 strength, 6.0 decay
 - **Spawn Rate**: 60% chance per wave
+- **Level Unlock**: 7 (Tier: Boss T3 Rare)
+- **Max Concurrent Guidance**: 2–4 active depending on level and budget.
 
 ## 6. **Cluster Boss**
 - **Appearance**: Clump of 7 red spheres (0.5 radius each)
@@ -70,6 +80,8 @@ Based on the current codebase, here are all the enemy types and their properties
 - **Special**: Splits into smaller orbs on death (onSplit callback)
 - **Knockback**: 8.0 strength, 6.0 decay
 - **Spawn Rate**: 40% chance instead of regular minion
+- **Level Unlock**: 8 (Tier: Boss T2 Uncommon)
+- **Max Concurrent Guidance**: 2–3 active; each split respects global cap.
 
 ## 7. **Flying Drone** (Spawned by Pipe Boss)
 - **Appearance**: Red capsule with tips, leaves trail when diving
@@ -85,6 +97,8 @@ Based on the current codebase, here are all the enemy types and their properties
   - Can be killed by boundary jump collision
   - Visual trail during dive phase
 - **Spawn Rate**: 2-6 per Pipe Boss launch (max 16 total active)
+- **Level Unlock**: 7 (via Pipe Boss; Tier: T2 Uncommon)
+- **Max Concurrent Guidance**: 16 total active cap shared across all Pipe Bosses.
 
 ## Global Enemy Properties
 
@@ -92,6 +106,8 @@ Based on the current codebase, here are all the enemy types and their properties
 - **Damage Scale**: +4% per wave (max 4x at wave 100)
 - **Speed Scale**: +3% enemy speed per wave (max 1.5x)
 - **Health**: Static per enemy type
+
+Note: For now, Level equals Wave in implementation. See docs/Leveling_System.md for level gates, spawn budgets, and global caps.
 
 ### **Stun & Knockback System**
 - All enemies can be stunned (yellow stun bullets)

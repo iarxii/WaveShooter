@@ -46,6 +46,12 @@ Extras: object-pooled bullets, pause-aware spawns, distance-scaled knockback, au
 
 See `Concept.md` for the game concept and roadmap.
 
+## Leveling system
+Higher-level enemies unlock at higher levels to control memory and difficulty. Level currently equals Wave.
+
+- Read the full design in `docs/Leveling_System.md`.
+- Balancing and unlocks are summarized in `Balancing_Table.md` and `Updated_Enemy_List.md`.
+
 ## Quick start
 
 ```bash
