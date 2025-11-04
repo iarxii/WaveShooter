@@ -117,6 +117,15 @@ export function SoundProvider({ children }) {
     ],
   }), [])
 
+  // helper to bind 'ended' only on the currently active deck
+  const bindEndedToActive = useCallback((handler) => {
+    const a = deckA.current, b = deckB.current
+    if (a) a.removeEventListener('ended', handler)
+    if (b) b.removeEventListener('ended', handler)
+    const active = activeDeck.current === 'A' ? a : b
+    active?.addEventListener('ended', handler)
+  }, [])
+
   // Initialize decks on mount
   useEffect(() => {
     const a = new Audio()
@@ -134,6 +143,7 @@ export function SoundProvider({ children }) {
     const def = music.landing[0]
     currentTrack.current = def
     a.src = def
+    activeDeck.current = 'A'
     const tryPlay = () => {
       if (!enabledRef.current) return
       a.volume = musicVolumeRef.current
@@ -159,8 +169,8 @@ export function SoundProvider({ children }) {
       // Start next track based on current scene
       startNextFromScene()
     }
-    a.addEventListener('ended', onEnded)
-    b.addEventListener('ended', onEnded)
+    // Only the active deck should drive rotation
+    bindEndedToActive(onEnded)
     return () => {
       a.removeEventListener('ended', onEnded)
       b.removeEventListener('ended', onEnded)
@@ -182,7 +192,8 @@ export function SoundProvider({ children }) {
     const other = deck === deckA ? deckB : deckA
     const a = deck.current
     const b = other.current
-    try { b && (b.onended = null) } catch {}
+    // ensure other deck doesn't trigger 'ended' rotation while fading out
+    // we'll (re)bind 'ended' to the active deck after the switch
     a.src = url
     a.currentTime = 0
     a.volume = 0
@@ -190,16 +201,38 @@ export function SoundProvider({ children }) {
     a.play().catch(() => {})
     // simple fade-in, fade-out other
     const start = performance.now()
+    let bStartVol
     const tick = () => {
       const t = performance.now()
       const x = Math.min(1, (t - start) / fadeMs)
       a.volume = target * x
-      if (b) b.volume = Math.max(0, b.volume * (1 - x))
-      if (x < 1) requestAnimationFrame(tick)
+      if (b) {
+        // fade out linearly from its current volume to 0
+        if (bStartVol === undefined) bStartVol = b.volume || 0
+        b.volume = Math.max(0, bStartVol * (1 - x))
+      }
+      if (x < 1) {
+        requestAnimationFrame(tick)
+      } else {
+        // fade complete: pause and zero the other deck to avoid stray 'ended'
+        if (b) {
+          try { b.pause() } catch {}
+          b.volume = 0
+        }
+      }
     }
     requestAnimationFrame(tick)
     activeDeck.current = (deck === deckA) ? 'A' : 'B'
     currentTrack.current = url
+    // ensure ended only on the new active deck
+    bindEndedToActive(() => {
+      // If we were asked to switch to 'game' while default was playing, do it now
+      if (pendingScene.current && pendingScene.current !== sceneRef.current) {
+        sceneRef.current = pendingScene.current
+        pendingScene.current = null
+      }
+      startNextFromScene()
+    })
   }, [])
 
   const startNextFromScene = useCallback(() => {
@@ -214,6 +247,7 @@ export function SoundProvider({ children }) {
   const setMusicScene = useCallback((scene) => {
     if (!scene) return
     const prevScene = sceneRef.current
+    if (scene === prevScene) return // no-op if no change
     // Special rule: if switching into 'game' while default track is the current one, defer until it ends
     const defaultUrl = music.landing[0]
     const isOnDefault = currentTrack.current === defaultUrl
@@ -232,10 +266,22 @@ export function SoundProvider({ children }) {
 
   // react to enabled toggles for music
   useEffect(() => {
-    const target = enabled ? musicVolumeRef.current : 0
     const a = deckA.current, b = deckB.current
-    if (a) a.volume = (a.volume > target) ? target : target // snap to target to avoid long animations
-    if (b) b.volume = (b.volume > target) ? target : target
+    if (!enabled) {
+      // Pause both decks while disabled to prevent stray 'ended' events
+      if (a) { try { a.pause() } catch {} ; a.volume = 0 }
+      if (b) { try { b.pause() } catch {} ; b.volume = 0 }
+      return
+    }
+    // Re-enable: ensure only the active deck is playing at musicVolume; keep the other at 0 and paused
+    const active = activeDeck.current === 'A' ? a : b
+    const other = activeDeck.current === 'A' ? b : a
+    if (other) { try { other.pause() } catch {} ; other.volume = 0 }
+    if (active) {
+      active.volume = musicVolumeRef.current
+      // resume if was paused
+      active.play?.().catch(() => {})
+    }
   }, [enabled])
 
   useEffect(() => {
