@@ -6,12 +6,14 @@ import CharacterViewer from './pages/CharacterViewer.jsx'
 import { GameProvider } from './contexts/GameContext.jsx'
 import { HistoryProvider } from './contexts/HistoryContext.jsx'
 import NavBar from './components/NavBar.jsx'
+import { EffectsProvider } from './effects/EffectsContext.jsx'
 
 export default function AppRouter() {
   return (
     <BrowserRouter>
       <HistoryProvider>
         <GameProvider>
+          <EffectsProvider>
           <NavBar />
           <Routes>
             <Route path="/" element={<Landing />} />
@@ -19,6 +21,7 @@ export default function AppRouter() {
             <Route path="/characters" element={<CharacterViewer />} />
             <Route path="*" element={<Landing />} />
           </Routes>
+          </EffectsProvider>
         </GameProvider>
       </HistoryProvider>
     </BrowserRouter>

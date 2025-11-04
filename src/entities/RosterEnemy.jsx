@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { useEffects } from '../effects/EffectsContext.jsx'
 import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 
 // Generic roster enemy: minion-like chaser with health, stun/knockback support
 export default function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth=3, color=0xff0055, speedScale=1, spawnHeight, label=null, stunImmune=false, shape='Circle', moveSpeed=10, onHazard }) {
   const ref = useRef()
+  const { triggerEffect } = useEffects()
   const baseSpeed = moveSpeed
   const knockback = useRef(new THREE.Vector3())
   const isSpawning = useRef(!!spawnHeight && spawnHeight > (pos?.[1] ?? 0.5))
@@ -213,6 +215,7 @@ export default function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, he
         const nearPlayer = b.pos.distanceTo(playerPosRef.current) < 1.2
         if (b.ttl <= 0 || nearPlayer) {
           onHazard && onHazard({ type: b.type, pos: [b.pos.x, 0.5, b.pos.z], radius: b.type==='corrosive'? 3.2 : 2.6, slow: b.type==='corrosive'? 0.2 : 0.3, tickMs: 500, durationMs: 4000, color: b.type==='corrosive'? '#065f46' : '#22c55e', dps: b.type==='corrosive'? 0 : 1 })
+          try { triggerEffect && triggerEffect('bombExplosion', { position: [b.pos.x, 0.2, b.pos.z], power: (b.type==='corrosive'? 1.2 : 1.0) }) } catch {}
           bombsRef.current.splice(i,1)
         }
       }

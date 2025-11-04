@@ -13,6 +13,7 @@ import ConeBossEntity from './entities/ConeBoss.jsx'
 import FlyingDroneEntity from './entities/FlyingDrone.jsx'
 import RosterEnemyEntity from './entities/RosterEnemy.jsx'
 import { heroColorFor } from './data/roster.js'
+import { EffectsRenderer, useEffects } from './effects/EffectsContext.jsx'
 import { ENEMIES as ROSTER } from './data/roster.js'
 
 // GAME CONSTANTS
@@ -20,7 +21,7 @@ const PLAYER_SPEED = 24 // faster than minions to keep mobility advantage
 const PLAYER_SPEED_CAP = 50 // cap player base speed for control stability
 const SPEED_DEBUFF_FACTOR = 0.9
 const SPEED_DEBUFF_DURATION_MS = 4000
-const BOUNDARY_LIMIT = 60
+const BOUNDARY_LIMIT = 50
 const GROUND_SIZE = 200 // planeGeometry args
 const GROUND_HALF = GROUND_SIZE / 2
 // Decoupled shape path radius for invulnerability runner (independent of arena boundary)
@@ -1663,6 +1664,7 @@ function TriangleBoss({ id, pos, playerPosRef, onDie, health, isPaused, spawnHei
 export default function App() {
   const { addRun } = useHistoryLog()
   const { selectedHero } = useGame()
+  const { triggerEffect } = useEffects()
   // game state
   const playerPosRef = useRef(new THREE.Vector3(0, 0, 0))
   const setPositionRef = (pos) => { playerPosRef.current.copy(pos) }
@@ -2767,6 +2769,12 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         bulletPool.current.returnBullet(b.id)
         setBullets(bulletPool.current.getActiveBullets())
 
+        // Visual: bullet hit spark burst (match bullet color if available)
+        try {
+          const c = (b?.style?.color != null) ? b.style.color : 0x00ff66
+          triggerEffect && triggerEffect('bulletHit', { position: [bulletPos.x, 0.5, bulletPos.z], color: c })
+        } catch {}
+
         // Knockback direction from bullet to enemy
         knockDir.subVectors(hitEnemy.ref.current.position, bulletPos)
         knockDir.y = 0
@@ -3676,6 +3684,12 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
             const v = !!active
             boundaryJumpActiveRef.current = v
             setBoundaryJumpActive(v)
+            if (v) {
+              try {
+                const p = playerPosRef.current
+                triggerEffect && triggerEffect('boundaryGlow', { position: [p.x, 0.05, p.z], radius: 2.4 })
+              } catch {}
+            }
           }}
           onLanding={() => {
             if (expectingPostInvulnLandingRef.current) {
@@ -3862,6 +3876,8 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
                 const next = [...prev, { id: Date.now() + Math.random(), pos: [cx, 0.06, cz], start: performance.now(), radius: BOMB_AOE_RADIUS }]
                 return next.length > 12 ? next.slice(next.length - 12) : next
               })
+              // VFX: scalable bomb explosion
+              try { triggerEffect && triggerEffect('bombExplosion', { position: [cx, 0.2, cz], power: 1.0 }) } catch {}
               // remove bomb
               setBombs(prev => prev.filter(x => x.id !== id))
             }}
@@ -3968,6 +3984,8 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           <HazardZone key={h.id} data={h} isPaused={isPaused} onExpire={(id)=> setHazards(prev => prev.filter(x => x.id !== id))} />
         ))}
 
+        {/* Global effects renderer */}
+        <EffectsRenderer />
         {showDreiStats && <Stats />}
       </Canvas>
 
@@ -4357,26 +4375,256 @@ function AOEBlast({ pos, start, radius = 9, onDone }) {
 
 // Hazard zone visual and tick logic
 function HazardZone({ data, isPaused, onExpire }) {
-  const ref = useRef()
-  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: new THREE.Color(data.color || '#eab308'), transparent: true, opacity: 0.2, side: THREE.DoubleSide }), [data.color])
-  const geom = useMemo(() => new THREE.CircleGeometry(data.radius || 4, 32), [data.radius])
+  const baseRef = useRef()
+  const color = useMemo(() => new THREE.Color(data.color || '#eab308'), [data.color])
+  const ringMat = useMemo(() => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.18, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }), [color])
+  const ringGeom = useMemo(() => new THREE.RingGeometry(Math.max((data.radius||4)*0.85, 0.1), (data.radius||4), 48), [data.radius])
+  const lifeMs = data.durationMs || 6000
+  const createdAt = data.createdAt || performance.now()
+
   useFrame(() => {
-    if (!ref.current) return
+    if (!baseRef.current) return
     const t = performance.now()
-    // Fade in/out slightly
-    const life = (data.durationMs || 6000)
-    const k = Math.max(0, Math.min(1, (t - data.createdAt) / life))
-    mat.opacity = 0.25 * (0.8 + 0.2 * Math.sin(t * 0.005)) * (1 - 0.2*k)
-    if (!isPaused && t >= (data.createdAt + (data.durationMs || 6000))) {
+    const k = Math.max(0, Math.min(1, (t - createdAt) / lifeMs))
+    // subtle breathing
+    ringMat.opacity = 0.22 * (0.9 + 0.1 * Math.sin(t * 0.005)) * (1 - 0.1*k)
+    if (!isPaused && t >= (createdAt + lifeMs)) {
       onExpire && onExpire(data.id)
     }
   })
   // Ensure hazards draw slightly above ground to prevent z-fighting
   const pos = useMemo(() => [data.pos?.[0] ?? 0, 0.06, data.pos?.[2] ?? 0], [data.pos])
+
   return (
-    <mesh ref={ref} position={pos} rotation={[-Math.PI/2,0,0]} material={mat}>
+    <group position={pos}>
+      {/* Neon base ring */}
+      <mesh ref={baseRef} rotation={[-Math.PI/2,0,0]} material={ringMat}>
+        <primitive object={ringGeom} attach="geometry" />
+      </mesh>
+      {/* Rich effect by hazard type */}
+      {data.type === 'toxin' && <ToxinCloud radius={data.radius||4} color={color} isPaused={isPaused} />}
+      {data.type === 'corrosive' && <CorrosivePool radius={data.radius||4} color={color} isPaused={isPaused} />}
+      {data.type === 'fog' && <FogField radius={data.radius||4} color={color} isPaused={isPaused} />}
+      {data.type === 'carcinogen' && <RayField radius={data.radius||4} color={color} isPaused={isPaused} count={10} />}
+      {/* Treat short white toxin (X-rays pulse) as radiation */}
+      {data.type === 'toxin' && (data.color === '#ffffff' || data.color === '#fff' ) && (
+        <>
+          <RadiationRing radius={data.radius||4} color={new THREE.Color('#ffffff')} />
+          <RayField radius={data.radius||4} color={new THREE.Color('#ffffff')} isPaused={isPaused} count={12} />
+        </>
+      )}
+    </group>
+  )
+}
+
+function ToxinCloud({ radius=4, color=new THREE.Color('#22c55e'), isPaused }){
+  const geomRef = useRef()
+  const mat = useMemo(() => new THREE.PointsMaterial({ color, size: 0.24, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }), [color])
+  const stateRef = useRef({ angles: null, heights: null })
+  const geom = useMemo(() => {
+    const n = 90
+    const positions = new Float32Array(n*3)
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    return g
+  }, [])
+  useEffect(() => {
+    const n = geom.getAttribute('position').count
+    const angles = new Float32Array(n)
+    const heights = new Float32Array(n)
+    for (let i=0;i<n;i++){ angles[i] = Math.random()*Math.PI*2; heights[i] = Math.random()*0.8+0.2 }
+    stateRef.current.angles = angles
+    stateRef.current.heights = heights
+  }, [geom])
+  useFrame((_, dt) => {
+    if (!geomRef.current || isPaused) return
+    const pos = geomRef.current.getAttribute('position')
+    const { angles, heights } = stateRef.current
+    const speed = 0.7
+    for (let i=0;i<pos.count;i++){
+      const a = angles[i] += speed * dt * (0.5 + Math.random()*0.5)
+      const r = radius * (0.2 + (i/pos.count)*0.8) * (0.85 + 0.15*Math.sin((i*13.37)+performance.now()*0.002))
+      pos.array[i*3+0] = Math.cos(a) * r
+      pos.array[i*3+1] = heights[i] * 1.4
+      pos.array[i*3+2] = Math.sin(a) * r
+    }
+    pos.needsUpdate = true
+  })
+  return (
+    <points position={[0,0.2,0]}>
+      <primitive object={geom} ref={geomRef} />
+      <primitive object={mat} attach="material" />
+    </points>
+  )
+}
+
+function CorrosivePool({ radius=4, color=new THREE.Color('#065f46'), isPaused }){
+  const ringMat = useMemo(() => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }), [color])
+  const ringGeom = useMemo(() => new THREE.RingGeometry(Math.max(radius*0.3,0.1), radius*0.32, 32), [radius])
+  const ringRef = useRef()
+  const steamMat = useMemo(() => new THREE.PointsMaterial({ color, size: 0.2, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending }), [color])
+  const steamGeom = useMemo(() => {
+    const n = 60
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n*3), 3))
+    return g
+  }, [])
+  useFrame(() => {
+    if (ringRef.current) {
+      const t = performance.now()*0.003
+      ringRef.current.scale.setScalar(1 + 0.15*Math.sin(t))
+    }
+    // bubble-like steam: randomize positions subtly each frame
+    const pos = steamGeom.getAttribute('position')
+    for (let i=0;i<pos.count;i++){
+      const a = Math.random()*Math.PI*2
+      const r = Math.random()*radius*0.4
+      pos.array[i*3+0] = Math.cos(a)*r
+      pos.array[i*3+1] = 0.2 + Math.random()*0.8
+      pos.array[i*3+2] = Math.sin(a)*r
+    }
+    pos.needsUpdate = true
+  })
+  return (
+    <group>
+      <mesh ref={ringRef} rotation={[-Math.PI/2,0,0]} material={ringMat}>
+        <primitive object={ringGeom} attach="geometry" />
+      </mesh>
+      <points position={[0,0.15,0]}>
+        <primitive object={steamGeom} />
+        <primitive object={steamMat} attach="material" />
+      </points>
+    </group>
+  )
+}
+
+function FogField({ radius=4, color=new THREE.Color('#a855f7'), isPaused }){
+  const mat = useMemo(() => new THREE.PointsMaterial({ color, size: 0.28, transparent: true, opacity: 0.38, depthWrite: false, blending: THREE.AdditiveBlending }), [color])
+  const geomRef = useRef()
+  const geom = useMemo(() => {
+    const n = 70
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n*3), 3))
+    return g
+  }, [])
+  useFrame(() => {
+    if (!geomRef.current || isPaused) return
+    const pos = geomRef.current.getAttribute('position')
+    for (let i=0;i<pos.count;i++){
+      const a = (i*0.61 + performance.now()*0.0008)
+      const r = radius * (0.3 + 0.7*((i%7)/7))
+      pos.array[i*3+0] = Math.cos(a)*r
+      pos.array[i*3+1] = 0.5 + 1.8*((i%5)/5)
+      pos.array[i*3+2] = Math.sin(a)*r
+    }
+    pos.needsUpdate = true
+  })
+  return (
+    <points position={[0,0.2,0]}>
+      <primitive object={geom} ref={geomRef} />
+      <primitive object={mat} attach="material" />
+    </points>
+  )
+}
+
+function RadiationRing({ radius=4, color=new THREE.Color('#ffffff') }){
+  const ref = useRef()
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }), [color])
+  const geom = useMemo(() => new THREE.RingGeometry(Math.max(radius*0.2,0.05), radius, 48), [radius])
+  useFrame(() => {
+    if (!ref.current) return
+    const t = performance.now()*0.006
+    ref.current.rotation.z = t
+    mat.opacity = 0.8*(0.6 + 0.4*Math.sin(t*2))
+  })
+  return (
+    <mesh ref={ref} rotation={[-Math.PI/2,0,0]} material={mat}>
       <primitive object={geom} attach="geometry" />
     </mesh>
+  )
+}
+
+function RayField({ radius=4, color=new THREE.Color('#66ccff'), isPaused, count=10 }){
+  const mat = useMemo(() => new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending }), [color])
+  const geomRef = useRef()
+  const geom = useMemo(() => {
+    const g = new THREE.BufferGeometry()
+    const n = count
+    const positions = new Float32Array(n*2*3) // lines: start+end
+    g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    return g
+  }, [count])
+  // lightning bolt (occasional jagged spikes)
+  const boltMat = useMemo(() => new THREE.LineBasicMaterial({ color: new THREE.Color('#ffffff'), transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending }), [])
+  const boltGeomRef = useRef()
+  const boltGeom = useMemo(() => {
+    const segments = 5 // jagged polyline
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array((segments+1)*3), 3))
+    return g
+  }, [])
+  const boltTimer = useRef(0)
+  useFrame(() => {
+    if (!geomRef.current) return
+    const pos = geomRef.current.getAttribute('position')
+    for (let i=0;i<count;i++){
+      const a = (i/count)*Math.PI*2 + performance.now()*0.0015 + Math.random()*0.1
+      const r = radius*(0.2 + Math.random()*0.8)
+      const x = Math.cos(a)*r
+      const z = Math.sin(a)*r
+      // start on ground, end upward
+      pos.array[i*6+0] = x
+      pos.array[i*6+1] = 0.1
+      pos.array[i*6+2] = z
+      pos.array[i*6+3] = x
+      pos.array[i*6+4] = 1.8 + Math.random()*0.8
+      pos.array[i*6+5] = z
+    }
+    pos.needsUpdate = true
+    mat.opacity = 0.85 + 0.15*Math.sin(performance.now()*0.01)
+    // update lightning occasionally
+    if (boltGeomRef.current) {
+      boltTimer.current -= 1/60
+      if (boltTimer.current <= 0) {
+        // spawn new bolt roughly every 0.6-1.2s
+        boltTimer.current = 0.6 + Math.random()*0.6
+        const p = boltGeomRef.current.getAttribute('position')
+        const baseAngle = Math.random()*Math.PI*2
+        const baseR = radius*(0.2 + Math.random()*0.8)
+        const bx = Math.cos(baseAngle)*baseR
+        const bz = Math.sin(baseAngle)*baseR
+        let y = 0.2
+        p.array[0] = bx; p.array[1] = y; p.array[2] = bz
+        for (let s=1; s<p.count; s++){
+          const jitter = (Math.random()-0.5) * (radius*0.2)
+          const jx = bx + jitter
+          const jz = bz + (Math.random()-0.5) * (radius*0.2)
+          y += 0.4 + Math.random()*0.5
+          p.array[s*3+0] = jx
+          p.array[s*3+1] = y
+          p.array[s*3+2] = jz
+        }
+        p.needsUpdate = true
+        boltMat.opacity = 0.95
+      } else {
+        // fade out
+        boltMat.opacity = Math.max(0, boltMat.opacity - 0.08)
+      }
+    }
+  })
+  return (
+    <group>
+      <lineSegments>
+        <primitive object={geom} ref={geomRef} />
+        {/* @ts-ignore */}
+        <primitive object={mat} attach="material" />
+      </lineSegments>
+      <line>
+        <primitive object={boltGeom} ref={boltGeomRef} />
+        {/* @ts-ignore */}
+        <primitive object={boltMat} attach="material" />
+      </line>
+    </group>
   )
 }
 
