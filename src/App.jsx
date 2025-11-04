@@ -15,6 +15,7 @@ import RosterEnemyEntity from './entities/RosterEnemy.jsx'
 import { heroColorFor } from './data/roster.js'
 import { EffectsRenderer, useEffects } from './effects/EffectsContext.jsx'
 import { ENEMIES as ROSTER } from './data/roster.js'
+import { useSound } from './contexts/SoundContext.jsx'
 
 // GAME CONSTANTS
 const PLAYER_SPEED = 24 // faster than minions to keep mobility advantage
@@ -1662,6 +1663,7 @@ function TriangleBoss({ id, pos, playerPosRef, onDie, health, isPaused, spawnHei
 // Cone boss extracted to src/entities/ConeBoss.jsx
 
 export default function App() {
+  const { play } = useSound()
   const { addRun } = useHistoryLog()
   const { selectedHero } = useGame()
   const { triggerEffect } = useEffects()
@@ -2666,6 +2668,8 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           // Ensure only one life pickup exists concurrently
           if (p.some(x => x.type === 'life')) return p
           if (p.length >= MAX_PICKUPS) return p
+          // play life spawn sfx
+          try { play('life-spawn') } catch {}
           return [...p, { id, pos, type: 'life', lifetimeMaxSec: 18 }]
         })
       }
@@ -2979,6 +2983,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
       setHealth(h => Math.min(h + eff, 100))
       const idEvt = Date.now() + Math.random()
       setHpEvents(evts => [...evts, { id: idEvt, amount: +eff, start: performance.now() }])
+      try { play('health-pickup') } catch {}
     } else {
       if (pickup.type === 'power') {
         // power-up: add score by amount and enable bullet effect for duration
@@ -2987,6 +2992,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         // duration proportional to amount (5..10s)
         powerRemainingRef.current = (amt / 10) * 1000
         setPowerEffect({ active: true, amount: amt })
+        try { play(amt >= 90 ? 'diamond' : 'powerup') } catch {}
       } else if (pickup.type === 'invuln') {
         invulnRemainingRef.current = 5000
         const shapes = ['circle','hexagon','rectangle']
@@ -3009,6 +3015,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         setBombEffect({ active: true })
       } else if (pickup.type === 'life') {
         setLives(l => Math.min(l + 1, 5))
+        try { play('life-pickup') } catch {}
       }
     }
   }, [pickups, pushPickupFeed])
@@ -3375,6 +3382,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
 
       if (livesRef.current > 1) {
         // Lose a life and respawn after a short countdown
+        try { play('life-lost') } catch {}
         setLives(l => Math.max(l - 1, 0))
         setIsPaused(true)
         setRespawnCountdown(3)
@@ -3405,6 +3413,11 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
         setLives(0)
         setIsGameOver(true)
         setIsPaused(true)
+        // SFX sequence: hit then jingle
+        try {
+          play('game-over-1')
+          setTimeout(() => play('game-over-2'), 600)
+        } catch {}
         // Log run history (score, wave, timestamp, perf mode)
         try {
           addRun && addRun({
@@ -3592,6 +3605,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
           dashTriggerToken={dashTriggerToken}
           onDashStart={() => {
             setIsDashing(true)
+            try { play('dash') } catch {}
           }}
           onDashEnd={(endPos) => {
             setIsDashing(false)
@@ -3688,6 +3702,7 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
               try {
                 const p = playerPosRef.current
                 triggerEffect && triggerEffect('boundaryGlow', { position: [p.x, 0.05, p.z], radius: 2.4 })
+                play('boundary-jump')
               } catch {}
             }
           }}
@@ -3878,6 +3893,8 @@ function ConfettiBurst({ start=0, count=48, onDone }) {
               })
               // VFX: scalable bomb explosion
               try { triggerEffect && triggerEffect('bombExplosion', { position: [cx, 0.2, cz], power: 1.0 }) } catch {}
+              // SFX: bomb explosion
+              try { play('bomb') } catch {}
               // remove bomb
               setBombs(prev => prev.filter(x => x.id !== id))
             }}
