@@ -226,7 +226,107 @@ Note: Some spawns will arrive as Bouncers — a cyan telegraph ring appears on t
 
 ***
 
-✅ This gives you **18 unique enemies** with educational and gameplay properties.
+## **Viruses (Major Bosses)**
+
+### 19. Influenza
+
+*   **Type**: Virus (Major Boss)
+*   **Scientific Name**: Influenza virus
+*   **Real-World Effect**: Causes seasonal flu; high mutation rates
+*   **Gameplay Effect**: **Antigenic Drift** – Periodically changes resistances
+*   **Movement/Attack**: Mobile boss — cycles resistances on a timer; fires cone volleys when closing distance.
+*   **Shape**: Star
+*   **Color**: Cyan
+*   **Tier**: T4 (Apex)
+*   **Unlock Level**: 14
+
+### 20. Hepatitis C
+
+*   **Type**: Virus (Major Boss)
+*   **Scientific Name**: Hepatitis C virus (HCV)
+*   **Real-World Effect**: Chronic liver infection; long-term complications
+*   **Gameplay Effect**: **Viral Persistence** – Regenerates shields over time
+*   **Movement/Attack**: Slow, shielded — regens shields in phases; performs telegraphed lunges.
+*   **Shape**: Hexagon
+*   **Color**: Dark Cyan
+*   **Tier**: T4 (Apex)
+*   **Unlock Level**: 15
+
+### 21. Rotavirus
+
+*   **Type**: Virus (Major Boss)
+*   **Scientific Name**: Rotavirus
+*   **Real-World Effect**: Causes severe diarrhea in children
+*   **Gameplay Effect**: **Spike Wheel** – Radial projectile bursts
+*   **Movement/Attack**: Spins and emits radial bursts; keeps mid-range spacing.
+*   **Shape**: Circle
+*   **Color**: Yellow
+*   **Tier**: T4 (Apex)
+*   **Unlock Level**: 16
+
+### 22. Bacteriophage
+
+*   **Type**: Virus (Major Boss)
+*   **Scientific Name**: Bacteriophage
+*   **Real-World Effect**: Infects bacteria; potential therapeutic uses
+*   **Gameplay Effect**: **Host Hijack** – Buffs nearby pathogens
+*   **Movement/Attack**: Support boss — seeks clusters of enemies and amplifies them; shoots lancing bolts at the player.
+*   **Shape**: Triangle
+*   **Color**: Dark Green
+*   **Tier**: T4 (Apex)
+*   **Unlock Level**: 17
+
+### 23. Papillomavirus
+
+*   **Type**: Virus (Major Boss)
+*   **Scientific Name**: Human papillomavirus (HPV)
+*   **Real-World Effect**: Causes warts; associated with several cancers
+*   **Gameplay Effect**: **Capsid Shield** – Reduced damage except at a rotating weak spot
+*   **Movement/Attack**: Turret-like — rotates a shielded shell; exposes weak spot briefly between volleys.
+*   **Shape**: Pentagon
+*   **Color**: Pink
+*   **Tier**: T4 (Apex)
+*   **Unlock Level**: 18
+
+### 24. Ebolavirus
+
+*   **Type**: Virus (Major Boss)
+*   **Scientific Name**: Ebolavirus
+*   **Real-World Effect**: Severe hemorrhagic fever; high mortality risk
+*   **Gameplay Effect**: **Hemorrhagic Wave** – High-damage sweeping attacks
+*   **Movement/Attack**: Charges and sweeps with red telegraphs; pauses briefly between waves.
+*   **Shape**: Crescent
+*   **Color**: Red
+*   **Tier**: T4 (Apex)
+*   **Unlock Level**: 19
+
+### 25. Adenovirus
+
+*   **Type**: Virus (Major Boss)
+*   **Scientific Name**: Adenovirus
+*   **Real-World Effect**: Respiratory and gastrointestinal illnesses
+*   **Gameplay Effect**: **Vector Swarm** – Periodically spawns drone minions
+*   **Movement/Attack**: Periodically spawns drones; fires mid-range volleys at the player.
+*   **Shape**: Diamond
+*   **Color**: Blue
+*   **Tier**: T4 (Apex)
+*   **Unlock Level**: 20
+
+### 26. HIV
+
+*   **Type**: Virus (Major Boss)
+*   **Scientific Name**: Human immunodeficiency virus (HIV)
+*   **Real-World Effect**: Targets immune cells (CD4 T-cells); leads to AIDS if untreated
+*   **Gameplay Effect**: **Immune Suppression** – Reduces player defenses and regeneration
+*   **Movement/Attack**: Debuff aura — avoids close quarters, applies suppression aura, and fires precise shots.
+*   **Shape**: Oval
+*   **Color**: Violet
+*   **Tier**: T4 (Apex)
+*   **Unlock Level**: 21
+
+***
+
+✅ This gives you **26 unique enemies** with educational and gameplay properties.
 
 ***
 

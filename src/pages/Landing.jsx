@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useGame } from '../contexts/GameContext.jsx'
 import { HEROES } from '../data/roster.js'
 import { useHistoryLog } from '../contexts/HistoryContext.jsx'
+// Key art background image
+const KEY_ART = new URL('../assets/character_imgs/Hero/heroes_painted_dynamic_pose.jpg', import.meta.url).href
 
 function formatHMS(ms){
   const totalSec = Math.max(0, Math.floor((ms||0)/1000))
@@ -27,8 +29,27 @@ export default function Landing(){
     }
   }
   return (
-    <div style={{paddingTop:56}}>
-      <div style={{maxWidth:900,margin:'32px auto',padding:'16px'}}>
+    <div style={{position:'relative', minHeight:'100vh', overflow:'hidden'}}>
+      {/* Full-screen key art layer */}
+      <img
+        src={KEY_ART}
+        alt="Game key art"
+        aria-hidden="true"
+        style={{
+          position:'fixed',
+          inset:0,
+          width:'100vw',
+          height:'100vh',
+          objectFit:'cover',
+          objectPosition:'center',
+          zIndex:0,
+          pointerEvents:'none',
+        }}
+      />
+
+      {/* Foreground content */}
+      <div style={{position:'relative', zIndex:1, paddingTop:56}}>
+        <div style={{maxWidth:900,margin:'32px auto',padding:'16px',backgroundColor:'#02020282',borderRadius:8,boxShadow:'0 4px 12px rgba(0,0,0,0.3)'}}>
         <h1>Healthcare Heroes — Hazard Wave Battle</h1>
         <p>A fast top-down wave shooter with a data-driven leveling system and educational enemy roster.</p>
         <div style={{display:'flex',gap:24,flexWrap:'wrap',margin:'16px 0'}}>
@@ -79,6 +100,7 @@ export default function Landing(){
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )

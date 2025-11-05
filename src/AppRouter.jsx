@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-do
 import Landing from './pages/Landing.jsx'
 import GamePage from './pages/Game.jsx'
 import CharacterViewer from './pages/CharacterViewer.jsx'
+import AvatarTuner from './pages/AvatarTuner.tsx'
+import PathogenDemo from './pages/PathogenDemo.jsx'
 import { GameProvider } from './contexts/GameContext.jsx'
 import { HistoryProvider } from './contexts/HistoryContext.jsx'
 import NavBar from './components/NavBar.jsx'
@@ -35,6 +37,8 @@ export default function AppRouter() {
               <Route path="/" element={<Landing />} />
               <Route path="/game" element={<GamePage />} />
               <Route path="/characters" element={<CharacterViewer />} />
+              <Route path="/pathogen-demo" element={<PathogenDemo />} />
+              <Route path="/avatar-tuner" element={<AvatarTuner />} />
               <Route path="*" element={<Landing />} />
             </Routes>
           </SoundProvider>

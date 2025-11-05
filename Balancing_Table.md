@@ -18,6 +18,14 @@
 | Benzene            | Enemy  |        2 |     2.8 |        3 | Rare         | Carcinogenic Field |             10 | +6% dmg/wave   | T3    |           11 |              2 |
 | X-rays             | Enemy  |        2 |     3.2 |        4 | Rare         | Radiation Pulse    |              8 | +6% dmg/wave   | T4    |           12 |              1 |
 | Nitrosamines       | Enemy  |        2 |     2.9 |        3 | Rare         | Toxic Mist         |             10 | +6% dmg/wave   | T4    |           13 |              1 |
+| Influenza          | Enemy  |       12 |     2.2 |        5 | Rare         | Antigenic Drift    |             14 | +6% dmg/wave   | T4    |           14 |              1 |
+| Hepatitis C        | Enemy  |       13 |     2.0 |        5 | Rare         | Viral Persistence  |             16 | +6% dmg/wave   | T4    |           15 |              1 |
+| Rotavirus          | Enemy  |       12 |     2.1 |        5 | Rare         | Spike Wheel        |             12 | +6% dmg/wave   | T4    |           16 |              1 |
+| Bacteriophage      | Enemy  |       14 |     2.0 |        5 | Rare         | Host Hijack        |             14 | +6% dmg/wave   | T4    |           17 |              1 |
+| Papillomavirus     | Enemy  |       13 |     2.0 |        5 | Rare         | Capsid Shield      |             15 | +6% dmg/wave   | T4    |           18 |              1 |
+| Ebolavirus         | Enemy  |       15 |     1.9 |        7 | Rare         | Hemorrhagic Wave   |             10 | +6% dmg/wave   | T4    |           19 |              1 |
+| Adenovirus         | Enemy  |       12 |     2.2 |        5 | Rare         | Vector Swarm       |             12 | +6% dmg/wave   | T4    |           20 |              1 |
+| HIV                | Enemy  |       14 |     2.0 |        6 | Rare         | Immune Suppression |             16 | +6% dmg/wave   | T4    |           21 |              1 |
 | Dr. Dokta          | Hero   |       10 |     3.5 |        5 | N/A          | Healing Pulse      |             20 | N/A            | Hero  |          N/A |            N/A |
 | Sr. Sesta          | Hero   |        8 |     3.2 |        4 | N/A          | Sterile Field      |             18 | N/A            | Hero  |          N/A |            N/A |
 | Nurse Temba        | Hero   |        8 |     3.2 |        4 | N/A          | Rapid Response     |             18 | N/A            | Hero  |          N/A |            N/A |
