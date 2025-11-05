@@ -14,7 +14,7 @@ function keyOf(obj: unknown) {
 }
 
 /** Build or fetch pooled geometry by descriptor */
-function getGeometry(desc: { kind:'core'|'spike'|'node', radius:number, detail?:number, spikeLength?:number, spikeRadius?:number, baseShape?:BaseShape }) {
+function getGeometry(desc: { kind:'core'|'spike'|'node', radius:number, detail?:number, spikeLength?:number, spikeRadius?:number, baseShape?:BaseShape, height?:number, spikeStyle?:AvatarSpec['spikeStyle'], scaleX?:number, scaleY?:number }) {
   const key = keyOf(desc);
   if (geometryPool.has(key)) return geometryPool.get(key)!;
 
@@ -26,6 +26,23 @@ function getGeometry(desc: { kind:'core'|'spike'|'node', radius:number, detail?:
       case 'sphere':
         geom = new THREE.SphereGeometry(desc.radius, 8 + (desc.detail ?? 1) * 4, 8 + (desc.detail ?? 1) * 4);
         break;
+      case 'cylinder': {
+        const h = desc.height ?? desc.radius * 2;
+        geom = new THREE.CylinderGeometry(desc.radius, desc.radius, h, 12);
+        break;
+      }
+      case 'capsule': {
+        const h = (desc.height ?? desc.radius * 2) - desc.radius * 2;
+        const shaft = Math.max(0, h);
+        // CapsuleGeometry(radius, length, capSegments, radialSegments)
+        // length is the distance between the end of the hemispheres (shaft length)
+        // If not available in this three version, fall back to a cylinder+hemispheres approximated by CylinderGeometry
+        // @ts-ignore
+        geom = (THREE as any).CapsuleGeometry
+          ? new (THREE as any).CapsuleGeometry(desc.radius, shaft, 4, 12)
+          : new THREE.CylinderGeometry(desc.radius, desc.radius, shaft + desc.radius * 2, 12);
+        break;
+      }
       case 'triPrism': {
         const h = desc.radius * 1.6;
         geom = new THREE.CylinderGeometry(desc.radius, desc.radius, h, 3);
@@ -41,8 +58,31 @@ function getGeometry(desc: { kind:'core'|'spike'|'node', radius:number, detail?:
         geom = new THREE.IcosahedronGeometry(desc.radius, desc.detail);
         break;
     }
+    // Apply anisotropic scaling: width on X/Z, height on Y
+    const sx = desc.scaleX ?? 1;
+    const sy = desc.scaleY ?? 1;
+    if (sx !== 1 || sy !== 1) {
+      geom.scale(sx, sy, sx);
+    }
   } else if (desc.kind === 'spike') {
-    geom = new THREE.ConeGeometry(desc.spikeRadius ?? 0.1, desc.spikeLength ?? 0.45, 6);
+    const r = desc.spikeRadius ?? 0.1;
+    const L = desc.spikeLength ?? 0.45;
+    switch (desc.spikeStyle ?? 'cone') {
+      case 'disk':
+        geom = new THREE.CylinderGeometry(r, r, Math.max(0.02, L * 0.2), 12);
+        break;
+      case 'block':
+        geom = new THREE.BoxGeometry(r * 2, L, r * 2);
+        break;
+      case 'tentacle':
+        geom = new THREE.CylinderGeometry(r * 0.6, r * 0.25, L * 1.8, 8);
+        break;
+      case 'inverted': // same geometry as cone; orientation handled in renderer
+      case 'cone':
+      default:
+        geom = new THREE.ConeGeometry(r, L, 6);
+        break;
+    }
   } else { // node
     geom = new THREE.SphereGeometry(0.12, 12, 12);
   }
@@ -77,7 +117,8 @@ function getMaterial(desc: { kind:'core'|'spike'|'node'|'arc',
 
 /** Sensible defaults so most specs stay tiny */
 const D = {
-  radius: 1.0, detail: 1, flatShading: true, spikeCount: 42, spikeLength: 0.45, spikeRadius: 0.11,
+  radius: 1.0, height: 2.0, scaleX: 1.0, scaleY: 1.0, detail: 1, flatShading: true, spikeCount: 42, spikeLength: 0.45, spikeRadius: 0.11, spikeStyle: 'cone' as AvatarSpec['spikeStyle'], spikeBaseShift: 0.0,
+  spikePulse: true, spikePulseIntensity: 0.25,
   nodeCount: 6, arcCount: 5,
   baseColor: '#B5764C', spikeColor:'#B5764C', nodeColor:'#FFD24A', arcColor:'#FFE9A3', emissive:'#B0774F',
   metalnessCore: 0.25, roughnessCore: 0.85, metalnessNodes: 1.0, roughnessNodes: 0.25,
@@ -116,8 +157,8 @@ export function PathogenFromSpec({ spec }: { spec: AvatarSpec }) {
   }, [s]);
 
   // Build pooled resources from adjusted spec
-  const coreGeom = useMemo(() => getGeometry({ kind:'core', radius: lodAdjusted.radius, detail: lodAdjusted.detail, baseShape: lodAdjusted.baseShape }), [lodAdjusted.radius, lodAdjusted.detail, lodAdjusted.baseShape]);
-  const spikeGeom = useMemo(() => getGeometry({ kind:'spike', radius: 0, spikeLength: lodAdjusted.spikeLength, spikeRadius: lodAdjusted.spikeRadius }), [lodAdjusted.spikeLength, lodAdjusted.spikeRadius]);
+  const coreGeom = useMemo(() => getGeometry({ kind:'core', radius: lodAdjusted.radius, detail: lodAdjusted.detail, baseShape: lodAdjusted.baseShape, height: lodAdjusted.height, scaleX: lodAdjusted.scaleX, scaleY: lodAdjusted.scaleY }), [lodAdjusted.radius, lodAdjusted.detail, lodAdjusted.baseShape, lodAdjusted.height, lodAdjusted.scaleX, lodAdjusted.scaleY]);
+  const spikeGeom = useMemo(() => getGeometry({ kind:'spike', radius: 0, spikeLength: lodAdjusted.spikeLength, spikeRadius: lodAdjusted.spikeRadius, spikeStyle: lodAdjusted.spikeStyle }), [lodAdjusted.spikeLength, lodAdjusted.spikeRadius, lodAdjusted.spikeStyle]);
   const nodeGeom = useMemo(() => getGeometry({ kind:'node', radius: 1 }), []);
 
   const coreMat = useMemo(() => getMaterial({ kind:'core', color: lodAdjusted.baseColor, metalness: lodAdjusted.metalnessCore, roughness: lodAdjusted.roughnessCore, emissive: lodAdjusted.emissive, flatShading: lodAdjusted.flatShading }), [lodAdjusted.baseColor, lodAdjusted.metalnessCore, lodAdjusted.roughnessCore, lodAdjusted.emissive, lodAdjusted.flatShading]);
@@ -134,6 +175,10 @@ export function PathogenFromSpec({ spec }: { spec: AvatarSpec }) {
       spikeCount={lodAdjusted.spikeCount}
       spikeLength={lodAdjusted.spikeLength}
       spikeRadius={lodAdjusted.spikeRadius}
+  spikeStyle={lodAdjusted.spikeStyle}
+    spikeBaseShift={lodAdjusted.spikeBaseShift}
+    spikePulse={lodAdjusted.spikePulse}
+    spikePulseIntensity={lodAdjusted.spikePulseIntensity}
       nodeCount={lodAdjusted.nodeCount}
       arcCount={lodAdjusted.arcCount}
       baseColor={lodAdjusted.baseColor}

@@ -1,5 +1,5 @@
 // src/characters/factory/AvatarSpec.ts
-export type BaseShape = 'icosahedron' | 'sphere' | 'triPrism' | 'hexPrism';
+export type BaseShape = 'icosahedron' | 'sphere' | 'triPrism' | 'hexPrism' | 'cylinder' | 'capsule';
 
 export type AvatarSpec = {
   /** stable ID matching your balancing table */
@@ -12,11 +12,24 @@ export type AvatarSpec = {
   radius?: number;              // default 1.0
   detail?: 0|1|2;               // low-poly "faceted-ness"
   flatShading?: boolean;        // default true
+  /** For elongated shapes (cylinder/capsule/prisms), total height in world units */
+  height?: number;
+  /** Non-uniform scale along X and Y for body; Z follows X (width). Default 1 */
+  scaleX?: number;
+  scaleY?: number;
 
   // Ornamentation
   spikeCount?: number;
   spikeLength?: number;         // world units (0.3 .. 0.6 typical)
   spikeRadius?: number;         // cone radius
+  /** Spike geometry/style variant */
+  spikeStyle?: 'cone'|'inverted'|'disk'|'block'|'tentacle';
+  /** Base offset for spikes along surface normal, in world units (negative=inward, positive=outward) */
+  spikeBaseShift?: number;
+
+  // Spike animation (pulsing)
+  spikePulse?: boolean;         // default true
+  spikePulseIntensity?: number; // 0..1 scale (typical 0.1..0.4)
   nodeCount?: number;           // shiny “gold nuggets”
   arcCount?: number;            // animated arcs
 

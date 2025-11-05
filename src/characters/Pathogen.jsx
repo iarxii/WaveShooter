@@ -48,6 +48,10 @@ export function Pathogen({
   nodeCount = 6,         // gold nuggets
   arcCount = 5,          // animated lightning arcs
   seed = 7,              // change to get a new variant
+  spikeStyle = 'cone',   // 'cone'|'inverted'|'disk'|'block'|'tentacle'
+  spikeBaseShift = 0.0,  // world units; negative=inward, positive=outward
+  spikePulse = true,
+  spikePulseIntensity = 0.25,
   // Style
   baseColor = '#C4845C', // warm clay/organic
   spikeColor = '#C4845C',
@@ -107,6 +111,7 @@ export function Pathogen({
     const positions = [];
     const dummy = new THREE.Object3D();
     const transforms = [];
+    const scales = [];
     for (let i = 0; i < spikeCount; i++) {
       // Sample a random direction, then repel from previous few to reduce clumping
       let dir = randomUnitVector(rng);
@@ -121,18 +126,39 @@ export function Pathogen({
         }
       }
       positions.push(dir.clone());
-      const base = dir.clone().multiplyScalar(radius + spikeLength * 0.45);
+      // Compute orientation and placement per style
+      const outward = dir.clone();
+      const up = new THREE.Vector3(0, 1, 0);
+      let forward = outward.clone();
+      let dist = radius + spikeLength * 0.45;
+      if (spikeStyle === 'inverted') {
+        forward.multiplyScalar(-1);
+        dist = Math.max(radius - spikeLength * 0.45, radius * 0.35);
+      } else if (spikeStyle === 'disk') {
+        dist = radius + Math.max(0.02, spikeLength * 0.1);
+      } else if (spikeStyle === 'block') {
+        dist = radius + spikeLength * 0.3;
+      } else if (spikeStyle === 'tentacle') {
+        dist = radius + spikeLength * 0.6;
+      }
+      // apply user shift and clamp to safe range
+      dist += spikeBaseShift;
+      const minDist = Math.max(0.2 * radius, radius - spikeLength * 1.2);
+      const maxDist = radius + spikeLength * 2.0;
+      dist = Math.max(minDist, Math.min(maxDist, dist));
+      const base = outward.multiplyScalar(dist);
       dummy.position.copy(base);
-      // orient cone's +Y toward outward direction
-      dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      // orient +Y along forward direction
+      dummy.quaternion.setFromUnitVectors(up, forward.normalize());
       // randomize length/width subtly
       const s = 0.85 + rng() * 0.3;
       dummy.scale.setScalar(s);
       dummy.updateMatrix();
       transforms.push(dummy.matrix.clone());
+      scales.push(s);
     }
-    return { positions, transforms };
-  }, [spikeCount, radius, spikeLength, rng]);
+    return { positions, transforms, scales };
+  }, [spikeCount, radius, spikeLength, rng, spikeStyle]);
 
   // --- NODES (instanced gold spheres) ---
   const nodes = useRef();
@@ -146,7 +172,6 @@ export function Pathogen({
 
   const nodePositions = useMemo(() => {
     const pts = [];
-    const chosenIdx = new Set();
     // bias nodes to sit on/near spike bases for that nugget-inset look
     for (let i = 0; i < nodeCount; i++) {
       const useSpikeBase = rng() < 0.7 && spikeData.positions.length > 0;
@@ -241,6 +266,39 @@ export function Pathogen({
         line.material.opacity = 0.6 + Math.abs(Math.sin(t * 12.0 + idx)) * 0.35;
       });
     }
+
+    // Spike pulsing: move spike bases along normal to create breathing motion
+    if (spikePulse && spikes.current) {
+      const dummy = new THREE.Object3D();
+      const up = new THREE.Vector3(0,1,0);
+      for (let i = 0; i < spikeCount; i++) {
+        const dir = spikeData.positions[i];
+        let forward = dir.clone();
+        let dist = radius + spikeLength * 0.45;
+        if (spikeStyle === 'inverted') {
+          forward.multiplyScalar(-1);
+          dist = Math.max(radius - spikeLength * 0.45, radius * 0.35);
+        } else if (spikeStyle === 'disk') {
+          dist = radius + Math.max(0.02, spikeLength * 0.1);
+        } else if (spikeStyle === 'block') {
+          dist = radius + spikeLength * 0.3;
+        } else if (spikeStyle === 'tentacle') {
+          dist = radius + spikeLength * 0.6;
+        }
+        const pulse = Math.sin(t * 4.0 + spikePhases[i]) * (spikePulseIntensity * spikeLength);
+        let d = dist + spikeBaseShift + pulse;
+        const minDist = Math.max(0.2 * radius, radius - spikeLength * 1.2);
+        const maxDist = radius + spikeLength * 2.0;
+        d = Math.max(minDist, Math.min(maxDist, d));
+        dummy.position.copy(dir).multiplyScalar(d);
+        dummy.quaternion.setFromUnitVectors(up, forward.normalize());
+        const s0 = spikeData.scales ? (spikeData.scales[i] ?? 1) : 1;
+        dummy.scale.setScalar(s0);
+        dummy.updateMatrix();
+        dummy.matrix.toArray(spikeMatrices, i * 16);
+      }
+      if (spikes.current.instanceMatrix) spikes.current.instanceMatrix.needsUpdate = true;
+    }
   });
 
   // --- Build instanced transforms for spikes & nodes ---
@@ -251,6 +309,13 @@ export function Pathogen({
     }
     return arr;
   }, [spikeCount, spikeData.transforms]);
+
+  // Per-spike phase offsets for pulsing variety
+  const spikePhases = useMemo(() => {
+    const phases = new Float32Array(spikeCount);
+    for (let i = 0; i < spikeCount; i++) phases[i] = rng() * Math.PI * 2;
+    return phases;
+  }, [spikeCount, rng]);
 
   const nodeMatrices = useMemo(() => {
     const dummy = new THREE.Object3D();

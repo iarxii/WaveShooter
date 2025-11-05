@@ -98,10 +98,17 @@ export default function AvatarTuner() {
       seed: Math.floor(Math.random()*1e9),
       baseShape:'icosahedron',
       radius: 1.0,
+      height: 2.0,
+      scaleX: 1.0,
+      scaleY: 1.0,
       detail: hints.detail,
       spikeCount: hints.spikeCount,
       spikeLength: hints.spikeLength,
       spikeRadius: 0.11,
+      spikeStyle: 'cone',
+  spikeBaseShift: 0.0,
+  spikePulse: true,
+  spikePulseIntensity: 0.25,
       nodeCount: hints.nodeCount,
       arcCount: hints.arcCount,
       baseColor: c2 ?? '#B5764C',
@@ -132,7 +139,7 @@ export default function AvatarTuner() {
   }
 
   return (
-    <div style={{display:'grid', gridTemplateColumns:'320px 1fr', height:'100vh'}}>
+    <div style={{display:'grid', gridTemplateColumns:'320px 1fr', height:'100vh',minWidth:'600px'}}>
       <aside style={{padding:'1rem', background:'#0B1220', color:'#E6F0FF', overflow:'auto'}}>
         <h2>Avatar Tuner</h2>
         <input type="file" accept="image/*" onChange={onDrop}/>
@@ -145,16 +152,50 @@ export default function AvatarTuner() {
             <input type="number" value={spec.seed} onChange={e=>update('seed', Number(e.target.value))} style={{width:'100%'}}/>
 
             <h3>Shape</h3>
+                <label>Base Shape</label>
+                <select value={spec.baseShape ?? 'icosahedron'} onChange={e=>update('baseShape', e.target.value as any)}>
+                  <option value="icosahedron">Icosahedron</option>
+                  <option value="sphere">Sphere</option>
+                  <option value="triPrism">Tri Prism</option>
+                  <option value="hexPrism">Hex Prism</option>
+                  <option value="cylinder">Cylinder</option>
+                  <option value="capsule">Capsule</option>
+                </select><br/>
             <label>Detail</label>
-            <input type="range" min={0} max={2} value={spec.detail ?? 1} onChange={e=>update('detail', Number(e.target.value) as 0|1|2)}/>
+            <input type="range" min={0} max={2} value={spec.detail ?? 1} onChange={e=>update('detail', Number(e.target.value) as 0|1|2)}/><br/>
+            <label>Height (Y scale): {spec.scaleY}</label>
+            <input type="range" step={0.01} min={0.6} max={3.0} value={spec.scaleY ?? 1.0} onChange={e=>update('scaleY', Number(e.target.value))}/><br/>
+            <label>Width (X scale): {spec.scaleX}</label>
+            <input type="range" step={0.01} min={0.5} max={2.5} value={spec.scaleX ?? 1.0} onChange={e=>update('scaleX', Number(e.target.value))}/><br/>
+            {(spec.baseShape === 'cylinder' || spec.baseShape === 'capsule' || spec.baseShape === 'triPrism' || spec.baseShape === 'hexPrism') && (
+              <>
+                <label>Body Length (for {spec.baseShape}): {spec.height}</label>
+                <input type="range" step={0.01} min={0.6} max={3.0} value={spec.height ?? 2.0} onChange={e=>update('height', Number(e.target.value))}/><br/>
+              </>
+            )}
             <label>Spike Count: {spec.spikeCount}</label>
-            <input type="range" min={12} max={72} value={spec.spikeCount ?? 42} onChange={e=>update('spikeCount', Number(e.target.value))}/>
+            <input type="range" min={12} max={72} value={spec.spikeCount ?? 42} onChange={e=>update('spikeCount', Number(e.target.value))}/><br/>
             <label>Spike Length: {spec.spikeLength}</label>
-            <input type="range" step={0.01} min={0.25} max={0.65} value={spec.spikeLength ?? 0.45} onChange={e=>update('spikeLength', Number(e.target.value))}/>
+            <input type="range" step={0.01} min={0.25} max={0.65} value={spec.spikeLength ?? 0.45} onChange={e=>update('spikeLength', Number(e.target.value))}/><br/>
+            <label>Spike Base Shift: {spec.spikeBaseShift}</label>
+            <input type="range" step={0.01} min={-0.6} max={0.6} value={spec.spikeBaseShift ?? 0} onChange={e=>update('spikeBaseShift', Number(e.target.value))}/><br/>
+            <label>Spike Style</label>
+            <select value={spec.spikeStyle ?? 'cone'} onChange={e=>update('spikeStyle', e.target.value as any)}>
+              <option value="cone">Cone</option>
+                  <option value="inverted">Inverted</option>
+                  <option value="disk">Disk</option>
+                  <option value="block">Block</option>
+                  <option value="tentacle">Tentacle</option>
+                </select><br/>
+            <label>
+              <input type="checkbox" checked={spec.spikePulse ?? true} onChange={e=>update('spikePulse', e.target.checked)} /> Spike Pulse
+            </label><br/>
+            <label>Pulse Intensity: {spec.spikePulseIntensity}</label>
+            <input type="range" step={0.01} min={0} max={0.6} value={spec.spikePulseIntensity ?? 0.25} onChange={e=>update('spikePulseIntensity', Number(e.target.value))}/><br/>
             <label>Node Count: {spec.nodeCount}</label>
-            <input type="range" min={0} max={12} value={spec.nodeCount ?? 6} onChange={e=>update('nodeCount', Number(e.target.value))}/>
+            <input type="range" min={0} max={12} value={spec.nodeCount ?? 6} onChange={e=>update('nodeCount', Number(e.target.value))}/><br/>
             <label>Arc Count: {spec.arcCount}</label>
-            <input type="range" min={0} max={12} value={spec.arcCount ?? 5} onChange={e=>update('arcCount', Number(e.target.value))}/>
+            <input type="range" min={0} max={12} value={spec.arcCount ?? 5} onChange={e=>update('arcCount', Number(e.target.value))}/><br/>
 
             <h3>Colors</h3>
             <label>Base</label><input type="color" value={spec.baseColor ?? '#B5764C'} onChange={e=>update('baseColor', e.target.value)}/>
@@ -165,9 +206,9 @@ export default function AvatarTuner() {
 
             <h3>Animation</h3>
             <label>Spin: {spec.spin}</label>
-            <input type="range" step={0.01} min={0} max={1} value={spec.spin ?? 0.22} onChange={e=>update('spin', Number(e.target.value))}/>
+            <input type="range" step={0.01} min={0} max={1} value={spec.spin ?? 0.22} onChange={e=>update('spin', Number(e.target.value))}/><br/>
             <label>Breathe: {spec.breathe}</label>
-            <input type="range" step={0.001} min={0} max={0.03} value={spec.breathe ?? 0.014} onChange={e=>update('breathe', Number(e.target.value))}/>
+            <input type="range" step={0.001} min={0} max={0.03} value={spec.breathe ?? 0.014} onChange={e=>update('breathe', Number(e.target.value))}/><br/>
 
             <button onClick={exportJson} style={{marginTop:'12px'}}>Export JSON</button>
           </>
