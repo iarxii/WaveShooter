@@ -11,6 +11,8 @@ export default function NavBar() {
       <Link to="/" style={{color: isActive('/')?'#fff':'#ccc'}}>Landing</Link>
       <Link to="/game" style={{color: isActive('/game')?'#fff':'#ccc'}}>Game</Link>
       <Link to="/characters" style={{color: isActive('/characters')?'#fff':'#ccc'}}>Characters</Link>
+  <Link to="/avatar-tuner" style={{color: isActive('/avatar-tuner')?'#fff':'#ccc'}}>Avatar Tuner</Link>
+  <Link to="/randomizer" style={{color: isActive('/randomizer')?'#fff':'#ccc'}}>Randomizer</Link>
       <div style={{marginLeft:'auto', display:'flex', alignItems:'center'}}>
         <SfxVolumeControl />
         <GlobalSoundToggle />

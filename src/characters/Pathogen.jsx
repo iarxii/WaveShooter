@@ -58,16 +58,34 @@ export function Pathogen({
   nodeColor = '#FFD24A', // metallic gold
   arcColor  = '#FFEC9C',
   emissive  = '#BD875B', // subtle warm core glow
+  emissiveIntensityCore = 0.35,
+  spikeEmissive = undefined,
+  emissiveIntensitySpikes = 0.12,
   metalnessCore = 0.25,
   roughnessCore = 0.85,
+  metalnessSpikes = 0.15,
+  roughnessSpikes = 0.9,
   metalnessNodes = 1.0,
   roughnessNodes = 0.25,
   flatShading = true,
   // Animation
   spin = 0.25,           // radians/sec
+  roll = 0.0,            // radians/sec (roll around Z)
   breathe = 0.015,       // scale pulsing
   flickerSpeed = 8.0,    // node emissive flicker speed
   quality = 'high',      // 'low'|'med'|'high' affects arc resolution
+  // Node strobe
+  nodeStrobeMode = 'off',
+  nodeStrobeColorA,
+  nodeStrobeColorB,
+  nodeStrobeSpeed = 8.0,
+  // Dynamic hitbox influence
+  hitboxEnabled = false,
+  hitboxVisible = false,
+  hitboxScaleMin = 1.0,
+  hitboxScaleMax = 1.0,
+  hitboxSpeed = 1.0,
+  hitboxMode = 'sin',
   // Optional pooled overrides (factory can inject to share resources)
   coreGeometry,
   coreMaterial,
@@ -91,8 +109,8 @@ export function Pathogen({
     roughness: roughnessCore,
     flatShading,
     emissive: new THREE.Color(emissive),
-    emissiveIntensity: 0.35
-  }), [coreMaterial, baseColor, metalnessCore, roughnessCore, emissive, flatShading]);
+    emissiveIntensity: emissiveIntensityCore
+  }), [coreMaterial, baseColor, metalnessCore, roughnessCore, emissive, emissiveIntensityCore, flatShading]);
 
   // --- SPIKES (instanced cones) ---
   const spikes = useRef();
@@ -102,10 +120,12 @@ export function Pathogen({
   );
   const spikeMat = useMemo(() => spikeMaterial ?? new THREE.MeshStandardMaterial({
     color: new THREE.Color(spikeColor),
-    metalness: 0.15,
-    roughness: 0.9,
-    flatShading
-  }), [spikeMaterial, spikeColor, flatShading]);
+    metalness: metalnessSpikes,
+    roughness: roughnessSpikes,
+    flatShading,
+    emissive: emissiveIntensitySpikes > 0 ? new THREE.Color(spikeEmissive ?? spikeColor) : undefined,
+    emissiveIntensity: emissiveIntensitySpikes
+  }), [spikeMaterial, spikeColor, metalnessSpikes, roughnessSpikes, spikeEmissive, emissiveIntensitySpikes, flatShading]);
 
   const spikeData = useMemo(() => {
     const positions = [];
@@ -167,8 +187,12 @@ export function Pathogen({
     color: new THREE.Color(nodeColor),
     metalness: metalnessNodes,
     roughness: roughnessNodes,
-    envMapIntensity: 1.0
+    envMapIntensity: 1.0,
+    vertexColors: true
   }), [nodeMaterial, nodeColor, metalnessNodes, roughnessNodes]);
+
+  // Ensure vertexColors on provided material too
+  if (nodeMat && nodeMat.vertexColors === false) nodeMat.vertexColors = true;
 
   const nodePositions = useMemo(() => {
     const pts = [];
@@ -224,12 +248,48 @@ export function Pathogen({
     return data;
   }, [arcCount, arcSegments, nodePositions, radius, rng]);
 
+  // --- HITBOX (debug) ---
+  const hitboxRef = useRef();
+  const hitboxGeom = useMemo(() => new THREE.SphereGeometry(radius, 16, 16), [radius]);
+  const hitboxMat = useMemo(() => new THREE.MeshBasicMaterial({ color:'#44ccff', wireframe:true, transparent:true, opacity:0.35, depthWrite:false }), []);
+  const currentHitboxScale = useRef(1.0);
+
   // --- ROOT group animation ---
   const root = useRef();
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime;
+    // Animate hitbox scale between min and max using selected mode
+    if (hitboxEnabled) {
+      let f = 0.0;
+      if (hitboxMode === 'sin') {
+        f = 0.5 + 0.5 * Math.sin(t * hitboxSpeed * Math.PI * 2);
+      } else if (hitboxMode === 'step') {
+        const phase = Math.floor(t * hitboxSpeed) % 2;
+        f = phase === 0 ? 0.0 : 1.0;
+      } else { // 'noise'
+        // Simple 1D value noise over time (seeded); smoothstep between hashed values
+        const tau = t * Math.max(0.0001, hitboxSpeed);
+        const k = Math.floor(tau);
+        const a = k;
+        const b = k + 1;
+        const fract = tau - k;
+        const h = (x) => {
+          const s = Math.sin((x + seed * 0.1234) * 12.9898) * 43758.5453;
+          return s - Math.floor(s);
+        };
+        const sCurve = fract * fract * (3 - 2 * fract); // smoothstep
+        const v = h(a) * (1 - sCurve) + h(b) * sCurve; // 0..1
+        f = v;
+      }
+      currentHitboxScale.current = THREE.MathUtils.lerp(hitboxScaleMin, hitboxScaleMax, f);
+      if (hitboxRef.current) hitboxRef.current.scale.setScalar(currentHitboxScale.current);
+    } else {
+      currentHitboxScale.current = 1.0;
+      if (hitboxRef.current) hitboxRef.current.scale.setScalar(1.0);
+    }
     if (root.current) {
       root.current.rotation.y += spin * 0.016; // assuming ~60 FPS; use dt if you prefer
+      root.current.rotation.z += roll * 0.016;
       const s = 1 + Math.sin(t * 2.0) * breathe;
       root.current.scale.setScalar(s);
     }
@@ -239,6 +299,20 @@ export function Pathogen({
       nodes.current.traverseVisible(obj => {
         if (obj.isMesh) obj.material.emissive = new THREE.Color(arcColor).multiplyScalar(0.15 * e);
       });
+    }
+    // Node color strobe (instance colors)
+    if (nodes.current && (nodeStrobeMode === 'unified' || nodeStrobeMode === 'alternating')) {
+      const A = new THREE.Color(nodeStrobeColorA ?? nodeColor);
+      const B = new THREE.Color(nodeStrobeColorB ?? arcColor);
+      const temp = new THREE.Color();
+      const n = nodeCount;
+      for (let i = 0; i < n; i++) {
+        const phase = nodeStrobeMode === 'alternating' ? (i % 2) * Math.PI : 0;
+        const f = 0.5 + 0.5 * Math.sin(t * nodeStrobeSpeed + phase);
+        temp.copy(A).lerp(B, f);
+        if (nodes.current.setColorAt) nodes.current.setColorAt(i, temp);
+      }
+      if (nodes.current.instanceColor) nodes.current.instanceColor.needsUpdate = true;
     }
     // Arcs jitter: offset each intermediate point slightly each frame
     if (arcsGroup.current) {
@@ -267,28 +341,29 @@ export function Pathogen({
       });
     }
 
-    // Spike pulsing: move spike bases along normal to create breathing motion
-    if (spikePulse && spikes.current) {
+    // Spike pulsing and/or hitbox influence: move spike bases along normal
+    if ((spikePulse || hitboxEnabled) && spikes.current) {
       const dummy = new THREE.Object3D();
       const up = new THREE.Vector3(0,1,0);
+      const baseR = radius * currentHitboxScale.current;
       for (let i = 0; i < spikeCount; i++) {
         const dir = spikeData.positions[i];
         let forward = dir.clone();
-        let dist = radius + spikeLength * 0.45;
+        let dist = baseR + spikeLength * 0.45;
         if (spikeStyle === 'inverted') {
           forward.multiplyScalar(-1);
-          dist = Math.max(radius - spikeLength * 0.45, radius * 0.35);
+          dist = Math.max(baseR - spikeLength * 0.45, baseR * 0.35);
         } else if (spikeStyle === 'disk') {
-          dist = radius + Math.max(0.02, spikeLength * 0.1);
+          dist = baseR + Math.max(0.02, spikeLength * 0.1);
         } else if (spikeStyle === 'block') {
-          dist = radius + spikeLength * 0.3;
+          dist = baseR + spikeLength * 0.3;
         } else if (spikeStyle === 'tentacle') {
-          dist = radius + spikeLength * 0.6;
+          dist = baseR + spikeLength * 0.6;
         }
-        const pulse = Math.sin(t * 4.0 + spikePhases[i]) * (spikePulseIntensity * spikeLength);
+        const pulse = spikePulse ? Math.sin(t * 4.0 + spikePhases[i]) * (spikePulseIntensity * spikeLength) : 0;
         let d = dist + spikeBaseShift + pulse;
-        const minDist = Math.max(0.2 * radius, radius - spikeLength * 1.2);
-        const maxDist = radius + spikeLength * 2.0;
+        const minDist = Math.max(0.2 * baseR, baseR - spikeLength * 1.2);
+        const maxDist = baseR + spikeLength * 2.0;
         d = Math.max(minDist, Math.min(maxDist, d));
         dummy.position.copy(dir).multiplyScalar(d);
         dummy.quaternion.setFromUnitVectors(up, forward.normalize());
@@ -335,6 +410,10 @@ export function Pathogen({
 
   return (
     <group ref={root}>
+      {/* HITBOX DEBUG */}
+      {hitboxVisible && (
+        <mesh ref={hitboxRef} geometry={hitboxGeom} material={hitboxMat} />
+      )}
       {/* CORE */}
       <mesh geometry={coreGeom} material={coreMat} />
 

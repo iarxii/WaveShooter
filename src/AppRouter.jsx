@@ -5,6 +5,7 @@ import GamePage from './pages/Game.jsx'
 import CharacterViewer from './pages/CharacterViewer.jsx'
 import AvatarTuner from './pages/AvatarTuner.tsx'
 import PathogenDemo from './pages/PathogenDemo.jsx'
+import RandomizerMode from './pages/RandomizerMode.jsx'
 import { GameProvider } from './contexts/GameContext.jsx'
 import { HistoryProvider } from './contexts/HistoryContext.jsx'
 import NavBar from './components/NavBar.jsx'
@@ -39,6 +40,7 @@ export default function AppRouter() {
               <Route path="/characters" element={<CharacterViewer />} />
               <Route path="/pathogen-demo" element={<PathogenDemo />} />
               <Route path="/avatar-tuner" element={<AvatarTuner />} />
+              <Route path="/randomizer" element={<RandomizerMode />} />
               <Route path="*" element={<Landing />} />
             </Routes>
           </SoundProvider>

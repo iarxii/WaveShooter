@@ -85,6 +85,7 @@ function estimateShapeHints(file: File){
 export default function AvatarTuner() {
   const [file,setFile] = useState<File|null>(null);
   const [spec,setSpec] = useState<AvatarSpec|null>(null);
+  const [lightingMode, setLightingMode] = useState<'dark'|'light'>('dark');
 
   async function onDrop(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -116,9 +117,24 @@ export default function AvatarTuner() {
       nodeColor: c1 ?? '#FFD24A',
       arcColor: c3 ?? '#FFE9A3',
       emissive: c2 ?? '#B0774F',
+      emissiveIntensityCore: 0.35,
+      spikeEmissive: c2 ?? '#B5764C',
+      emissiveIntensitySpikes: 0.12,
       metalnessCore: 0.25, roughnessCore: 0.85,
+      metalnessSpikes: 0.15, roughnessSpikes: 0.9,
       metalnessNodes: 1.0, roughnessNodes: 0.25,
+      nodeStrobeMode: 'off',
+      nodeStrobeColorA: c1 ?? '#FFD24A',
+      nodeStrobeColorB: c3 ?? '#FFE9A3',
+      nodeStrobeSpeed: 8.0,
       spin: 0.22, breathe: 0.014, flickerSpeed: 7.5,
+      roll: 0.0,
+      hitboxEnabled: false,
+      hitboxVisible: false,
+      hitboxScaleMin: 1.0,
+      hitboxScaleMax: 1.0,
+      hitboxSpeed: 1.0,
+      hitboxMode: 'sin',
       quality: 'high'
     };
     setSpec(initial);
@@ -150,6 +166,13 @@ export default function AvatarTuner() {
             <input value={spec.id} onChange={e=>update('id', e.target.value)} style={{width:'100%'}}/>
             <label>Seed</label>
             <input type="number" value={spec.seed} onChange={e=>update('seed', Number(e.target.value))} style={{width:'100%'}}/>
+
+            <h3>Lighting</h3>
+            <label>Mode</label>
+            <select value={lightingMode} onChange={e=>setLightingMode(e.target.value as any)}>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
 
             <h3>Shape</h3>
                 <label>Base Shape</label>
@@ -204,11 +227,66 @@ export default function AvatarTuner() {
             <label>Arcs</label><input type="color" value={spec.arcColor ?? '#FFE9A3'} onChange={e=>update('arcColor', e.target.value)}/>
             <label>Emissive</label><input type="color" value={spec.emissive ?? '#B0774F'} onChange={e=>update('emissive', e.target.value)}/>
 
+            <h3>Node Strobe</h3>
+            <label>Mode</label>
+            <select value={spec.nodeStrobeMode ?? 'off'} onChange={e=>update('nodeStrobeMode', e.target.value as any)}>
+              <option value="off">Off</option>
+              <option value="unified">Unified</option>
+              <option value="alternating">Alternating</option>
+            </select><br/>
+            <label>Color A</label><input type="color" value={spec.nodeStrobeColorA ?? (spec.nodeColor ?? '#FFD24A')} onChange={e=>update('nodeStrobeColorA', e.target.value)}/>
+            <label>Color B</label><input type="color" value={spec.nodeStrobeColorB ?? (spec.arcColor ?? '#FFE9A3')} onChange={e=>update('nodeStrobeColorB', e.target.value)}/>
+            <label>Speed: {spec.nodeStrobeSpeed ?? 8}</label>
+            <input type="range" step={0.1} min={0} max={20} value={spec.nodeStrobeSpeed ?? 8} onChange={e=>update('nodeStrobeSpeed', Number(e.target.value))}/><br/>
+
+            <h3>Material</h3>
+            <label>Core Emissive Intensity: {spec.emissiveIntensityCore ?? 0.35}</label>
+            <input type="range" step={0.01} min={0} max={1.5} value={spec.emissiveIntensityCore ?? 0.35} onChange={e=>update('emissiveIntensityCore', Number(e.target.value))}/><br/>
+            <label>Spike Emissive Intensity: {spec.emissiveIntensitySpikes ?? 0.12}</label>
+            <input type="range" step={0.01} min={0} max={1.0} value={spec.emissiveIntensitySpikes ?? 0.12} onChange={e=>update('emissiveIntensitySpikes', Number(e.target.value))}/><br/>
+            <label>Spike Emissive Color</label>
+            <input type="color" value={spec.spikeEmissive ?? (spec.spikeColor ?? '#B5764C')} onChange={e=>update('spikeEmissive', e.target.value)}/>
+            <label>Core Roughness: {spec.roughnessCore ?? 0.85}</label>
+            <input type="range" step={0.01} min={0} max={1} value={spec.roughnessCore ?? 0.85} onChange={e=>update('roughnessCore', Number(e.target.value))}/><br/>
+            <label>Spike Roughness: {spec.roughnessSpikes ?? 0.9}</label>
+            <input type="range" step={0.01} min={0} max={1} value={spec.roughnessSpikes ?? 0.9} onChange={e=>update('roughnessSpikes', Number(e.target.value))}/><br/>
+            <label>Spike Metalness: {spec.metalnessSpikes ?? 0.15}</label>
+            <input type="range" step={0.01} min={0} max={1} value={spec.metalnessSpikes ?? 0.15} onChange={e=>update('metalnessSpikes', Number(e.target.value))}/><br/>
+
             <h3>Animation</h3>
             <label>Spin: {spec.spin}</label>
             <input type="range" step={0.01} min={0} max={1} value={spec.spin ?? 0.22} onChange={e=>update('spin', Number(e.target.value))}/><br/>
+            <label>Roll: {spec.roll ?? 0}</label>
+            <input type="range" step={0.01} min={0} max={1} value={spec.roll ?? 0} onChange={e=>update('roll', Number(e.target.value))}/><br/>
             <label>Breathe: {spec.breathe}</label>
             <input type="range" step={0.001} min={0} max={0.03} value={spec.breathe ?? 0.014} onChange={e=>update('breathe', Number(e.target.value))}/><br/>
+
+            {/* Add an Attack Animation Section */}
+            <h3>Attack Animation</h3>
+            <label>Attack Speed: {spec.attackSpeed ?? 1.0}</label>
+            <input type="range" step={0.1} min={0} max={5} value={spec.attackSpeed ?? 1.0} onChange={e=>update('attackSpeed', Number(e.target.value))}/><br/>
+            <label>Attack Range: {spec.attackRange ?? 1.0}</label>
+            <input type="range" step={0.1} min={0} max={5} value={spec.attackRange ?? 1.0} onChange={e=>update('attackRange', Number(e.target.value))}/><br/>
+
+            <h3>Hitbox</h3>
+            <label>
+              <input type="checkbox" checked={spec.hitboxEnabled ?? false} onChange={e=>update('hitboxEnabled', e.target.checked)} /> Enabled
+            </label><br/>
+            <label>
+              <input type="checkbox" checked={spec.hitboxVisible ?? false} onChange={e=>update('hitboxVisible', e.target.checked)} /> Show Hitbox
+            </label><br/>
+            <label>Motion</label>
+            <select value={spec.hitboxMode ?? 'sin'} onChange={e=>update('hitboxMode', e.target.value as any)}>
+              <option value="sin">Sin</option>
+              <option value="step">Step</option>
+              <option value="noise">Noise</option>
+            </select><br/>
+            <label>Scale Min: {spec.hitboxScaleMin ?? 1.0}</label>
+            <input type="range" step={0.01} min={0.5} max={2.0} value={spec.hitboxScaleMin ?? 1.0} onChange={e=>update('hitboxScaleMin', Number(e.target.value))}/><br/>
+            <label>Scale Max: {spec.hitboxScaleMax ?? 1.0}</label>
+            <input type="range" step={0.01} min={0.5} max={2.0} value={spec.hitboxScaleMax ?? 1.0} onChange={e=>update('hitboxScaleMax', Number(e.target.value))}/><br/>
+            <label>Speed: {spec.hitboxSpeed ?? 1.0}</label>
+            <input type="range" step={0.1} min={0} max={10} value={spec.hitboxSpeed ?? 1.0} onChange={e=>update('hitboxSpeed', Number(e.target.value))}/><br/>
 
             <button onClick={exportJson} style={{marginTop:'12px'}}>Export JSON</button>
           </>
@@ -216,11 +294,23 @@ export default function AvatarTuner() {
       </aside>
 
       <Canvas camera={{ position:[0,1.6,3.4], fov:46 }}>
-        <color attach="background" args={['#07111E']} />
-        <ambientLight intensity={0.45} />
-        <directionalLight position={[3,6,3]} intensity={1.1} />
-        <hemisphereLight intensity={0.35} groundColor={'#0A0A0F'} />
-        <Grid args={[20,20]} position={[0,0,0]} />
+        {lightingMode === 'dark' ? (
+          <>
+            <color attach="background" args={['#07111E']} />
+            <ambientLight intensity={0.45} />
+            <directionalLight position={[3,6,3]} intensity={1.1} />
+            <hemisphereLight intensity={0.35} groundColor={'#0A0A0F'} />
+            <Grid args={[20,20]} position={[0,0,0]} />
+          </>
+        ) : (
+          <>
+            <color attach="background" args={['#EAF2FF']} />
+            <ambientLight intensity={0.9} />
+            <directionalLight position={[4,8,2]} intensity={0.7} />
+            <hemisphereLight intensity={0.7} color={'#ffffff'} groundColor={'#DDE7F5'} />
+            <Grid args={[20,20]} position={[0,0,0]} cellColor="#C9D8EE" sectionColor="#B2C7E6" />
+          </>
+        )}
         {spec && (
           <group position={[0,0.15,0]}>
             <PathogenFromSpec spec={spec}/>

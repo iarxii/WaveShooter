@@ -28,7 +28,9 @@ function getGeometry(desc: { kind:'core'|'spike'|'node', radius:number, detail?:
         break;
       case 'cylinder': {
         const h = desc.height ?? desc.radius * 2;
-        geom = new THREE.CylinderGeometry(desc.radius, desc.radius, h, 12);
+        // Restrict to hard-edged minimum radial segments for a faceted look
+        const radial = 6; // minimal hard-edged cylinder
+        geom = new THREE.CylinderGeometry(desc.radius, desc.radius, h, radial);
         break;
       }
       case 'capsule': {
@@ -39,17 +41,19 @@ function getGeometry(desc: { kind:'core'|'spike'|'node', radius:number, detail?:
         // If not available in this three version, fall back to a cylinder+hemispheres approximated by CylinderGeometry
         // @ts-ignore
         geom = (THREE as any).CapsuleGeometry
-          ? new (THREE as any).CapsuleGeometry(desc.radius, shaft, 4, 12)
-          : new THREE.CylinderGeometry(desc.radius, desc.radius, shaft + desc.radius * 2, 12);
+          ? new (THREE as any).CapsuleGeometry(desc.radius, shaft, 2, 6) // minimal caps & radial segments for hard edges
+          : new THREE.CylinderGeometry(desc.radius, desc.radius, shaft + desc.radius * 2, 6);
         break;
       }
       case 'triPrism': {
         const h = desc.radius * 1.6;
+        // Already minimal (3-sided prism)
         geom = new THREE.CylinderGeometry(desc.radius, desc.radius, h, 3);
         break;
       }
       case 'hexPrism': {
         const h = desc.radius * 1.6;
+        // Already minimal (6-sided prism)
         geom = new THREE.CylinderGeometry(desc.radius, desc.radius, h, 6);
         break;
       }
@@ -93,7 +97,7 @@ function getGeometry(desc: { kind:'core'|'spike'|'node', radius:number, detail?:
 
 /** Build or fetch pooled material by descriptor */
 function getMaterial(desc: { kind:'core'|'spike'|'node'|'arc',
-  color:string, metalness?:number, roughness?:number, emissive?:string, flatShading?:boolean }) {
+  color:string, metalness?:number, roughness?:number, emissive?:string, emissiveIntensity?:number, flatShading?:boolean, vertexColors?:boolean }) {
   const key = keyOf(desc);
   if (materialPool.has(key)) return materialPool.get(key)!;
 
@@ -107,7 +111,8 @@ function getMaterial(desc: { kind:'core'|'spike'|'node'|'arc',
       roughness: desc.roughness ?? 0.85,
       flatShading: desc.flatShading ?? true,
       emissive: desc.emissive ? new THREE.Color(desc.emissive) : undefined,
-      emissiveIntensity: desc.emissive ? 0.35 : 0
+      emissiveIntensity: desc.emissive ? (desc.emissiveIntensity ?? 0.35) : 0,
+      vertexColors: desc.vertexColors ?? false
     });
   }
 
@@ -121,8 +126,23 @@ const D = {
   spikePulse: true, spikePulseIntensity: 0.25,
   nodeCount: 6, arcCount: 5,
   baseColor: '#B5764C', spikeColor:'#B5764C', nodeColor:'#FFD24A', arcColor:'#FFE9A3', emissive:'#B0774F',
-  metalnessCore: 0.25, roughnessCore: 0.85, metalnessNodes: 1.0, roughnessNodes: 0.25,
-  spin: 0.25, breathe: 0.015, flickerSpeed: 8.0, quality:'high' as const
+  emissiveIntensityCore: 0.35, spikeEmissive: '#B5764C', emissiveIntensitySpikes: 0.12,
+  metalnessCore: 0.25, roughnessCore: 0.85,
+  metalnessSpikes: 0.15, roughnessSpikes: 0.9,
+  metalnessNodes: 1.0, roughnessNodes: 0.25,
+  // Node strobe defaults
+  nodeStrobeMode: 'off' as 'off'|'unified'|'alternating',
+  nodeStrobeColorA: '#FFD24A',
+  nodeStrobeColorB: '#FFE9A3',
+  nodeStrobeSpeed: 8.0,
+  // Hitbox motion (off by default)
+  hitboxEnabled: false,
+  hitboxVisible: false,
+  hitboxScaleMin: 1.0,
+  hitboxScaleMax: 1.0,
+  hitboxSpeed: 1.0,
+  hitboxMode: 'sin' as 'sin'|'step'|'noise',
+  spin: 0.25, roll: 0.0, breathe: 0.015, flickerSpeed: 8.0, quality:'high' as const
 };
 
 /** Turns an AvatarSpec into a live Pathogen instance with pooled assets */
@@ -161,9 +181,9 @@ export function PathogenFromSpec({ spec }: { spec: AvatarSpec }) {
   const spikeGeom = useMemo(() => getGeometry({ kind:'spike', radius: 0, spikeLength: lodAdjusted.spikeLength, spikeRadius: lodAdjusted.spikeRadius, spikeStyle: lodAdjusted.spikeStyle }), [lodAdjusted.spikeLength, lodAdjusted.spikeRadius, lodAdjusted.spikeStyle]);
   const nodeGeom = useMemo(() => getGeometry({ kind:'node', radius: 1 }), []);
 
-  const coreMat = useMemo(() => getMaterial({ kind:'core', color: lodAdjusted.baseColor, metalness: lodAdjusted.metalnessCore, roughness: lodAdjusted.roughnessCore, emissive: lodAdjusted.emissive, flatShading: lodAdjusted.flatShading }), [lodAdjusted.baseColor, lodAdjusted.metalnessCore, lodAdjusted.roughnessCore, lodAdjusted.emissive, lodAdjusted.flatShading]);
-  const spikeMat = useMemo(() => getMaterial({ kind:'spike', color: lodAdjusted.spikeColor, flatShading: lodAdjusted.flatShading }), [lodAdjusted.spikeColor, lodAdjusted.flatShading]);
-  const nodeMat = useMemo(() => getMaterial({ kind:'node', color: lodAdjusted.nodeColor, metalness: lodAdjusted.metalnessNodes, roughness: lodAdjusted.roughnessNodes }), [lodAdjusted.nodeColor, lodAdjusted.metalnessNodes, lodAdjusted.roughnessNodes]);
+  const coreMat = useMemo(() => getMaterial({ kind:'core', color: lodAdjusted.baseColor, metalness: lodAdjusted.metalnessCore, roughness: lodAdjusted.roughnessCore, emissive: lodAdjusted.emissive, emissiveIntensity: lodAdjusted.emissiveIntensityCore, flatShading: lodAdjusted.flatShading }), [lodAdjusted.baseColor, lodAdjusted.metalnessCore, lodAdjusted.roughnessCore, lodAdjusted.emissive, lodAdjusted.emissiveIntensityCore, lodAdjusted.flatShading]);
+  const spikeMat = useMemo(() => getMaterial({ kind:'spike', color: lodAdjusted.spikeColor, metalness: lodAdjusted.metalnessSpikes, roughness: lodAdjusted.roughnessSpikes, emissive: (lodAdjusted.emissiveIntensitySpikes ?? 0) > 0 ? (lodAdjusted.spikeEmissive ?? lodAdjusted.spikeColor) : undefined, emissiveIntensity: lodAdjusted.emissiveIntensitySpikes, flatShading: lodAdjusted.flatShading }), [lodAdjusted.spikeColor, lodAdjusted.metalnessSpikes, lodAdjusted.roughnessSpikes, lodAdjusted.spikeEmissive, lodAdjusted.emissiveIntensitySpikes, lodAdjusted.flatShading]);
+  const nodeMat = useMemo(() => getMaterial({ kind:'node', color: lodAdjusted.nodeColor, metalness: lodAdjusted.metalnessNodes, roughness: lodAdjusted.roughnessNodes, vertexColors: true }), [lodAdjusted.nodeColor, lodAdjusted.metalnessNodes, lodAdjusted.roughnessNodes]);
   const arcMat = useMemo(() => getMaterial({ kind:'arc', color: lodAdjusted.arcColor }), [lodAdjusted.arcColor]);
 
   return (
@@ -191,8 +211,19 @@ export function PathogenFromSpec({ spec }: { spec: AvatarSpec }) {
       metalnessNodes={lodAdjusted.metalnessNodes}
       roughnessNodes={lodAdjusted.roughnessNodes}
       spin={lodAdjusted.spin}
+  roll={lodAdjusted.roll}
       breathe={lodAdjusted.breathe}
       flickerSpeed={lodAdjusted.flickerSpeed}
+  nodeStrobeMode={lodAdjusted.nodeStrobeMode}
+  nodeStrobeColorA={lodAdjusted.nodeStrobeColorA}
+  nodeStrobeColorB={lodAdjusted.nodeStrobeColorB}
+  nodeStrobeSpeed={lodAdjusted.nodeStrobeSpeed}
+  hitboxEnabled={lodAdjusted.hitboxEnabled}
+  hitboxVisible={lodAdjusted.hitboxVisible}
+  hitboxScaleMin={lodAdjusted.hitboxScaleMin}
+  hitboxScaleMax={lodAdjusted.hitboxScaleMax}
+  hitboxSpeed={lodAdjusted.hitboxSpeed}
+  hitboxMode={lodAdjusted.hitboxMode}
       quality={lodAdjusted.quality}
       coreGeometry={coreGeom}
       coreMaterial={coreMat as any}
