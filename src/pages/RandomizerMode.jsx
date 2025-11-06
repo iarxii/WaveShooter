@@ -69,7 +69,7 @@ function randomSpec(i=0){
   }
 }
 
-export default function RandomizerMode(){
+export default function RandomizerMode({ navVisible = false, setNavVisible }){
   const [count, setCount] = useState(9)
   const [regenToken, setRegenToken] = useState(0)
   const [lighting, setLighting] = useState('dark')
@@ -153,6 +153,7 @@ export default function RandomizerMode(){
   return (
     <div style={{display:'grid', gridTemplateRows:'auto 1fr', height:'100vh'}}>
       <div style={{padding:'8px 12px', background:'#0B1220', color:'#E6F0FF', display:'flex', gap:12, alignItems:'center'}}>
+        <a href="/" className="button" style={{textDecoration:'none'}}>Home</a>
         <strong>Randomizer Mode</strong>
         <label>Count: {count}</label>
         <input type="range" min={3} max={20} value={count} onChange={e=>setCount(Number(e.target.value))} />
@@ -161,6 +162,7 @@ export default function RandomizerMode(){
           <option value="dark">Dark</option>
           <option value="light">Light</option>
         </select>
+        <button onClick={() => setNavVisible && setNavVisible(v => !v)}>{navVisible ? 'Hide Nav' : 'Show Nav'}</button>
         <label style={{display:'flex',alignItems:'center',gap:6}}>
           <input type="checkbox" checked={showLabels} onChange={e=>setShowLabels(e.target.checked)} /> Show Labels
         </label>

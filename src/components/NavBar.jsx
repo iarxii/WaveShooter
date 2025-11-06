@@ -2,7 +2,8 @@ import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { SfxVolumeControl, GlobalSoundToggle } from '../contexts/SoundContext.jsx'
 
-export default function NavBar() {
+export default function NavBar({ hidden = false }) {
+  if (hidden) return null
   const loc = useLocation()
   const isActive = (p) => loc.pathname === p
   return (

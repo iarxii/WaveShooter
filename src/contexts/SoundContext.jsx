@@ -16,6 +16,19 @@ import sfxGameOver2 from '../assets/sounds/mixkit-arcade-retro-game-over-213.wav
 import sfxUiSelect from '../assets/sounds/mixkit-player-select-notification-2037.mp3'
 import sfxUiHover from '../assets/sounds/mixkit-arcade-player-select-2036.wav'
 
+// New SFX assignments for gameplay events
+import sfxEnemyDestroy from '../assets/sounds/mixkit-quick-knife-slice-cutting-2152.mp3'
+import sfxHitT1 from '../assets/sounds/attacks/hit-tree-01-266310.mp3'
+import sfxHitT2 from '../assets/sounds/attacks/Widget_Flight.mp3'
+import sfxHitT3 from '../assets/sounds/attacks/Faerie_Chime.mp3'
+import sfxHitT4 from '../assets/sounds/attacks/Enchanting_Tune.mp3'
+import sfxHitT5 from '../assets/sounds/attacks/Arcane_Cadence.mp3'
+import sfxPlayerSpawn from '../assets/sounds/attacks/appear-magic-384915.mp3'
+import sfxInvulnOn from "../assets/sounds/attacks/Oracle's_Riddle.mp3"
+import sfxBossSpawn from '../assets/sounds/attacks/magic-ascend-2-259523.mp3'
+// Assumption for boss kill: using magic-ascend-1 (not specified explicitly)
+import sfxBossKill from '../assets/sounds/attacks/magic-ascend-1-259521.mp3'
+
 const SoundContext = createContext(null)
 
 // Small audio pool per sound so multiple can overlap
@@ -66,6 +79,17 @@ export function SoundProvider({ children }) {
     'game-over-2': createAudioPool(sfxGameOver2, 2),
     'ui-select': createAudioPool(sfxUiSelect, 3),
     'ui-hover': createAudioPool(sfxUiHover, 3),
+    // New event pools
+    'enemy-destroy': createAudioPool(sfxEnemyDestroy, 6),
+    'hit-t1': createAudioPool(sfxHitT1, 6),
+    'hit-t2': createAudioPool(sfxHitT2, 6),
+    'hit-t3': createAudioPool(sfxHitT3, 6),
+    'hit-t4': createAudioPool(sfxHitT4, 6),
+    'hit-t5': createAudioPool(sfxHitT5, 6),
+    'player-spawn': createAudioPool(sfxPlayerSpawn, 3),
+    'invuln-on': createAudioPool(sfxInvulnOn, 2),
+    'boss-spawn': createAudioPool(sfxBossSpawn, 2),
+    'boss-kill': createAudioPool(sfxBossKill, 2),
   }), [])
 
   const setVolume = useCallback((v) => setVolumeState(Math.max(0, Math.min(1, v))), [])

@@ -25,6 +25,8 @@ function RouteMusicSync() {
 }
 
 export default function AppRouter() {
+  const [navVisible, setNavVisible] = React.useState(true)
+  const loc = window.location // useLocation inside component below for music sync
   return (
     <BrowserRouter>
       <HistoryProvider>
@@ -33,14 +35,15 @@ export default function AppRouter() {
           <SoundProvider>
             <UISoundLayer />
             <RouteMusicSync />
-            <NavBar />
+            {/* Hide nav during gameplay; default hidden on Randomizer (toggleable from the page) */}
+            <NavBar hidden={window.location?.pathname === '/game' || (window.location?.pathname === '/randomizer' && !navVisible)} />
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/game" element={<GamePage />} />
               <Route path="/characters" element={<CharacterViewer />} />
               <Route path="/pathogen-demo" element={<PathogenDemo />} />
               <Route path="/avatar-tuner" element={<AvatarTuner />} />
-              <Route path="/randomizer" element={<RandomizerMode />} />
+              <Route path="/randomizer" element={<RandomizerMode navVisible={navVisible} setNavVisible={setNavVisible} />} />
               <Route path="*" element={<Landing />} />
             </Routes>
           </SoundProvider>
