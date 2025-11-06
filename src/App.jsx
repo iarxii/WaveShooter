@@ -238,6 +238,109 @@ function pickRosterByTier(level, tierNum) {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
+// Lightweight color helpers for factory spec palettes
+function hexToRgb(hex) {
+  const h = hex.replace('#','');
+  const bigint = parseInt(h, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return [r, g, b];
+}
+function rgbToHex(r, g, b) {
+  const to = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+function lighten(hex, amt=0.2) {
+  const [r,g,b] = hexToRgb(hex);
+  const L = (v) => v + (255 - v) * amt;
+  return rgbToHex(L(r), L(g), L(b));
+}
+function darken(hex, amt=0.2) {
+  const [r,g,b] = hexToRgb(hex);
+  const D = (v) => v * (1 - amt);
+  return rgbToHex(D(r), D(g), D(b));
+}
+function rand(min, max) { return min + Math.random() * (max - min); }
+function randi(min, max) { return Math.floor(rand(min, max + 1)); }
+
+// Build a randomized Character Factory spec using roster hints
+function randomFactorySpecFromRoster(picked, waveNumber, baseHex) {
+  const id = (picked?.name || 'enemy').toLowerCase().replace(/[^a-z0-9]+/g,'_');
+  const base = baseHex || colorHex(picked?.color || 'Red');
+  const seed = (Math.random()*1e9) | 0;
+  // Map roster shape loosely to base shapes; otherwise randomize
+  const shapeName = (picked?.shape || '').toLowerCase();
+  const baseShapes = ['icosahedron','sphere','triPrism','hexPrism','cylinder','capsule'];
+  let baseShape = 'icosahedron';
+  if (shapeName.includes('triangle')) baseShape = 'triPrism';
+  else if (shapeName.includes('hex') || shapeName.includes('octa') || shapeName.includes('square')) baseShape = 'hexPrism';
+  else if (shapeName.includes('circle') || shapeName.includes('oval')) baseShape = Math.random() < 0.6 ? 'sphere' : 'icosahedron';
+  else baseShape = baseShapes[randi(0, baseShapes.length-1)];
+
+  // Scale features slightly by wave for variety
+  const waveT = Math.min(1, Math.max(0, (waveNumber - 1) / 20));
+  const radius = rand(0.9, 1.15);
+  const detail = randi(0, 2);
+  const scaleX = rand(0.85, 1.25);
+  const scaleY = rand(0.8, 1.35);
+  const height = baseShape === 'cylinder' || baseShape === 'capsule' || baseShape.includes('Prism') ? rand(1.2, 2.6) : undefined;
+
+  const spikeCount = Math.max(10, Math.floor(22 + waveT * 12 + Math.random()*24));
+  const spikeLength = rand(0.34, 0.58);
+  const spikeRadius = rand(0.09, 0.14);
+  const spikeStyles = ['cone','inverted','disk','block','tentacle'];
+  const spikeStyle = spikeStyles[randi(0, spikeStyles.length-1)];
+  const spikeBaseShift = rand(-0.12, 0.18);
+
+  const nodeCount = randi(3, 9);
+  const arcCount = randi(2, 7);
+  const baseColor = base;
+  const spikeColor = darken(base, 0.05 + Math.random()*0.1);
+  const nodeColor = lighten(base, 0.4 + Math.random()*0.2);
+  const arcColor = lighten(base, 0.55 + Math.random()*0.2);
+  const emissive = darken(base, 0.15);
+
+  const nodeStrobeModes = ['off','unified','alternating'];
+  const nodeStrobeMode = nodeStrobeModes[randi(0, nodeStrobeModes.length-1)];
+  const nodeStrobeColorA = nodeColor;
+  const nodeStrobeColorB = arcColor;
+  const nodeStrobeSpeed = rand(5, 12);
+
+  const quality = Math.random() < 0.5 ? 'med' : 'high';
+
+  return {
+    id,
+    seed,
+    baseShape,
+    radius,
+    detail,
+    height,
+    scaleX, scaleY,
+    spikeCount, spikeLength, spikeRadius, spikeStyle, spikeBaseShift,
+    spikePulse: true,
+    spikePulseIntensity: rand(0.12, 0.35),
+    nodeCount, arcCount,
+    baseColor, spikeColor, nodeColor, arcColor, emissive,
+    emissiveIntensityCore: 0.35,
+    spikeEmissive: spikeColor,
+    emissiveIntensitySpikes: 0.12,
+    metalnessCore: 0.25, roughnessCore: 0.85,
+    metalnessSpikes: 0.15, roughnessSpikes: 0.9,
+    metalnessNodes: 1.0, roughnessNodes: 0.25,
+    nodeStrobeMode,
+    nodeStrobeColorA, nodeStrobeColorB, nodeStrobeSpeed,
+    spin: rand(0.12, 0.35), roll: rand(0.0, 0.15), breathe: rand(0.008, 0.02), flickerSpeed: rand(6, 10),
+    hitboxEnabled: Math.random() < 0.15,
+    hitboxVisible: false,
+    hitboxScaleMin: 1.0,
+    hitboxScaleMax: 1.0 + rand(0, 0.3),
+    hitboxSpeed: rand(0.5, 2.0),
+    hitboxMode: 'sin',
+    quality,
+  };
+}
+
 // Pickup notification popup component
 function PickupPopup({ pickup, onComplete }) {
   const [visible, setVisible] = useState(true);
@@ -276,7 +379,7 @@ function PickupPopup({ pickup, onComplete }) {
       : pickup.type === "bombs"
       ? { name: "Bomb Kit", effect: "4/s bombs for 6s", color: "#111827" }
       : pickup.type === "speedboost"
-      ? { name: "Speed Boost", effect: "Speed 36–38 (4s)", color: "#22c55e" }
+  ? { name: "Speed Boost", effect: "Speed +10% (4s)", color: "#22c55e" }
       : pickup.type === "dmgscale"
       ? {
           name: "Enemy Fury",
@@ -943,7 +1046,8 @@ function Player({
   const boundaryGraceRef = useRef(0); // seconds of grace after respawn to ignore boundary launch
   const boostTimer = useRef(0); // seconds remaining for speed boost
   const boostHitCooldown = useRef(0);
-  const boostSpeedRef = useRef(PLAYER_SPEED);
+  // Percentage-based speed boost multiplier (e.g., 1.1 for +10%)
+  const boostMulRef = useRef(1);
   const lastArcToken = useRef(0);
   const boundaryJumpActive = useRef(false);
   // Reset position and motion after respawn/restart
@@ -1510,8 +1614,7 @@ function Player({
       : debuffTimer.current > 0
       ? SPEED_DEBUFF_FACTOR
       : 1;
-    const baseSpeed =
-      boostTimer.current > 0 ? boostSpeedRef.current : basePlayerSpeed;
+    const baseSpeed = basePlayerSpeed * (boostTimer.current > 0 ? boostMulRef.current : 1);
     const speedMul =
       (moveSourceRef && moveSourceRef.current === "runner"
         ? RUNNER_SPEED_MULTIPLIER
@@ -1643,9 +1746,8 @@ function Player({
         const dz = pz - sb.pos[2];
         if (dx * dx + dz * dz <= R * R) {
           boostTimer.current = SPEED_BUFF_DURATION_MS / 1000;
-          // randomize target base speed between 36 and 38; ensure noticeable delta from base
-          const target = 36 + Math.random() * 2;
-          boostSpeedRef.current = Math.max(target, basePlayerSpeed + 12);
+          // Percentage-based boost: +10%
+          boostMulRef.current = 1.1;
           boostHitCooldown.current = 1.0;
           onBoost && onBoost();
           break;
@@ -2246,6 +2348,20 @@ export default function App() {
       );
     } catch {}
   }, [showAccessibilityControls]);
+  // Enemy visuals render mode: 'factory' (default) or 'simple'
+  const [enemyRenderMode, setEnemyRenderMode] = useState(() => {
+    try {
+      return localStorage.getItem("enemyRenderMode") || "factory";
+    } catch {}
+    return "factory";
+  });
+  const enemyRenderModeRef = useRef(enemyRenderMode);
+  useEffect(() => {
+    enemyRenderModeRef.current = enemyRenderMode;
+    try {
+      localStorage.setItem("enemyRenderMode", enemyRenderMode);
+    } catch {}
+  }, [enemyRenderMode]);
   const { triggerEffect } = useEffects();
   // game state
   const playerPosRef = useRef(new THREE.Vector3(0, 0, 0));
@@ -3596,6 +3712,11 @@ export default function App() {
                 health: Math.max(1, picked?.stats?.health || 2),
                 maxHealth: Math.max(1, picked?.stats?.health || 2),
                 spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2,
+                // When in factory mode, attach a randomized Character Factory spec to drive visuals
+                factorySpec:
+                  enemyRenderModeRef.current === "factory"
+                    ? randomFactorySpecFromRoster(picked, nextWave, ecolor)
+                    : null,
                 // traits (minimal initial wiring)
                 stunImmune: /CRE/.test(picked.name),
                 cloneOnHalf: picked.name.includes("E. coli ESBL"),
@@ -5044,6 +5165,7 @@ export default function App() {
           boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
           invulnActive={invulnEffect.active || invulnTest}
           primaryColor={parseInt(heroColorFor(selectedHero).replace("#", "0x"))}
+          heroName={selectedHero}
           autoFollow={{
             active: invulnEffect.active && (autoFollowHeld || autoFollowHeld2),
             radius: SHAPE_PATH_RADIUS,
@@ -5318,6 +5440,7 @@ export default function App() {
                 }
                 moveSpeed={e.moveSpeed || 10}
                 shape={e.rosterShape || "Circle"}
+                factorySpec={e.factorySpec || null}
                 onHazard={(hz) => {
                   // Add hazard zones managed by App
                   const id = Date.now() + Math.random();
@@ -5952,6 +6075,18 @@ export default function App() {
                     defaultOpen={true}
                   >
                     <div className="small" style={{ display: "grid", gap: 8, height: "50vh", overflowY: "auto" }}>
+                      {/* Enemy renderer mode */}
+                      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span>Enemy Visuals</span>
+                        <select
+                          value={enemyRenderMode}
+                          onChange={(e) => setEnemyRenderMode(e.target.value)}
+                          style={{ marginLeft: "auto", background: "#111", color: "#fff", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: 2 }}
+                        >
+                          <option value="factory">Factory (default)</option>
+                          <option value="simple">Simple Shapes</option>
+                        </select>
+                      </label>
                       <label
                         style={{
                           display: "flex",

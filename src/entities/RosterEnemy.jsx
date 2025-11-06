@@ -3,9 +3,10 @@ import * as THREE from 'three'
 import { useEffects } from '../effects/EffectsContext.jsx'
 import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
+import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
 
 // Generic roster enemy: minion-like chaser with health, stun/knockback support
-export default function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth=3, color=0xff0055, speedScale=1, spawnHeight, label=null, stunImmune=false, shape='Circle', moveSpeed=10, onHazard }) {
+export default function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth=3, color=0xff0055, speedScale=1, spawnHeight, label=null, stunImmune=false, shape='Circle', moveSpeed=10, onHazard, factorySpec=null }) {
   const ref = useRef()
   const { triggerEffect } = useEffects()
   const baseSpeed = moveSpeed
@@ -345,9 +346,15 @@ export default function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, he
 
   return (
     <group>
-      <mesh ref={ref} position={pos} material={mat}>
-        <primitive object={geom} attach="geometry" />
-      </mesh>
+      {factorySpec ? (
+        <group ref={ref} position={pos}>
+          <PathogenFromSpec spec={factorySpec} />
+        </group>
+      ) : (
+        <mesh ref={ref} position={pos} material={mat}>
+          <primitive object={geom} attach="geometry" />
+        </mesh>
+      )}
       {/* Enemy bombs visuals */}
       {bombsRef.current.map(b => (
         <mesh key={b.id} position={[b.pos.x, 0.6, b.pos.z]}>

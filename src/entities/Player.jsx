@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
+import { useGLTF, useFBX } from '@react-three/drei'
 import { AIM_RAY_LENGTH, BOUNDARY_LIMIT, FIRE_RATE, PLAYER_SPEED, SPEED_BUFF_DURATION_MS, SPEED_DEBUFF_DURATION_MS, SPEED_DEBUFF_FACTOR, RUNNER_SPEED_MULTIPLIER } from '../game/constants.js'
 
-export default function Player({ position, setPositionRef, onShoot, isPaused, autoFire, controlScheme = 'dpad', moveInputRef, moveSourceRef, onSlam, highContrast=false, portals=[], onDebuff, speedBoosts=[], onBoost, autoFollow, arcTriggerToken, resetToken=0, basePlayerSpeed=PLAYER_SPEED, autoAimEnabled=false, onBoundaryJumpChange, onLanding, dashTriggerToken=0, onDashStart, onDashEnd, primaryColor=0x22c55e, invulnActive=false, bouncers=[], boundaryLimit=BOUNDARY_LIMIT }) {
+export default function Player({ position, setPositionRef, onShoot, isPaused, autoFire, controlScheme = 'dpad', moveInputRef, moveSourceRef, onSlam, highContrast=false, portals=[], onDebuff, speedBoosts=[], onBoost, autoFollow, arcTriggerToken, resetToken=0, basePlayerSpeed=PLAYER_SPEED, autoAimEnabled=false, onBoundaryJumpChange, onLanding, dashTriggerToken=0, onDashStart, onDashEnd, primaryColor=0x22c55e, invulnActive=false, bouncers=[], boundaryLimit=BOUNDARY_LIMIT, heroName=null }) {
   const ref = useRef()
   const lastShot = useRef(0)
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
@@ -582,10 +583,19 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
 
   return (
     <group ref={ref} position={position}>
-      <mesh castShadow>
-        <boxGeometry args={[1.8, 0.8, 1.2]} />
-        <meshStandardMaterial color={primaryColor} metalness={0.2} roughness={0.6} />
-      </mesh>
+      {/* Hero model or default proxy */}
+      {heroName === 'Dr Dokta' ? (
+        <HeroDokta />
+      ) : heroName === 'Sr Sesta' ? (
+        <HeroSesta />
+      ) : (
+        <mesh castShadow>
+          <boxGeometry args={[1.8, 0.8, 1.2]} />
+          <meshStandardMaterial color={primaryColor} metalness={0.2} roughness={0.6} />
+        </mesh>
+      )}
+      {/* Orbiting FX around hero */}
+      <OrbitingFX color={highContrast ? 0xffffff : primaryColor} />
       {/* Aim ray */}
       <mesh ref={rayRef} position={[0, 0.5, -AIM_RAY_LENGTH / 2]}>
         <boxGeometry args={[1, 0.06, AIM_RAY_LENGTH]} />
@@ -600,5 +610,81 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
         <primitive object={landingGeom} attach="geometry" />
       </mesh>
     </group>
+  )
+}
+
+// Simple orbiting effect (ring of sparkles)
+function OrbitingFX({ color = 0x22c55e }) {
+  const grp = useRef()
+  useFrame((_, dt) => {
+    if (grp.current) grp.current.rotation.y += dt * 1.4
+  })
+  return (
+    <group ref={grp} position={[0, 0.9, 0]}>
+      {Array.from({ length: 10 }).map((_, i) => {
+        const a = (i / 10) * Math.PI * 2
+        const r = 1.1
+        return (
+          <mesh key={i} position={[Math.cos(a) * r, 0, Math.sin(a) * r]}>
+            <sphereGeometry args={[0.08, 10, 10]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.6} />
+          </mesh>
+        )
+      })}
+    </group>
+  )
+}
+
+function HeroDokta() {
+  // Prefer animated FBX if available; otherwise use static GLB
+  let fbx = null, gltf = null, mixer = null
+  try {
+    fbx = useFBX('/src/assets/models/dr_dokta_anim_poses/Standing Run Back.fbx')
+  } catch {}
+  try {
+    gltf = useGLTF('/src/assets/models/dr_dokta_glp_pbr/base_basic_pbr.glb')
+  } catch {}
+  const obj = fbx?.clone ? fbx.clone() : (gltf?.scene ? gltf.scene.clone() : null)
+  const anim = fbx?.animations && fbx.animations[0]
+  // Scale and face forward (-Z)
+  if (obj) {
+    obj.scale.setScalar(0.01)
+    obj.rotation.y = Math.PI
+  }
+  useEffect(() => {
+    let mixerLocal
+    if (fbx && anim) {
+      mixerLocal = new THREE.AnimationMixer(fbx)
+      const action = mixerLocal.clipAction(anim)
+      action.play()
+    }
+    return () => { mixerLocal && mixerLocal.stopAllAction() }
+  }, [fbx, anim])
+  useFrame((_, dt) => {
+    if (mixer) mixer.update(dt)
+  })
+  return obj ? <primitive object={obj} /> : (
+    <mesh>
+      <capsuleGeometry args={[0.5, 1.2, 4, 12]} />
+      <meshStandardMaterial color={0x66ccff} />
+    </mesh>
+  )
+}
+
+function HeroSesta() {
+  let gltf = null
+  try {
+    gltf = useGLTF('/src/assets/models/sesta_pose_textured_mesh.glb')
+  } catch {}
+  const obj = gltf?.scene ? gltf.scene.clone() : null
+  if (obj) {
+    obj.scale.setScalar(0.01)
+    obj.rotation.y = Math.PI
+  }
+  return obj ? <primitive object={obj} /> : (
+    <mesh>
+      <capsuleGeometry args={[0.5, 1.2, 4, 12]} />
+      <meshStandardMaterial color={0xff99cc} />
+    </mesh>
   )
 }

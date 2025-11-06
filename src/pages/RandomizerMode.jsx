@@ -152,7 +152,8 @@ export default function RandomizerMode({ navVisible = false, setNavVisible }){
 
   return (
     <div style={{display:'grid', gridTemplateRows:'auto 1fr', height:'100vh'}}>
-      <div style={{padding:'8px 12px', background:'#0B1220', color:'#E6F0FF', display:'flex', gap:12, alignItems:'center'}}>
+        {/* control panel fixed bottom */}
+      <div style={{padding:'8px 12px', background:'#0B1220', color:'#E6F0FF', display:'flex', gap:12, alignItems:'center', position:'fixed', bottom:0, zIndex:5}}>
         <a href="/" className="button" style={{textDecoration:'none'}}>Home</a>
         <strong>Randomizer Mode</strong>
         <label>Count: {count}</label>
@@ -187,7 +188,7 @@ export default function RandomizerMode({ navVisible = false, setNavVisible }){
         <button onClick={()=>setRegenToken(x=>x+1)}>Regenerate</button>
         <button onClick={shuffleColors}>Shuffle Colors</button>
       </div>
-      <Canvas camera={{ position:[0,18,28], fov:52 }}>
+      <Canvas camera={{ position:[0,18,28], fov:52 }} style={{height:'100vh'}}>
         {lighting === 'dark' ? (
           <>
             <color attach="background" args={[ '#07111E' ]} />
