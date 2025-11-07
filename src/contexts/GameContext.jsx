@@ -1,73 +1,105 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { HEROES } from '../data/roster.js'
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { HEROES } from "../data/roster.js";
 
-const GameContext = createContext(null)
+const GameContext = createContext(null);
 
 export function GameProvider({ children }) {
-  const [bestScore, setBestScore] = useState(0)
-  const [bestWave, setBestWave] = useState(0)
-  const [performanceMode, setPerformanceMode] = useState(false)
-  const [totalPlayTimeMs, setTotalPlayTimeMs] = useState(0)
-  const [selectedHero, setSelectedHero] = useState(HEROES?.[0]?.name || 'Dr. Dokta')
-  const [invertDirections, setInvertDirections] = useState(true)
+  const [bestScore, setBestScore] = useState(0);
+  const [bestWave, setBestWave] = useState(0);
+  const [performanceMode, setPerformanceMode] = useState(false);
+  const [totalPlayTimeMs, setTotalPlayTimeMs] = useState(0);
+  const [selectedHero, setSelectedHero] = useState(
+    HEROES?.[0]?.name || "Dr. Dokta"
+  );
+  const [invertDirections, setInvertDirections] = useState(true);
 
   // Load initial from localStorage (kept in sync by the Game)
   useEffect(() => {
     try {
-      const bs = parseInt(localStorage.getItem('bestScore') || '0', 10)
-      const bw = parseInt(localStorage.getItem('bestWave') || '0', 10)
-      const pm = localStorage.getItem('perfMode')
-      const tp = parseInt(localStorage.getItem('totalPlayTimeMs') || '0', 10)
-      const sh = localStorage.getItem('selectedHero')
-      if (!Number.isNaN(bs)) setBestScore(bs)
-      if (!Number.isNaN(bw)) setBestWave(bw)
-      if (!Number.isNaN(tp)) setTotalPlayTimeMs(tp)
-      setPerformanceMode(pm === '1' || pm === 'true')
-      if (sh) setSelectedHero(sh)
-  const inv = localStorage.getItem('invertDirections')
-  if (inv !== null) setInvertDirections(inv === '1' || inv === 'true')
-    } catch { /* ignore read errors */ }
-  }, [])
+      const bs = parseInt(localStorage.getItem("bestScore") || "0", 10);
+      const bw = parseInt(localStorage.getItem("bestWave") || "0", 10);
+      const pm = localStorage.getItem("perfMode");
+      const tp = parseInt(localStorage.getItem("totalPlayTimeMs") || "0", 10);
+      const sh = localStorage.getItem("selectedHero");
+      if (!Number.isNaN(bs)) setBestScore(bs);
+      if (!Number.isNaN(bw)) setBestWave(bw);
+      if (!Number.isNaN(tp)) setTotalPlayTimeMs(tp);
+      setPerformanceMode(pm === "1" || pm === "true");
+      if (sh) setSelectedHero(sh);
+      const inv = localStorage.getItem("invertDirections");
+      if (inv !== null) setInvertDirections(inv === "1" || inv === "true");
+    } catch {
+      /* ignore read errors */
+    }
+  }, []);
 
   // Passive poll to reflect updates from the game without tight coupling
   useEffect(() => {
     const int = setInterval(() => {
       try {
-        const bs = parseInt(localStorage.getItem('bestScore') || '0', 10)
-        const bw = parseInt(localStorage.getItem('bestWave') || '0', 10)
-        const tp = parseInt(localStorage.getItem('totalPlayTimeMs') || '0', 10)
-        if (!Number.isNaN(bs)) setBestScore(bs)
-        if (!Number.isNaN(bw)) setBestWave(bw)
-        if (!Number.isNaN(tp)) setTotalPlayTimeMs(tp)
-      } catch { /* ignore read errors */ }
-    }, 1000)
-    return () => clearInterval(int)
-  }, [])
+        const bs = parseInt(localStorage.getItem("bestScore") || "0", 10);
+        const bw = parseInt(localStorage.getItem("bestWave") || "0", 10);
+        const tp = parseInt(localStorage.getItem("totalPlayTimeMs") || "0", 10);
+        if (!Number.isNaN(bs)) setBestScore(bs);
+        if (!Number.isNaN(bw)) setBestWave(bw);
+        if (!Number.isNaN(tp)) setTotalPlayTimeMs(tp);
+      } catch {
+        /* ignore read errors */
+      }
+    }, 1000);
+    return () => clearInterval(int);
+  }, []);
 
   // Persist selected hero on change
   useEffect(() => {
-    try { localStorage.setItem('selectedHero', selectedHero) } catch { /* ignore */ }
-  }, [selectedHero])
+    try {
+      localStorage.setItem("selectedHero", selectedHero);
+    } catch {
+      /* ignore */
+    }
+  }, [selectedHero]);
 
   // Persist invertDirections setting
   useEffect(() => {
-    try { localStorage.setItem('invertDirections', invertDirections ? '1' : '0') } catch {}
-  }, [invertDirections])
+    try {
+      localStorage.setItem("invertDirections", invertDirections ? "1" : "0");
+    } catch {}
+  }, [invertDirections]);
 
-  const value = useMemo(() => ({
-    bestScore, bestWave, performanceMode, setPerformanceMode, totalPlayTimeMs,
-    selectedHero, setSelectedHero,
-    invertDirections, setInvertDirections,
-  }), [bestScore, bestWave, performanceMode, totalPlayTimeMs, selectedHero, invertDirections])
+  const value = useMemo(
+    () => ({
+      bestScore,
+      bestWave,
+      performanceMode,
+      setPerformanceMode,
+      totalPlayTimeMs,
+      selectedHero,
+      setSelectedHero,
+      invertDirections,
+      setInvertDirections,
+    }),
+    [
+      bestScore,
+      bestWave,
+      performanceMode,
+      totalPlayTimeMs,
+      selectedHero,
+      invertDirections,
+    ]
+  );
 
-  return (
-    <GameContext.Provider value={value}>{children}</GameContext.Provider>
-  )
+  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
 }
 
 export function useGame() {
-  const ctx = useContext(GameContext)
-  if (!ctx) throw new Error('useGame must be used within GameProvider')
-  return ctx
+  const ctx = useContext(GameContext);
+  if (!ctx) throw new Error("useGame must be used within GameProvider");
+  return ctx;
 }

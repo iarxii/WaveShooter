@@ -1,48 +1,96 @@
 // src/pages/HeroTuner.tsx
 import React, { useMemo, useState } from 'react'
+import * as THREE from 'three'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Grid, GizmoHelper, GizmoViewport, useFBX, useGLTF, useAnimations } from '@react-three/drei'
 import { HeroFromSpec } from '../heroes/factory/HeroFactory'
 
 // Simple multi-clip viewer: load a single FBX at a time and play its first clip
-function MultiFBXAnimViewer({ url, scale = 0.01 }: { url?: string | null, scale?: number }) {
+function MultiFBXAnimViewer({ url, scale = 0.01, onReady, freezeAtFirstFrame = false }: { url?: string | null, scale?: number, onReady?: (info: { object: THREE.Object3D, hips?: THREE.Object3D | null }) => void, freezeAtFirstFrame?: boolean }) {
     if (!url) return null
-    return <DynamicFBXPlayer url={url} scale={scale} />
+    return <DynamicFBXPlayer url={url} scale={scale} onReady={onReady} freezeAtFirstFrame={freezeAtFirstFrame} />
 }
 
-function DynamicFBXPlayer({ url, scale = 0.01 }: { url: string, scale?: number }) {
+function DynamicFBXPlayer({ url, scale = 0.01, onReady, freezeAtFirstFrame = false }: { url: string, scale?: number, onReady?: (info: { object: THREE.Object3D, hips?: THREE.Object3D | null }) => void, freezeAtFirstFrame?: boolean }) {
     const fbx: any = useFBX(url)
     const { actions, names } = useAnimations(fbx.animations || [], fbx)
+    // Try to locate a hips/pelvis bone on load and notify parent
+    React.useEffect(() => {
+        if (!fbx) return
+        const findHips = (root: THREE.Object3D): THREE.Object3D | null => {
+            const candidates = ['mixamorigHips', 'Hips', 'hips', 'pelvis', 'Pelvis']
+            for (const name of candidates) {
+                const found = root.getObjectByName(name)
+                if (found) return found
+            }
+            // fallback: first Bone in hierarchy
+            let hips: THREE.Object3D | null = null
+            root.traverse(obj => { if (!hips && (obj as any).isBone) hips = obj })
+            return hips
+        }
+        onReady?.({ object: fbx, hips: findHips(fbx) })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fbx])
     React.useEffect(() => {
         if (!names || names.length === 0) return
         const first = actions?.[names[0]]
-        first?.reset().fadeIn(0.2).play()
-        return () => { first?.fadeOut(0.15) }
-    }, [actions, names])
+        if (!first) return
+        if (freezeAtFirstFrame) {
+            first.reset().play()
+            first.paused = true
+            first.time = 0
+        } else {
+            first.reset().fadeIn(0.2).play()
+        }
+        return () => { first.fadeOut(0.15) }
+    }, [actions, names, freezeAtFirstFrame])
     return <primitive object={fbx} scale={scale} position={[0, 0, 0]} />
 }
 
-function PoseFBX({ url, scale = 1 }: { url: string, scale?: number }) {
+function PoseFBX({ url, scale = 1, onReady }: { url: string, scale?: number, onReady?: (info: { object: THREE.Object3D, hips?: THREE.Object3D | null }) => void }) {
     const fbx: any = useFBX(url)
+    React.useEffect(()=>{
+        if (!fbx) return
+        const findHips = (root: THREE.Object3D): THREE.Object3D | null => {
+            const candidates = ['mixamorigHips', 'Hips', 'hips', 'pelvis', 'Pelvis']
+            for (const name of candidates) { const found = root.getObjectByName(name); if (found) return found }
+            let hips: THREE.Object3D | null = null
+            root.traverse(obj => { if (!hips && (obj as any).isBone) hips = obj })
+            return hips
+        }
+        onReady?.({ object: fbx, hips: findHips(fbx) })
+    }, [fbx, onReady])
     return <primitive object={fbx} scale={scale} />
 }
 
-function PoseGLTF({ url, scale = 1 }: { url: string, scale?: number }) {
+function PoseGLTF({ url, scale = 1, onReady }: { url: string, scale?: number, onReady?: (info: { object: THREE.Object3D, hips?: THREE.Object3D | null }) => void }) {
     const gltf: any = useGLTF(url)
+    React.useEffect(()=>{
+        if (!gltf?.scene) return
+        const scene: THREE.Object3D = gltf.scene
+        const findHips = (root: THREE.Object3D): THREE.Object3D | null => {
+            const candidates = ['mixamorigHips', 'Hips', 'hips', 'pelvis', 'Pelvis']
+            for (const name of candidates) { const found = root.getObjectByName(name); if (found) return found }
+            let hips: THREE.Object3D | null = null
+            root.traverse(obj => { if (!hips && (obj as any).isBone) hips = obj })
+            return hips
+        }
+        onReady?.({ object: scene, hips: findHips(scene) })
+    }, [gltf, onReady])
     return <primitive object={gltf.scene} scale={[scale, scale, scale]} />
 }
 
 // Pose viewer supports GLB/GLTF or FBX
-function PoseViewer({ url, scale = 1 }: { url?: string, scale?: number }) {
+function PoseViewer({ url, scale = 1, onReady }: { url?: string, scale?: number, onReady?: (info: { object: THREE.Object3D, hips?: THREE.Object3D | null }) => void }) {
     if (!url) return null
     const ext = url.toLowerCase().split('.').pop()
-    if (ext === 'fbx') return <PoseFBX url={url} scale={scale} />
-    if (ext === 'glb' || ext === 'gltf') return <PoseGLTF url={url} scale={scale} />
+    if (ext === 'fbx') return <PoseFBX url={url} scale={scale} onReady={onReady} />
+    if (ext === 'glb' || ext === 'gltf') return <PoseGLTF url={url} scale={scale} onReady={onReady} />
     return null
 }
 
 // Side-panel subcomponent for animViewer settings
-function AnimViewerPanel({ fbxScale, setFbxScale, urls, setUrls, index, setIndex }: { fbxScale: number, setFbxScale: (v:number)=>void, urls: string[], setUrls: (v:string[])=>void, index: number, setIndex: (i:number)=>void }) {
+function AnimViewerPanel({ fbxScale, setFbxScale, urls, setUrls, index, setIndex, backflipUrl, setBackflipUrl }: { fbxScale: number, setFbxScale: (v:number)=>void, urls: string[], setUrls: (v:string[])=>void, index: number, setIndex: (i:number)=>void, backflipUrl?: string, setBackflipUrl: (u:string|undefined)=>void }) {
     return (
         <div style={{ marginTop: 8 }}>
             <label>FBX Scale: {fbxScale.toFixed(3)}</label>
@@ -62,6 +110,16 @@ function AnimViewerPanel({ fbxScale, setFbxScale, urls, setUrls, index, setIndex
                             <span style={{fontSize:12, overflow:'hidden', textOverflow:'ellipsis'}}>{u.split('/').pop()}</span>
                         </div>
                     ))}
+                </div>
+                <div style={{marginTop:8,paddingTop:6,borderTop:'1px dashed #2b3b55'}}>
+                    <strong>Special Backflip (Key 3)</strong>
+                    <input type="file" accept=".fbx" onChange={(e:any)=>{
+                        const f = e.target.files?.[0]
+                        if(!f){ setBackflipUrl(undefined); return }
+                        const u = URL.createObjectURL(f)
+                        setBackflipUrl(u)
+                    }} />
+                    {backflipUrl && <div style={{fontSize:11,opacity:0.75,marginTop:4}}>Loaded: {backflipUrl.split('/').pop()}</div>}
                 </div>
             </div>
         </div>
@@ -93,11 +151,22 @@ export default function HeroTuner() {
     const [showViewerFx, setShowViewerFx] = useState<boolean>(true)
     const [viewerFxMode, setViewerFxMode] = useState<'atom'|'wave'|'push'|'shield'>('wave')
     const [viewerFxShape, setViewerFxShape] = useState<'circle'|'diamond'|'pyramid'>('circle')
+    const [viewerHitboxEnabled, setViewerHitboxEnabled] = useState<boolean>(false)
+    const [viewerHitboxVisible, setViewerHitboxVisible] = useState<boolean>(false)
+    const [viewerHitboxScaleMin, setViewerHitboxScaleMin] = useState<number>(1)
+    const [viewerHitboxScaleMax, setViewerHitboxScaleMax] = useState<number>(1)
+    const [viewerHitboxSpeed, setViewerHitboxSpeed] = useState<number>(1)
+    const [viewerHitboxMode, setViewerHitboxMode] = useState<'sin'|'step'|'noise'>('sin')
     const [fbxScale, setFbxScale] = useState(0.01)
     const [showAdvanced, setShowAdvanced] = useState(false)
+    const [backflipUrl, setBackflipUrl] = useState<string|undefined>()
         // Anim Viewer selections
         const [animUrls, setAnimUrls] = useState<string[]>([])
         const [animIndex, setAnimIndex] = useState<number>(-1)
+        // Shape Runner directional mode (none|cw|ccw) using dynamic pose cycling
+        const [shapeRunnerMode, setShapeRunnerMode] = useState<'none'|'cw'|'ccw'>('none')
+        const [shapeRunnerTick, setShapeRunnerTick] = useState<number>(0)
+    const [viewerFollowTarget, setViewerFollowTarget] = useState<THREE.Object3D | null>(null)
         // Pose viewer selection
         const [poseUrl, setPoseUrl] = useState<string|undefined>()
         const [poseScale, setPoseScale] = useState<number>(1)
@@ -110,6 +179,49 @@ export default function HeroTuner() {
             window.addEventListener('keyup', up)
             return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
         }, [])
+        // Anim Viewer keyboard shortcuts
+        React.useEffect(()=>{
+            if (source !== 'animViewer') return
+            const onKey = (e: KeyboardEvent) => {
+                const k = e.key
+                if (k === '1') { setShapeRunnerMode('cw') }
+                else if (k === '2') { setShapeRunnerMode('ccw') }
+                else if (k === '3') {
+                    setShapeRunnerMode('none')
+                    if (backflipUrl) {
+                        const idxExisting = animUrls.findIndex(u => u === backflipUrl)
+                        if (idxExisting >= 0) setAnimIndex(idxExisting)
+                        else {
+                            setAnimUrls(prev => [...prev, backflipUrl])
+                            setAnimIndex(animUrls.length)
+                        }
+                    } else {
+                        const idx = animUrls.findIndex(u => /backflip|dash/i.test(u.split('/').pop() || ''))
+                        if (idx >= 0) setAnimIndex(idx)
+                    }
+                } else if (k === 'Escape' || k === 'esc') {
+                    setShapeRunnerMode('none')
+                }
+            }
+            window.addEventListener('keydown', onKey)
+            return () => window.removeEventListener('keydown', onKey)
+        }, [source, animUrls, backflipUrl])
+        // Shape Runner pose cycling (uses loaded animUrls as poses, freezing at first frame)
+        React.useEffect(()=>{
+            if (source !== 'animViewer') return
+            if (shapeRunnerMode === 'none' || animUrls.length === 0) return
+            if (animIndex < 0) setAnimIndex(0)
+            const step = () => {
+                setAnimIndex(prev => {
+                    const N = animUrls.length
+                    if (N === 0) return -1
+                    if (prev < 0) return 0
+                    return shapeRunnerMode === 'cw' ? (prev + 1) % N : (prev - 1 + N) % N
+                })
+            }
+            const id = setInterval(step, 2500)
+            return () => clearInterval(id)
+        }, [shapeRunnerMode, animUrls, source])
         // Cleanup object URLs for animUrls on unmount
         React.useEffect(()=>{
             return () => { try { animUrls.forEach(u=> { if (u.startsWith('blob:')) URL.revokeObjectURL(u) }) } catch {} }
@@ -248,7 +360,7 @@ export default function HeroTuner() {
                                     <option value="pose">3. Pose Viewer (GLB/FBX static)</option>
                                     <option value="procedural">4. Procedural</option>
                                 </select>
-                                {source === 'animViewer' && <AnimViewerPanel fbxScale={fbxScale} setFbxScale={setFbxScale} urls={animUrls} setUrls={setAnimUrls} index={animIndex} setIndex={setAnimIndex} />}
+                                                {source === 'animViewer' && <AnimViewerPanel fbxScale={fbxScale} setFbxScale={setFbxScale} urls={animUrls} setUrls={setAnimUrls} index={animIndex} setIndex={setAnimIndex} backflipUrl={backflipUrl} setBackflipUrl={setBackflipUrl} />}
                                 {source === 'animViewer' && (
                                     <div style={{marginTop:10,padding:'8px 8px',border:'1px solid #2b3b55',borderRadius:4}}>
                                         <strong>Viewer FX Orbs</strong><br/>
@@ -280,6 +392,43 @@ export default function HeroTuner() {
                                         <input type="range" min={0} max={4} step={0.05} value={ensureSpec.fxSpeed ?? 1} onChange={(e)=> update('fxSpeed', Number(e.target.value))} />
                                         <label style={{display:'block',marginTop:4}}>Amplitude: {ensureSpec.fxAmplitude}</label>
                                         <input type="range" min={0} max={1.5} step={0.01} value={ensureSpec.fxAmplitude ?? 0.4} onChange={(e)=> update('fxAmplitude', Number(e.target.value))} />
+                                                        <div style={{marginTop:8,borderTop:'1px solid #2b3b55',paddingTop:6}}>
+                                                            <strong>Hitbox</strong><br/>
+                                                            <label style={{display:'block',marginTop:4}}>
+                                                                <input type="checkbox" checked={viewerHitboxEnabled} onChange={(e)=> setViewerHitboxEnabled(e.currentTarget.checked)} /> Enable Hitbox
+                                                            </label>
+                                                            <label style={{display:'block',marginTop:4}}>
+                                                                <input type="checkbox" checked={viewerHitboxVisible} onChange={(e)=> setViewerHitboxVisible(e.currentTarget.checked)} /> Show Hitbox Mesh
+                                                            </label>
+                                                            <label style={{display:'block',marginTop:4}}>Ring Radius: {ensureSpec.fxRingRadius}</label>
+                                                            <input type="range" min={0.4} max={3} step={0.01} value={ensureSpec.fxRingRadius ?? 1.2} onChange={(e)=> update('fxRingRadius', Number(e.target.value))} />
+                                                            <label style={{display:'block',marginTop:4}}>Intensity: {ensureSpec.fxRingIntensity}</label>
+                                                            <input type="range" min={0} max={2} step={0.05} value={ensureSpec.fxRingIntensity ?? 0.5} onChange={(e)=> update('fxRingIntensity', Number(e.target.value))} />
+                                                                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginTop:6}}>
+                                                                        <div>
+                                                                            <label style={{display:'block'}}>Scale Min: {viewerHitboxScaleMin.toFixed(2)}</label>
+                                                                            <input type="range" min={0.2} max={2} step={0.01} value={viewerHitboxScaleMin} onChange={(e)=> setViewerHitboxScaleMin(Number(e.target.value))} />
+                                                                        </div>
+                                                                        <div>
+                                                                            <label style={{display:'block'}}>Scale Max: {viewerHitboxScaleMax.toFixed(2)}</label>
+                                                                            <input type="range" min={0.2} max={3} step={0.01} value={viewerHitboxScaleMax} onChange={(e)=> setViewerHitboxScaleMax(Number(e.target.value))} />
+                                                                        </div>
+                                                                    </div>
+                                                                    <label style={{display:'block',marginTop:4}}>Pulse Speed: {viewerHitboxSpeed.toFixed(2)}</label>
+                                                                    <input type="range" min={0} max={5} step={0.05} value={viewerHitboxSpeed} onChange={(e)=> setViewerHitboxSpeed(Number(e.target.value))} />
+                                                                    <label style={{display:'block',marginTop:4}}>Pulse Mode</label>
+                                                                    <select value={viewerHitboxMode} onChange={(e)=> setViewerHitboxMode(e.target.value as any)}>
+                                                                        <option value="sin">Sine</option>
+                                                                        <option value="step">Step</option>
+                                                                        <option value="noise">Noise</option>
+                                                                    </select>
+                                                        </div>
+                                                            <div style={{marginTop:8,borderTop:'1px solid #2b3b55',paddingTop:6}}>
+                                                                <strong>Shape Runner</strong><br/>
+                                                                <p style={{fontSize:11,opacity:0.85,margin:'4px 0'}}>Press 1 for Clockwise, 2 for Anti‑Clockwise, 3 for Dash Back (Backflip). Random poses will cycle every few seconds.</p>
+                                                                <label style={{display:'block',marginTop:4}}>Mode: {shapeRunnerMode}</label>
+                                                                <div style={{fontSize:10,opacity:0.7}}>Keyboard: 1=CW, 2=CCW, 3=Backflip</div>
+                                                            </div>
                                     </div>
                                 )}
                                     {isController && (
@@ -606,14 +755,48 @@ export default function HeroTuner() {
                     )}
                                         {source === 'animViewer' && (
                                             <group>
-                                                <MultiFBXAnimViewer url={animIndex >= 0 ? animUrls[animIndex] : undefined} scale={fbxScale} />
+                                                <MultiFBXAnimViewer
+                                                    url={animIndex >= 0 ? animUrls[animIndex] : undefined}
+                                                    scale={fbxScale}
+                                                    freezeAtFirstFrame={shapeRunnerMode !== 'none'}
+                                                    onReady={({ object, hips }) => {
+                                                        setViewerFollowTarget(hips || object)
+                                                    }}
+                                                />
                                                 {showViewerFx && (
-                                                    <FXOrbs spec={{ ...ensureSpec, fxRing: true, fxMode: viewerFxMode, fxShieldShape: viewerFxShape }} quality={ensureSpec.quality ?? 'high'} />
+                                                                        <FXOrbs
+                                                                            spec={{ ...ensureSpec, fxRing: true, fxMode: viewerFxMode, fxShieldShape: viewerFxShape }}
+                                                                            quality={ensureSpec.quality ?? 'high'}
+                                                                            forceShow
+                                                                            followTarget={viewerFollowTarget}
+                                                                            hitboxEnabled={viewerHitboxEnabled}
+                                                                            hitboxVisible={viewerHitboxVisible}
+                                                                            hitboxScaleMin={viewerHitboxScaleMin}
+                                                                            hitboxScaleMax={viewerHitboxScaleMax}
+                                                                            hitboxSpeed={viewerHitboxSpeed}
+                                                                            hitboxMode={viewerHitboxMode}
+                                                                        />
                                                 )}
                                             </group>
                                         )}
                     {source === 'pose' && (
-                        <PoseViewer url={poseUrl} scale={poseScale} />
+                        <group>
+                            <PoseViewer url={poseUrl} scale={poseScale} onReady={({ object, hips }) => setViewerFollowTarget(hips || object)} />
+                            {showViewerFx && (
+                                <FXOrbs
+                                    spec={{ ...ensureSpec, fxRing: true, fxMode: viewerFxMode, fxShieldShape: viewerFxShape }}
+                                    quality={ensureSpec.quality ?? 'high'}
+                                    forceShow
+                                    followTarget={viewerFollowTarget}
+                                    hitboxEnabled={viewerHitboxEnabled}
+                                    hitboxVisible={viewerHitboxVisible}
+                                    hitboxScaleMin={viewerHitboxScaleMin}
+                                    hitboxScaleMax={viewerHitboxScaleMax}
+                                    hitboxSpeed={viewerHitboxSpeed}
+                                    hitboxMode={viewerHitboxMode}
+                                />
+                            )}
+                        </group>
                     )}
                 </group>
                 {/* Axis widget (X/Y/Z) in the viewport corner */}
