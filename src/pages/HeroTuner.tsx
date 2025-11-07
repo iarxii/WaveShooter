@@ -426,9 +426,9 @@ export default function HeroTuner() {
                                     </div>
                                     <div style={{ marginTop: 8, borderTop: '1px solid #2b3b55', paddingTop: 6 }}>
                                         <strong>Shape Runner</strong><br />
-                                        <p style={{ fontSize: 11, opacity: 0.85, margin: '4px 0' }}>Press 1 for Clockwise, 2 for Anti‑Clockwise, 3 for Dash Back (Backflip). Random poses will cycle every few seconds.</p>
+                                        <p style={{ fontSize: 11, opacity: 0.85, margin: '4px 0' }}>Shape Runner: 1 = Clockwise, 2 = Counter‑Clockwise. Key 3 triggers Dash/Backflip (mapped dashBackward). Poses freeze first frame & cycle.</p>
                                         <label style={{ display: 'block', marginTop: 4 }}>Mode: {shapeRunnerMode}</label>
-                                        <div style={{ fontSize: 10, opacity: 0.7 }}>Keyboard: 1=CW, 2=CCW, 3=Backflip</div>
+                                        <div style={{ fontSize: 10, opacity: 0.7 }}>Keys: 1=CW, 2=CCW (shapePose), 3=Dash/Backflip (dashBackward)</div>
                                     </div>
                                 </div>
                             )}
@@ -446,12 +446,15 @@ export default function HeroTuner() {
                                         Space: Jump, Shift+Space: Wall Jump<br />
                                         J: Light Attack, K: Heavy Attack, H: Jump Attack<br />
                                         U: Special, I: Forward Charge<br />
-                                        X: Death
+                                        X: Death<br />
+                                        1: Shape Runner (Clockwise pose)<br />
+                                        2: Shape Runner (Counter‑Clockwise pose)<br />
+                                        3: Dash Back / Backflip (dashBackward)
                                     </p>
                                     <div style={{ marginTop: 6, padding: 6, border: '1px solid #2b3b55' }}>
                                         <strong>Input Status</strong>
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6, marginTop: 6, fontSize: 12 }}>
-                                            {['w', 'a', 's', 'd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright', ' ', 'shift', 'j', 'k', 'h', 'u', 'i', 'x'].map(k => (
+                                            {['w', 'a', 's', 'd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright', ' ', 'shift', 'j', 'k', 'h', 'u', 'i', 'x', '1', '2', '3'].map(k => (
                                                 <div key={k} style={{ padding: '4px 6px', borderRadius: 4, textAlign: 'center', background: pressed[k] ? '#2d5bff' : 'transparent', border: '1px solid #2b3b55' }}>
                                                     {k === ' ' ? 'Space' : k}
                                                 </div>

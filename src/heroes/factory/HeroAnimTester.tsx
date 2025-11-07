@@ -19,6 +19,7 @@ type ActionName =
   | 'attackCharge'
   | 'jump'
   | 'jumpWall'
+  | 'dashBackward'
   | 'death'
   | 'shapePose'
 
@@ -278,6 +279,9 @@ export function HeroAnimTester({
       let s = pressed('s') || pressed('arrowdown')
       let a = pressed('a') || pressed('arrowleft')
       let d = pressed('d') || pressed('arrowright')
+      const key1 = pressed('1')
+      const key2 = pressed('2')
+      const key3 = pressed('3')
       if (invertDir) {
         // Swap directions when inverted (avoid TSX tuple parsing quirks)
         const _w = w; w = s; s = _w
@@ -293,10 +297,11 @@ export function HeroAnimTester({
       const attackChargeKey = pressed('i')
       const attack = attackLightKey || attackHeavyKey
       const dead = pressed('x') // X to trigger death test
-      const poseKey = pressed('v') // V to trigger random shape pose
+      const poseKey = pressed('v') || key1 || key2 // Shape pose via V or 1/2 keys
 
       let next: ActionName = 'idle'
       if (dead) next = 'death'
+      else if (key3) next = 'dashBackward'
       else if (poseKey) next = 'shapePose'
       else if (shift && j) next = 'jumpWall'
       else if (j) next = 'jump'
@@ -333,7 +338,9 @@ export function HeroAnimTester({
         }
         pushStatus(`action:${next}`)
         if (next === 'shapePose') {
-          if (poseUrls.length > 0) {
+          // Prefer mapped anim if provided; otherwise fall back to random pose override
+          const hasMapped = !!anims.shapePose
+          if (!hasMapped && poseUrls.length > 0) {
             const idx = Math.floor(Math.random() * poseUrls.length)
             setOverridePoseUrl(poseUrls[idx])
           }
@@ -362,6 +369,7 @@ export function HeroAnimTester({
     push('attackCharge')
     push('jump')
     push('jumpWall')
+    push('dashBackward')
     push('death')
     return m
   }, [anims])
