@@ -3,8 +3,9 @@ import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { useGLTF, useFBX } from '@react-three/drei'
 import { AIM_RAY_LENGTH, BOUNDARY_LIMIT, FIRE_RATE, PLAYER_SPEED, SPEED_BUFF_DURATION_MS, SPEED_DEBUFF_DURATION_MS, SPEED_DEBUFF_FACTOR, RUNNER_SPEED_MULTIPLIER } from '../game/constants.js'
+import { HeroFromSpec, defaultHeroSpec } from '../heroes/factory/HeroFactory'
 
-export default function Player({ position, setPositionRef, onShoot, isPaused, autoFire, controlScheme = 'dpad', moveInputRef, moveSourceRef, onSlam, highContrast=false, portals=[], onDebuff, speedBoosts=[], onBoost, autoFollow, arcTriggerToken, resetToken=0, basePlayerSpeed=PLAYER_SPEED, autoAimEnabled=false, onBoundaryJumpChange, onLanding, dashTriggerToken=0, onDashStart, onDashEnd, primaryColor=0x22c55e, invulnActive=false, bouncers=[], boundaryLimit=BOUNDARY_LIMIT, heroName=null }) {
+export default function Player({ position, setPositionRef, onShoot, isPaused, autoFire, controlScheme = 'dpad', moveInputRef, moveSourceRef, onSlam, highContrast=false, portals=[], onDebuff, speedBoosts=[], onBoost, autoFollow, arcTriggerToken, resetToken=0, basePlayerSpeed=PLAYER_SPEED, autoAimEnabled=false, onBoundaryJumpChange, onLanding, dashTriggerToken=0, onDashStart, onDashEnd, primaryColor=0x22c55e, invulnActive=false, bouncers=[], boundaryLimit=BOUNDARY_LIMIT, heroName=null, heroRenderMode='model', heroQuality='high' }) {
   const ref = useRef()
   const lastShot = useRef(0)
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
@@ -17,6 +18,8 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
   // Inputs and movement
   const keysRef = useRef({ w: false, a: false, s: false, d: false, up: false, down: false, left: false, right: false })
   const aimDirRef = useRef(new THREE.Vector3(0, 0, -1))
+  // Live controller for factory hero
+  const heroCtrlRef = useRef({ moveIntentX: 0, moveIntentZ: 0, aimYawDeg: 0 })
   // Jump/arc state
   const airVelY = useRef(0)
   const airFwdVel = useRef(0)
@@ -47,7 +50,7 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
   const boundaryGraceRef = useRef(0)
   const boostTimer = useRef(0)
   const boostHitCooldown = useRef(0)
-  const boostSpeedRef = useRef(PLAYER_SPEED)
+  const boostMulRef = useRef(1)
   const lastArcToken = useRef(0)
   const boundaryJumpActive = useRef(false)
 
@@ -429,7 +432,7 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
       }
     }
 
-    // Normalize and apply speed
+  // Normalize and apply speed
     const mlen = Math.hypot(mx, mz) || 1
     mx /= mlen; mz /= mlen
   portalHitCooldown.current = Math.max(0, portalHitCooldown.current - dt)
@@ -437,11 +440,20 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
     debuffTimer.current = Math.max(0, debuffTimer.current - dt)
     boostHitCooldown.current = Math.max(0, boostHitCooldown.current - dt)
     boostTimer.current = Math.max(0, boostTimer.current - dt)
-    const debuffMul = debuffTimer.current > 0 ? SPEED_DEBUFF_FACTOR : 1
-    const baseSpeed = (boostTimer.current > 0 ? boostSpeedRef.current : basePlayerSpeed)
+  const debuffMul = debuffTimer.current > 0 ? SPEED_DEBUFF_FACTOR : 1
+  const baseSpeed = basePlayerSpeed * (boostTimer.current > 0 ? boostMulRef.current : 1)
     const speedMul = ((moveSourceRef && moveSourceRef.current === 'runner') ? RUNNER_SPEED_MULTIPLIER : 1) * debuffMul
-    ref.current.position.x += mx * (baseSpeed * speedMul) * dt
-    ref.current.position.z += mz * (baseSpeed * speedMul) * dt
+  ref.current.position.x += mx * (baseSpeed * speedMul) * dt
+  ref.current.position.z += mz * (baseSpeed * speedMul) * dt
+  // Update hero factory controller live values
+  heroCtrlRef.current.moveIntentX = mx
+  heroCtrlRef.current.moveIntentZ = mz
+  // Map aim vector to yaw degrees where 0deg faces -Z
+  const ax = aimDirRef.current.x
+  const az = aimDirRef.current.z
+  const yaw = Math.atan2(ax, -az) // radians
+  const yawDeg = (yaw * 180) / Math.PI
+  heroCtrlRef.current.aimYawDeg = yawDeg
 
     // Boundary launch detection
     launchCooldown.current = Math.max(0, launchCooldown.current - dt)
@@ -525,7 +537,7 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
         const dz = pz - sb.pos[2]
         if (dx*dx + dz*dz <= R*R) {
           boostTimer.current = SPEED_BUFF_DURATION_MS / 1000
-          boostSpeedRef.current = 26 + Math.random() * 2
+          boostMulRef.current = 1.1
           boostHitCooldown.current = 1.0
           onBoost && onBoost()
           break
@@ -583,8 +595,17 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
 
   return (
     <group ref={ref} position={position}>
-      {/* Hero model or default proxy */}
-      {heroName === 'Dr Dokta' ? (
+      {/* Hero model or factory-rendered avatar */}
+      {heroRenderMode === 'factory' ? (
+        <HeroFromSpec spec={{
+          ...defaultHeroSpec((heroName || 'hero').toLowerCase().replace(/[^a-z0-9]+/g,'_')),
+          primaryColor: typeof primaryColor === 'number' ? '#' + primaryColor.toString(16).padStart(6, '0') : primaryColor,
+          secondaryColor: typeof primaryColor === 'number' ? '#' + primaryColor.toString(16).padStart(6, '0') : primaryColor,
+          accentColor: typeof primaryColor === 'number' ? '#' + primaryColor.toString(16).padStart(6, '0') : primaryColor,
+          quality: heroQuality,
+          fxRing: heroQuality !== 'low',
+        }} controller={heroCtrlRef.current} />
+      ) : heroName === 'Dr Dokta' ? (
         <HeroDokta />
       ) : heroName === 'Sr Sesta' ? (
         <HeroSesta />
@@ -595,7 +616,7 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
         </mesh>
       )}
       {/* Orbiting FX around hero */}
-      <OrbitingFX color={highContrast ? 0xffffff : primaryColor} />
+  <OrbitingFX color={highContrast ? 0xffffff : primaryColor} />
       {/* Aim ray */}
       <mesh ref={rayRef} position={[0, 0.5, -AIM_RAY_LENGTH / 2]}>
         <boxGeometry args={[1, 0.06, AIM_RAY_LENGTH]} />
@@ -620,13 +641,13 @@ function OrbitingFX({ color = 0x22c55e }) {
     if (grp.current) grp.current.rotation.y += dt * 1.4
   })
   return (
-    <group ref={grp} position={[0, 0.9, 0]}>
+    <group ref={grp} position={[0, 1.0, 0]}>
       {Array.from({ length: 10 }).map((_, i) => {
         const a = (i / 10) * Math.PI * 2
-        const r = 1.1
+        const r = 1.25
         return (
           <mesh key={i} position={[Math.cos(a) * r, 0, Math.sin(a) * r]}>
-            <sphereGeometry args={[0.08, 10, 10]} />
+            <sphereGeometry args={[0.095, 10, 10]} />
             <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.6} />
           </mesh>
         )

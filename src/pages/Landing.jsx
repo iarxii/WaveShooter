@@ -9,6 +9,11 @@ const KEY_ART = new URL(
   import.meta.url
 ).href;
 
+const LOGO = new URL(
+  "../assets/Healthcare_Heroes_3d_logo.png",
+  import.meta.url
+).href;
+
 function formatHMS(ms) {
   const totalSec = Math.max(0, Math.floor((ms || 0) / 1000));
   const h = Math.floor(totalSec / 3600);
@@ -58,8 +63,10 @@ export default function Landing() {
         }}
       />
 
-      <div style={{height:'100vh', width: '100vw'}}>
-
+      <div style={{height:'100vh', width: '100vw',display:'grid',justifyContent:'bottom',alignItems:'bottom',inset:0,zIndex:0}}>
+        <div style={{width:'100%',display:'flex',justifyContent:'center'}}>
+          <img src={LOGO} alt="Healthcare Heroes Logo" style={{margin:'10px auto',maxWidth:'50%'}} />
+        </div>
       </div>
 
       {/* Foreground content */}

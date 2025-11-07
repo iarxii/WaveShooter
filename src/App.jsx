@@ -2362,6 +2362,26 @@ export default function App() {
       localStorage.setItem("enemyRenderMode", enemyRenderMode);
     } catch {}
   }, [enemyRenderMode]);
+
+  // Hero visuals: Factory vs Model and quality
+  const [heroRenderMode, setHeroRenderMode] = useState(() => {
+    try {
+      return localStorage.getItem("heroRenderMode") || "model";
+    } catch {}
+    return "model";
+  });
+  const [heroQuality, setHeroQuality] = useState(() => {
+    try {
+      return localStorage.getItem("heroQuality") || "high";
+    } catch {}
+    return "high";
+  });
+  useEffect(() => {
+    try { localStorage.setItem("heroRenderMode", heroRenderMode); } catch {}
+  }, [heroRenderMode]);
+  useEffect(() => {
+    try { localStorage.setItem("heroQuality", heroQuality); } catch {}
+  }, [heroQuality]);
   const { triggerEffect } = useEffects();
   // game state
   const playerPosRef = useRef(new THREE.Vector3(0, 0, 0));
@@ -5166,6 +5186,8 @@ export default function App() {
           invulnActive={invulnEffect.active || invulnTest}
           primaryColor={parseInt(heroColorFor(selectedHero).replace("#", "0x"))}
           heroName={selectedHero}
+          heroRenderMode={heroRenderMode}
+          heroQuality={heroQuality}
           autoFollow={{
             active: invulnEffect.active && (autoFollowHeld || autoFollowHeld2),
             radius: SHAPE_PATH_RADIUS,
@@ -6085,6 +6107,31 @@ export default function App() {
                         >
                           <option value="factory">Factory (default)</option>
                           <option value="simple">Simple Shapes</option>
+                        </select>
+                      </label>
+                      {/* Hero renderer mode */}
+                      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span>Hero Visuals</span>
+                        <select
+                          value={heroRenderMode}
+                          onChange={(e) => setHeroRenderMode(e.target.value)}
+                          style={{ marginLeft: "auto", background: "#111", color: "#fff", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: 2 }}
+                        >
+                          <option value="factory">Factory</option>
+                          <option value="model">Model (default)</option>
+                        </select>
+                      </label>
+                      {/* Hero quality */}
+                      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span>Hero Quality</span>
+                        <select
+                          value={heroQuality}
+                          onChange={(e) => setHeroQuality(e.target.value)}
+                          style={{ marginLeft: "auto", background: "#111", color: "#fff", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: 2 }}
+                        >
+                          <option value="low">Low</option>
+                          <option value="med">Medium</option>
+                          <option value="high">High</option>
                         </select>
                       </label>
                       <label
