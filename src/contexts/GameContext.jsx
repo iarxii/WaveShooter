@@ -10,6 +10,7 @@ export function GameProvider({ children }) {
   const [performanceMode, setPerformanceMode] = useState(false)
   const [totalPlayTimeMs, setTotalPlayTimeMs] = useState(0)
   const [selectedHero, setSelectedHero] = useState(HEROES?.[0]?.name || 'Dr. Dokta')
+  const [invertDirections, setInvertDirections] = useState(true)
 
   // Load initial from localStorage (kept in sync by the Game)
   useEffect(() => {
@@ -24,6 +25,8 @@ export function GameProvider({ children }) {
       if (!Number.isNaN(tp)) setTotalPlayTimeMs(tp)
       setPerformanceMode(pm === '1' || pm === 'true')
       if (sh) setSelectedHero(sh)
+  const inv = localStorage.getItem('invertDirections')
+  if (inv !== null) setInvertDirections(inv === '1' || inv === 'true')
     } catch { /* ignore read errors */ }
   }, [])
 
@@ -47,10 +50,16 @@ export function GameProvider({ children }) {
     try { localStorage.setItem('selectedHero', selectedHero) } catch { /* ignore */ }
   }, [selectedHero])
 
+  // Persist invertDirections setting
+  useEffect(() => {
+    try { localStorage.setItem('invertDirections', invertDirections ? '1' : '0') } catch {}
+  }, [invertDirections])
+
   const value = useMemo(() => ({
     bestScore, bestWave, performanceMode, setPerformanceMode, totalPlayTimeMs,
     selectedHero, setSelectedHero,
-  }), [bestScore, bestWave, performanceMode, totalPlayTimeMs, selectedHero])
+    invertDirections, setInvertDirections,
+  }), [bestScore, bestWave, performanceMode, totalPlayTimeMs, selectedHero, invertDirections])
 
   return (
     <GameContext.Provider value={value}>{children}</GameContext.Provider>

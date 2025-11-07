@@ -20,10 +20,11 @@ type ActionName =
   | 'jump'
   | 'jumpWall'
   | 'death'
+  | 'shapePose'
 
 export type HeroAnimMap = Partial<Record<ActionName, string | string[]>>
 
-function FBXAction({ url, active, scale = 0.01, onStatus, suppressWarnings = true, fade = 0, dumpToken, disableClone = false }: { url: string, active: boolean, scale?: number, onStatus?: (s:string)=>void, suppressWarnings?: boolean, fade?: number, dumpToken?: number, disableClone?: boolean }) {
+function FBXAction({ url, active, scale = 0.01, onStatus, suppressWarnings = true, fade = 0, dumpToken, disableClone = false, paused = false, seek = 0 }: { url: string, active: boolean, scale?: number, onStatus?: (s:string)=>void, suppressWarnings?: boolean, fade?: number, dumpToken?: number, disableClone?: boolean, paused?: boolean, seek?: number }) {
   // Optionally suppress noisy FBX skinning warnings (benign; Three supports max 4 influences)
   useEffect(() => {
     if (!suppressWarnings) return
@@ -62,10 +63,16 @@ function FBXAction({ url, active, scale = 0.01, onStatus, suppressWarnings = tru
         clipRef.current.reset()
         if (fade > 0) clipRef.current.fadeIn(fade)
         clipRef.current.play()
+        if (paused) {
+          try {
+            clipRef.current.paused = true
+            if (typeof seek === 'number') clipRef.current.time = Math.max(0, seek)
+          } catch {}
+        }
         playingRef.current = true
       }
     }
-  }, [actions, names, url, active, fade])
+  }, [actions, names, url, active, fade, paused, seek])
 
   // Report load once per URL
   const loadedReported = useRef<string | null>(null)
@@ -146,16 +153,22 @@ export function HeroAnimTester({
   anims,
   scale = 0.01,
   debug = true,
+  showDebugPanel = true,
   onlyCurrentMount = true,
-  fade = 0,
+  fade = 0.20,
+  easeTransitions = true,
 }: {
   anims: HeroAnimMap,
   scale?: number,
   debug?: boolean,
+  /** Master toggle for on-screen debug Html panel */
+  showDebugPanel?: boolean,
   /** When true, only mount the currently active action's FBX to avoid multiple mixers */
   onlyCurrentMount?: boolean,
   /** Crossfade duration seconds; set 0 to hard switch */
   fade?: number,
+  /** If true, apply easing when switching back to idle or between movement directions */
+  easeTransitions?: boolean,
 }) {
   // Track keyboard input and map to a desired action
   const keysRef = useRef<{[k:string]: boolean}>({})
@@ -163,10 +176,12 @@ export function HeroAnimTester({
   const [variant, setVariant] = useState<{[K in ActionName]?: number}>({})
   const [statusLog, setStatusLog] = useState<string[]>([])
   const [fadeDur, setFadeDur] = useState<number>(fade)
+  const [easeEnabled, setEaseEnabled] = useState<boolean>(easeTransitions)
   const [currentOnly, setCurrentOnly] = useState<boolean>(onlyCurrentMount)
   const [showStats, setShowStats] = useState<boolean>(false)
   const [useAdaptiveDpr, setUseAdaptiveDpr] = useState<boolean>(false)
   const [frameLoopMode, setFrameLoopMode] = useState<'always' | 'demand'>('always')
+  const [panelVisible, setPanelVisible] = useState<boolean>(true)
   const [fps, setFps] = useState<number>(0)
   const three = useThree() as any
   const setFrameloop = three?.setFrameloop
@@ -177,6 +192,18 @@ export function HeroAnimTester({
   const prevIsoUrl = useRef<string | null>(null)
   const [dumpToken, setDumpToken] = useState<number>(0)
   const [disableClone, setDisableClone] = useState<boolean>(false)
+  const [invertDir, setInvertDir] = useState<boolean>(() => {
+    try { return (localStorage.getItem('invertDirections') === '1' || localStorage.getItem('invertDirections') === 'true') } catch { return false }
+  })
+  // Random shape runner poses
+  const poseModules = useMemo(() => (import.meta as any).glob('../../assets/models/dr_dokta_anim_poses/action_poses/*.fbx', { eager: true }) as Record<string, any>, [])
+  const poseUrls = useMemo(() => Object.values(poseModules).map((m:any)=> m?.default).filter(Boolean) as string[], [poseModules])
+  const [overridePoseUrl, setOverridePoseUrl] = useState<string | null>(null)
+
+  // Persist invert setting
+  useEffect(() => {
+    try { localStorage.setItem('invertDirections', invertDir ? '1' : '0') } catch {}
+  }, [invertDir])
 
   // Cleanup object URLs
   useEffect(() => {
@@ -193,6 +220,8 @@ export function HeroAnimTester({
 
   // Sync external fade prop
   useEffect(() => { setFadeDur(fade) }, [fade])
+  // Persist ease option
+  useEffect(() => { try { localStorage.setItem('easeAnimTransitions', easeEnabled ? '1':'0') } catch {} }, [easeEnabled])
   const pushStatus = useCallback((s:string)=> setStatusLog(l => {
     const next = [...l, s]
     return next.slice(-10) // keep last 10
@@ -232,10 +261,15 @@ export function HeroAnimTester({
     const id = setInterval(() => {
       const k = keysRef.current
       const pressed = (n: string) => !!(k[n])
-      const w = pressed('w') || pressed('arrowup')
-      const s = pressed('s') || pressed('arrowdown')
-      const a = pressed('a') || pressed('arrowleft')
-      const d = pressed('d') || pressed('arrowright')
+      let w = pressed('w') || pressed('arrowup')
+      let s = pressed('s') || pressed('arrowdown')
+      let a = pressed('a') || pressed('arrowleft')
+      let d = pressed('d') || pressed('arrowright')
+      if (invertDir) {
+        // Swap directions when inverted (avoid TSX tuple parsing quirks)
+        const _w = w; w = s; s = _w
+        const _a = a; a = d; d = _a
+      }
       const space = pressed(' ') || pressed('space')
       const shift = pressed('shift')
       const j = space
@@ -246,9 +280,11 @@ export function HeroAnimTester({
       const attackChargeKey = pressed('i')
       const attack = attackLightKey || attackHeavyKey
       const dead = pressed('x') // X to trigger death test
+  const poseKey = pressed('v') // V to trigger random shape pose
 
-      let next: ActionName = 'idle'
+  let next: ActionName = 'idle'
       if (dead) next = 'death'
+  else if (poseKey) next = 'shapePose'
       else if (shift && j) next = 'jumpWall'
       else if (j) next = 'jump'
       else if (attackSpecialKey) next = 'attackSpecial'
@@ -261,7 +297,21 @@ export function HeroAnimTester({
       else if (d) next = 'strafeRight'
 
       if (next !== current) {
+        // If easing is enabled and either leaving idle or returning to idle or changing movement direction
+        const isIdle = current === 'idle'
+        const becomingIdle = next === 'idle'
+        const directional = (a: ActionName) => ['runForward','runBackward','strafeLeft','strafeRight'].includes(a)
+        const switchingDirectional = directional(current) && directional(next) && current !== next
+        let appliedFade = fadeDur
+        if (easeEnabled && (isIdle || becomingIdle || switchingDirectional)) {
+          // Use a slightly longer fade for smoother blend; clamp for perf
+          appliedFade = Math.min(0.35, Math.max(fadeDur, 0.20))
+        }
+        // Update current first; fadeDur slider remains user-facing, but we apply a temporary override via statusLog
         setCurrent(next)
+        if (appliedFade !== fadeDur) {
+          pushStatus(`ease-fade:${appliedFade.toFixed(2)}`)
+        }
         if (next === 'attackJump') {
           const sources = anims.attackJump
           const count = Array.isArray(sources) ? sources.length : 1
@@ -269,10 +319,19 @@ export function HeroAnimTester({
           setVariant(v => ({ ...v, attackJump: idx }))
         }
         pushStatus(`action:${next}`)
+        if (next === 'shapePose') {
+          if (poseUrls.length > 0) {
+            const idx = Math.floor(Math.random() * poseUrls.length)
+            setOverridePoseUrl(poseUrls[idx])
+          }
+        } else {
+          // any other action clears pose override
+          if (overridePoseUrl) setOverridePoseUrl(null)
+        }
       }
     }, 50)
     return () => clearInterval(id)
-  }, [current, pushStatus, anims])
+  }, [current, pushStatus, anims, invertDir, fadeDur, easeEnabled, poseUrls, overridePoseUrl])
 
   // Prepare a list of action to source (string or string[]). We resolve URL at render time in ResolvedAction.
   const items = useMemo(() => {
@@ -311,13 +370,24 @@ export function HeroAnimTester({
       ) : currentOnly ? (
         (() => {
           // Resolve url for current, fallback to idle if missing
-          const src = anims[current]
+          const src = overridePoseUrl ? overridePoseUrl : anims[current]
           const resolvedName: ActionName = (src ? current : (anims.idle ? 'idle' : current))
           const fallbackSrc = src || anims.idle
           if (!fallbackSrc) return null
-          const url = resolveUrl(resolvedName, fallbackSrc)
+          const url = typeof fallbackSrc === 'string' ? fallbackSrc : resolveUrl(resolvedName, fallbackSrc)
           return (
-            <FBXAction key={`${resolvedName}`} url={url} active={true} scale={scale} onStatus={pushStatus} suppressWarnings fade={fadeDur} dumpToken={dumpToken} disableClone={disableClone} />
+            <FBXAction key={`${resolvedName}`}
+              url={url}
+              active={true}
+              scale={scale}
+              onStatus={pushStatus}
+              suppressWarnings
+              fade={fadeDur}
+              dumpToken={dumpToken}
+              disableClone={disableClone}
+              paused={!!overridePoseUrl}
+              seek={0}
+            />
           )
         })()
       ) : (
@@ -328,10 +398,11 @@ export function HeroAnimTester({
           )
         })
       )}
-      {debug && (
+      {debug && showDebugPanel && panelVisible && (
         <Html position={[0,2*scale,0]} style={{pointerEvents:'auto'}}>
           <div style={{background:'rgba(0,0,0,0.55)',padding:'6px 8px',fontSize:12,lineHeight:'16px',maxWidth:340,color:'#fff',borderRadius:4}}>
             <strong>Anim Debug</strong><br/>
+            <button style={{position:'absolute',top:4,right:4,fontSize:10}} onClick={()=> setPanelVisible(false)}>✕</button>
             Current: {current}<br/>
             FPS: {fps.toFixed(0)} | Mount: {currentOnly ? 'current' : 'all'}<br/>
             Fade: {fadeDur.toFixed(2)}s
@@ -344,6 +415,12 @@ export function HeroAnimTester({
               </label>
               <label style={{marginRight:10}}>
                 <input type="checkbox" checked={useAdaptiveDpr} onChange={(e)=>setUseAdaptiveDpr(e.currentTarget.checked)} /> AdaptiveDpr
+              </label>
+              <label style={{marginRight:10}}>
+                <input type="checkbox" checked={invertDir} onChange={(e)=> setInvertDir(e.currentTarget.checked)} /> Invert directions
+              </label>
+              <label style={{marginRight:10}}>
+                <input type="checkbox" checked={easeEnabled} onChange={(e)=> setEaseEnabled(e.currentTarget.checked)} /> Ease transitions
               </label>
               <label>
                 <input type="checkbox" checked={!currentOnly} onChange={(e)=>{
@@ -410,6 +487,11 @@ export function HeroAnimTester({
               {statusLog.map((s,i)=>(<div key={i}>{s}</div>))}
             </div>
           </div>
+        </Html>
+      )}
+      {debug && showDebugPanel && !panelVisible && (
+        <Html position={[0,2*scale,0]} style={{pointerEvents:'auto'}}>
+          <button style={{background:'rgba(0,0,0,0.55)',color:'#fff',padding:'4px 6px',fontSize:12,border:'1px solid #444',borderRadius:4}} onClick={()=> setPanelVisible(true)}>Show Anim Debug</button>
         </Html>
       )}
     </group>

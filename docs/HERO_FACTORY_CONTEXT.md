@@ -27,7 +27,10 @@ Build and maintain fully procedural hero avatars that are stylized, lightweight,
   - `visor`, `cape`, `shoulderPads`, `kneePads`, `backpack`
 - FX and animation:
   - `fxRing`, `fxRingRadius`, `fxRingIntensity`
-  - `idleSway`, `breathe`, `walkCycle`
+  - Orb modes: `fxMode` = 'atom' | 'wave' | 'push' | 'shield'
+  - Shield sub-shape: `fxShieldShape` = 'circle' | 'diamond' | 'pyramid' (when `fxMode='shield'`)
+  - Orb layout + motion: `fxCount`, `fxSpeed`, `fxAmplitude`, `fxDirectionDeg`
+  - Body motion hints: `idleSway`, `breathe`, `walkCycle`
 - Quality/LOD:
   - `quality`: 'low' | 'med' | 'high'
 
@@ -57,13 +60,23 @@ All properties are optional in the spec; the factory provides sensible defaults.
    - Ensure draw calls remain low: torso/pelvis/head/limbs (~10–14) + small accessories + FX ring (< 6) yields < 25 calls typical.
 
 ## Acceptance Criteria
-- A hero renders using only parametric primitives; no external textures required.
+- A hero renders using only parametric primitives; no external large textures required.
 - Pooled geoms/materials are reused across multiple hero instances.
-- Basic customization covers proportions (height/limbs/shoulders), palette, and a few accessories (visor/cape/pads/backpack).
-- Procedural FX ring is optional and configurable; enabling it increases calls minimally and is easy to disable.
-- Deterministic results per spec; if a `seed` is used, the same seed yields the same look.
+- Customization covers proportions, palette, accessories, and FX/animation hints.
+- Orb FX ring optional & multi-mode; enabling it keeps draw calls modest (< ~6 extra) and can be disabled dynamically.
+- Deterministic results per spec; same seed yields identical build.
+- Orb logic reusable in non‑procedural contexts via extracted `FXOrbs` component.
 
 ## Integration Notes
-- The current game may render hero FBX/GLB models. The hero factory is an alternative, especially useful for prototyping or fallback on devices where loading assets is constrained.
-- Swapping between hero factory and model avatars can be controlled at the App level (e.g., a toggle like the enemy visuals switch) using `<HeroFromSpec />` instead of GLB/FBX components.
-- Keep a narrow surface area: export only `HeroFromSpec` and `defaultHeroSpec` in the factory module.
+- Game can render procedural heroes or FBX per‑action animation harness (`HeroAnimTester`).
+- FX orb system extracted into `FXOrbs` so Anim Model Viewer can display orbs without procedural body.
+- Source switching (controller / anim viewer / pose / procedural) handled in `HeroTuner`.
+- Keep exported surface minimal (`HeroFromSpec`, `defaultHeroSpec`).
+## Recent Improvements (session recap)
+- Added joint base/clamp spec & root bob amplitude control.
+- Live joint labels (deg / xyz) with compact font.
+- Directional input inversion persisted (default true) in GameContext.
+- Deep cloning per FBX action (prevents bone reparent flicker) and mount-only-current to cut stutter.
+- Animation isolation mode & collapsible debug overlay (FPS, frameloop, AdaptiveDpr, Stats, fade control, easing toggle).
+- Random action pose trigger integrated (shape runner pose) in animation tester.
+- FX orbs extracted (`FXOrbs`) with multi-mode & shield sub-shape selection; integrated into Anim Model Viewer.

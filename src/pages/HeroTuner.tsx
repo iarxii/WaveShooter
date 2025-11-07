@@ -1,11 +1,84 @@
 // src/pages/HeroTuner.tsx
 import React, { useMemo, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei'
+import { OrbitControls, Grid, GizmoHelper, GizmoViewport, useFBX, useGLTF, useAnimations } from '@react-three/drei'
 import { HeroFromSpec } from '../heroes/factory/HeroFactory'
-import GLBHero from '../components/GLBHero'
-import FBXAnimViewer from '../components/FBXAnimViewer'
+
+// Simple multi-clip viewer: load a single FBX at a time and play its first clip
+function MultiFBXAnimViewer({ url, scale = 0.01 }: { url?: string | null, scale?: number }) {
+    if (!url) return null
+    return <DynamicFBXPlayer url={url} scale={scale} />
+}
+
+function DynamicFBXPlayer({ url, scale = 0.01 }: { url: string, scale?: number }) {
+    const fbx: any = useFBX(url)
+    const { actions, names } = useAnimations(fbx.animations || [], fbx)
+    React.useEffect(() => {
+        if (!names || names.length === 0) return
+        const first = actions?.[names[0]]
+        first?.reset().fadeIn(0.2).play()
+        return () => { first?.fadeOut(0.15) }
+    }, [actions, names])
+    return <primitive object={fbx} scale={scale} position={[0, 0, 0]} />
+}
+
+function PoseFBX({ url, scale = 1 }: { url: string, scale?: number }) {
+    const fbx: any = useFBX(url)
+    return <primitive object={fbx} scale={scale} />
+}
+
+function PoseGLTF({ url, scale = 1 }: { url: string, scale?: number }) {
+    const gltf: any = useGLTF(url)
+    return <primitive object={gltf.scene} scale={[scale, scale, scale]} />
+}
+
+// Pose viewer supports GLB/GLTF or FBX
+function PoseViewer({ url, scale = 1 }: { url?: string, scale?: number }) {
+    if (!url) return null
+    const ext = url.toLowerCase().split('.').pop()
+    if (ext === 'fbx') return <PoseFBX url={url} scale={scale} />
+    if (ext === 'glb' || ext === 'gltf') return <PoseGLTF url={url} scale={scale} />
+    return null
+}
+
+// Side-panel subcomponent for animViewer settings
+function AnimViewerPanel({ fbxScale, setFbxScale, urls, setUrls, index, setIndex }: { fbxScale: number, setFbxScale: (v:number)=>void, urls: string[], setUrls: (v:string[])=>void, index: number, setIndex: (i:number)=>void }) {
+    return (
+        <div style={{ marginTop: 8 }}>
+            <label>FBX Scale: {fbxScale.toFixed(3)}</label>
+            <input type="range" step={0.001} min={0.001} max={1} value={fbxScale} onChange={e => setFbxScale(Number(e.target.value))} />
+            <div style={{marginTop:8}}>
+                <input type="file" accept=".fbx" multiple onChange={(e:any)=>{
+                    const files = Array.from(e.target.files || [])
+                    if (files.length === 0) return
+                    const newUrls = files.map((f:any)=> URL.createObjectURL(f))
+                    setUrls([...(urls||[]), ...newUrls])
+                    setIndex((urls?.length||0))
+                }} />
+                <div style={{maxHeight:120, overflow:'auto', marginTop:6, border:'1px solid #2b3b55', padding:6}}>
+                    {urls.length === 0 ? <div style={{fontSize:12,opacity:0.8}}>No clips loaded</div> : urls.map((u,i)=> (
+                        <div key={i} style={{display:'flex',alignItems:'center',gap:6, marginBottom:4}}>
+                            <input type="radio" name="clip" checked={index===i} onChange={()=> setIndex(i)} />
+                            <span style={{fontSize:12, overflow:'hidden', textOverflow:'ellipsis'}}>{u.split('/').pop()}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    )
+}
+// Side-panel subcomponent for pose viewer settings
+function PosePanel() {
+    return (
+        <div style={{ marginTop: 8 }}>
+            <p style={{fontSize:12,lineHeight:1.3}}>
+                Pose Viewer: choose a static GLB/FBX mesh (placeholder). Future: file picker & transform tools.
+            </p>
+        </div>
+    )
+}
 import { HeroAnimTester, defaultAnimMap } from '../heroes/factory/HeroAnimTester'
+import FXOrbs from '../components/FXOrbs'
 import { liteSwordShieldMap } from '../heroes/factory/animMaps/liteSwordShieldMap'
 import type { HeroSpec } from '../heroes/factory/HeroSpec'
 
@@ -14,10 +87,33 @@ function clamp(v: number, min: number, max: number) { return Math.max(min, Math.
 export default function HeroTuner() {
     const [spec, setSpec] = useState<HeroSpec | null>(null)
     const [lightingMode, setLightingMode] = useState<'dark' | 'light'>('dark')
-    const [source, setSource] = useState<'glb'|'procedural'|'fbx'|'animtest'>('glb')
+    const [source, setSource] = useState<'controller'|'animViewer'|'pose'|'procedural'>('controller')
     const [useLitePack, setUseLitePack] = useState(true)
+    const [showAnimDebug, setShowAnimDebug] = useState<boolean>(true)
+    const [showViewerFx, setShowViewerFx] = useState<boolean>(true)
+    const [viewerFxMode, setViewerFxMode] = useState<'atom'|'wave'|'push'|'shield'>('wave')
+    const [viewerFxShape, setViewerFxShape] = useState<'circle'|'diamond'|'pyramid'>('circle')
     const [fbxScale, setFbxScale] = useState(0.01)
     const [showAdvanced, setShowAdvanced] = useState(false)
+        // Anim Viewer selections
+        const [animUrls, setAnimUrls] = useState<string[]>([])
+        const [animIndex, setAnimIndex] = useState<number>(-1)
+        // Pose viewer selection
+        const [poseUrl, setPoseUrl] = useState<string|undefined>()
+        const [poseScale, setPoseScale] = useState<number>(1)
+        // Input highlight (controller)
+        const [pressed, setPressed] = useState<{[k:string]: boolean}>({})
+        React.useEffect(()=>{
+            const down = (e: KeyboardEvent) => setPressed(p=> ({...p, [e.key.toLowerCase()]: true}))
+            const up = (e: KeyboardEvent) => setPressed(p=> ({...p, [e.key.toLowerCase()]: false}))
+            window.addEventListener('keydown', down)
+            window.addEventListener('keyup', up)
+            return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
+        }, [])
+        // Cleanup object URLs for animUrls on unmount
+        React.useEffect(()=>{
+            return () => { try { animUrls.forEach(u=> { if (u.startsWith('blob:')) URL.revokeObjectURL(u) }) } catch {} }
+        }, [animUrls])
 
     // Start with a handy default if none loaded yet
     const ensureSpec = useMemo<HeroSpec>(() => spec ?? {
@@ -123,6 +219,8 @@ export default function HeroTuner() {
     return (
         <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', height: '100vh', minWidth: '600px' }}>
             <aside style={{ padding: '1rem', background: '#0B1220', color: '#E6F0FF', overflow: 'auto' }}>
+                {(() => { const isController = source==='controller'; const isAnimViewer = source==='animViewer'; const isPose = source==='pose'; const isProcedural = source==='procedural'; return (
+                <>
                 <h2>Hero Tuner</h2>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <label style={{ display: 'inline-flex', flexDirection: 'column' }}>
@@ -142,22 +240,53 @@ export default function HeroTuner() {
                     <option value="dark">Dark</option>
                     <option value="light">Light</option>
                 </select>
-                <h3>Source</h3>
-                <label>Model Source</label>
-                <select value={source} onChange={e => setSource(e.target.value as any)}>
-                    <option value="glb">Imported GLB (Sesta)</option>
-                    <option value="procedural">Procedural (factory)</option>
-                    <option value="fbx">FBX Single Clip</option>
-                    <option value="animtest">Anim Controller (WASD/J/K/Space)</option>
-                </select>
-                {source === 'fbx' && (
+                                <h3>Source</h3>
+                                <label>Animation Source</label>
+                                <select value={source} onChange={e => setSource(e.target.value as any)}>
+                                    <option value="controller">1. Anim Controller (default)</option>
+                                    <option value="animViewer">2. Anim Model Viewer (FBX clips)</option>
+                                    <option value="pose">3. Pose Viewer (GLB/FBX static)</option>
+                                    <option value="procedural">4. Procedural</option>
+                                </select>
+                                {source === 'animViewer' && <AnimViewerPanel fbxScale={fbxScale} setFbxScale={setFbxScale} urls={animUrls} setUrls={setAnimUrls} index={animIndex} setIndex={setAnimIndex} />}
+                                {source === 'animViewer' && (
+                                    <div style={{marginTop:10,padding:'8px 8px',border:'1px solid #2b3b55',borderRadius:4}}>
+                                        <strong>Viewer FX Orbs</strong><br/>
+                                        <label style={{display:'block',marginTop:4}}>
+                                            <input type="checkbox" checked={showViewerFx} onChange={(e)=> setShowViewerFx(e.currentTarget.checked)} /> Enable FX Ring
+                                        </label>
+                                        <label style={{display:'block',marginTop:4}}>
+                                            Mode:
+                                            <select value={viewerFxMode} onChange={(e)=> setViewerFxMode(e.target.value as any)} style={{marginLeft:6}}>
+                                                <option value="atom">Atom</option>
+                                                <option value="wave">Wave</option>
+                                                <option value="push">Push</option>
+                                                <option value="shield">Shield Stack</option>
+                                            </select>
+                                        </label>
+                                        {viewerFxMode === 'shield' && (
+                                            <label style={{display:'block',marginTop:4}}>
+                                                Shield Shape:
+                                                <select value={viewerFxShape} onChange={(e)=> setViewerFxShape(e.target.value as any)} style={{marginLeft:6}}>
+                                                    <option value="circle">Circle</option>
+                                                    <option value="diamond">Diamond</option>
+                                                    <option value="pyramid">Pyramid</option>
+                                                </select>
+                                            </label>
+                                        )}
+                                        <label style={{display:'block',marginTop:4}}>Count: {ensureSpec.fxCount}</label>
+                                        <input type="range" min={3} max={32} value={ensureSpec.fxCount ?? 12} onChange={(e)=> update('fxCount', Number(e.target.value))} />
+                                        <label style={{display:'block',marginTop:4}}>Speed: {ensureSpec.fxSpeed}</label>
+                                        <input type="range" min={0} max={4} step={0.05} value={ensureSpec.fxSpeed ?? 1} onChange={(e)=> update('fxSpeed', Number(e.target.value))} />
+                                        <label style={{display:'block',marginTop:4}}>Amplitude: {ensureSpec.fxAmplitude}</label>
+                                        <input type="range" min={0} max={1.5} step={0.01} value={ensureSpec.fxAmplitude ?? 0.4} onChange={(e)=> update('fxAmplitude', Number(e.target.value))} />
+                                    </div>
+                                )}
+                                    {isController && (
                     <div style={{ marginTop: 8 }}>
-                        <label>FBX Scale: {fbxScale.toFixed(3)}</label>
-                        <input type="range" step={0.001} min={0.001} max={1} value={fbxScale} onChange={e => setFbxScale(Number(e.target.value))} />
-                    </div>
-                )}
-                                {source === 'animtest' && (
-                    <div style={{ marginTop: 8 }}>
+                                                <label style={{display:'block',marginBottom:6}}>
+                                                    <input type="checkbox" checked={showAnimDebug} onChange={(e)=> setShowAnimDebug(e.currentTarget.checked)} /> Show Debug UI (overlay)
+                                                </label>
                         <p style={{fontSize:12,lineHeight:1.3}}>
                             <strong>Controls:</strong><br/>
                             W/ArrowUp: Run Forward<br/>
@@ -169,6 +298,16 @@ export default function HeroTuner() {
                                                         U: Special, I: Forward Charge<br/>
                                                         X: Death
                         </p>
+                                        <div style={{marginTop:6, padding:6, border:'1px solid #2b3b55'}}>
+                                            <strong>Input Status</strong>
+                                            <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:6, marginTop:6, fontSize:12}}>
+                                                {['w','a','s','d','arrowup','arrowleft','arrowdown','arrowright',' ','shift','j','k','h','u','i','x'].map(k=> (
+                                                    <div key={k} style={{padding:'4px 6px', borderRadius:4, textAlign:'center', background: pressed[k] ? '#2d5bff' : 'transparent', border: '1px solid #2b3b55'}}>
+                                                        {k === ' ' ? 'Space' : k}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
                         <label>Anim Scale: {fbxScale.toFixed(3)}</label>
                         <input type="range" step={0.001} min={0.001} max={1} value={fbxScale} onChange={e => setFbxScale(Number(e.target.value))} />
                         <label style={{display:'block',marginTop:6}}><input type="checkbox" checked={useLitePack} onChange={e=> setUseLitePack(e.target.checked)} /> Use Lite Sword+Shield Pack</label>
@@ -216,6 +355,26 @@ export default function HeroTuner() {
                                                 </div>
                     </div>
                 )}
+                                        {isPose && (
+                    <div style={{ marginTop: 8 }}>
+                        <PosePanel />
+                        <div style={{marginTop:6}}>
+                            <input type="file" accept=".glb,.gltf,.fbx" onChange={(e:any)=>{
+                                const f = e.target.files?.[0]; if (!f) return
+                                const u = URL.createObjectURL(f)
+                                setPoseUrl(u)
+                            }} />
+                        </div>
+                        <div style={{marginTop:6}}>
+                            <label>Pose Scale: {poseScale.toFixed(3)}</label>
+                            <input type="range" min={0.01} max={5} step={0.01} value={poseScale} onChange={(e)=> setPoseScale(Number(e.target.value))} />
+                        </div>
+                    </div>
+                )}
+
+                                        {/* Procedural-only controls */}
+                                        {isProcedural && (
+                                          <>
 
                 <h3>Body</h3>
                 <label>Body Type</label>
@@ -411,6 +570,11 @@ export default function HeroTuner() {
                     <option value="med">Medium</option>
                     <option value="high">High</option>
                 </select>
+
+                  </>
+                )}
+                </>
+                )})()}
             </aside>
 
             <Canvas camera={{ position: [0, 1.6, 3.4], fov: 46 }}>
@@ -433,14 +597,24 @@ export default function HeroTuner() {
                 )}
                 <group position={[0, 0.1, 0]}>
                     {source === 'procedural' && <HeroFromSpec spec={ensureSpec} />}
-                    {source === 'glb' && <GLBHero />}
-                    {source === 'fbx' && <FBXAnimViewer scale={fbxScale} />}
-                                        {source === 'animtest' && (
-                                            <HeroAnimTester
-                                                anims={(window as any).__heroUserMap ?? (useLitePack ? liteSwordShieldMap : defaultAnimMap())}
-                                                scale={fbxScale}
-                                            />
+                    {source === 'controller' && (
+                        <HeroAnimTester
+                            anims={(window as any).__heroUserMap ?? (useLitePack ? liteSwordShieldMap : defaultAnimMap())}
+                            scale={fbxScale}
+                            showDebugPanel={showAnimDebug}
+                        />
+                    )}
+                                        {source === 'animViewer' && (
+                                            <group>
+                                                <MultiFBXAnimViewer url={animIndex >= 0 ? animUrls[animIndex] : undefined} scale={fbxScale} />
+                                                {showViewerFx && (
+                                                    <FXOrbs spec={{ ...ensureSpec, fxRing: true, fxMode: viewerFxMode, fxShieldShape: viewerFxShape }} quality={ensureSpec.quality ?? 'high'} />
+                                                )}
+                                            </group>
                                         )}
+                    {source === 'pose' && (
+                        <PoseViewer url={poseUrl} scale={poseScale} />
+                    )}
                 </group>
                 {/* Axis widget (X/Y/Z) in the viewport corner */}
                 <GizmoHelper alignment="bottom-right" margin={[80, 80]}>
