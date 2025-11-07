@@ -7,14 +7,14 @@ export default function NavBar({ hidden = false }) {
   const loc = useLocation()
   const isActive = (p) => loc.pathname === p
   return (
-    <div style={{position:'fixed',top:0,left:0,right:0,display:'flex',gap:12,alignItems:'center',padding:'8px 12px',background:'rgba(0,0,0,0.6)',backdropFilter:'blur(4px)',zIndex:10}}>
+    <div style={{position:'fixed',top:0,left:0,right:0,display:'flex',gap:12,alignItems:'center',padding:'8px 12px',background:'rgba(0, 85, 64, 0.6)',backdropFilter:'blur(4px)',zIndex:10}}>
       <div style={{fontWeight:700}}>Healthcare Heroes</div>
       <Link to="/" style={{color: isActive('/')?'#fff':'#ccc'}}>Landing</Link>
       <Link to="/game" style={{color: isActive('/game')?'#fff':'#ccc'}}>Game</Link>
       <Link to="/characters" style={{color: isActive('/characters')?'#fff':'#ccc'}}>Characters</Link>
-  <Link to="/avatar-tuner" style={{color: isActive('/avatar-tuner')?'#fff':'#ccc'}}>Avatar Tuner</Link>
-  <Link to="/hero-tuner" style={{color: isActive('/hero-tuner')?'#fff':'#ccc'}}>Hero Tuner</Link>
-  <Link to="/randomizer" style={{color: isActive('/randomizer')?'#fff':'#ccc'}}>Randomizer</Link>
+      <Link to="/avatar-tuner" style={{color: isActive('/avatar-tuner')?'#fff':'#ccc'}}>Avatar Tuner</Link>
+      <Link to="/hero-tuner" style={{color: isActive('/hero-tuner')?'#fff':'#ccc'}}>Hero Tuner</Link>
+      <Link to="/randomizer" style={{color: isActive('/randomizer')?'#fff':'#ccc'}}>Randomizer</Link>
       <div style={{marginLeft:'auto', display:'flex', alignItems:'center'}}>
         <SfxVolumeControl />
         <GlobalSoundToggle />

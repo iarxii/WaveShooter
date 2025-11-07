@@ -157,6 +157,7 @@ export function HeroAnimTester({
   onlyCurrentMount = true,
   fade = 0.20,
   easeTransitions = true,
+  externalAction,
 }: {
   anims: HeroAnimMap,
   scale?: number,
@@ -169,6 +170,8 @@ export function HeroAnimTester({
   fade?: number,
   /** If true, apply easing when switching back to idle or between movement directions */
   easeTransitions?: boolean,
+  /** External override (game runtime) for current action */
+  externalAction?: ActionName,
 }) {
   // Track keyboard input and map to a desired action
   const keysRef = useRef<{ [k: string]: boolean }>({})
@@ -227,6 +230,15 @@ export function HeroAnimTester({
     return next.slice(-10) // keep last 10
   }), [])
 
+  // External action override (game runtime). When provided, adopt it and bypass keyboard-driven transitions.
+  useEffect(() => {
+    if (!externalAction) return
+    if (externalAction !== current) {
+      setCurrent(externalAction)
+      pushStatus(`ext-action:${externalAction}`)
+    }
+  }, [externalAction, current, pushStatus])
+
   const onDown = useCallback((e: KeyboardEvent) => {
     keysRef.current[e.key.toLowerCase()] = true
   }, [])
@@ -256,8 +268,9 @@ export function HeroAnimTester({
     }
   })
 
-  // Decide action based on keys each 50ms
+  // Decide action based on keys each 50ms (disabled when externalAction is provided)
   useEffect(() => {
+    if (externalAction) return
     const id = setInterval(() => {
       const k = keysRef.current
       const pressed = (n: string) => !!(k[n])
@@ -331,7 +344,7 @@ export function HeroAnimTester({
       }
     }, 50)
     return () => clearInterval(id)
-  }, [current, pushStatus, anims, invertDir, fadeDur, easeEnabled, poseUrls, overridePoseUrl])
+  }, [current, pushStatus, anims, invertDir, fadeDur, easeEnabled, poseUrls, overridePoseUrl, externalAction])
 
   // Prepare a list of action to source (string or string[]). We resolve URL at render time in ResolvedAction.
   const items = useMemo(() => {

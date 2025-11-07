@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
 import Landing from './pages/Landing.jsx'
+import GameMode from './pages/GameMode.jsx'
 import GamePage from './pages/Game.jsx'
 import CharacterViewer from './pages/CharacterViewer.jsx'
 import AvatarTuner from './pages/AvatarTuner.tsx'
@@ -41,6 +42,7 @@ export default function AppRouter() {
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/game" element={<GamePage />} />
+              <Route path="/modes" element={<GameMode />} />
               <Route path="/characters" element={<CharacterViewer />} />
               <Route path="/pathogen-demo" element={<PathogenDemo />} />
               <Route path="/avatar-tuner" element={<AvatarTuner />} />

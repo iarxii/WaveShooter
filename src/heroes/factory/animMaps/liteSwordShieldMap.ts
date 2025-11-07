@@ -9,8 +9,8 @@ import strafeLeft from '../../../assets/models/dr_dokta_anim_poses/Lite Sword an
 import strafeRight from '../../../assets/models/dr_dokta_anim_poses/Lite Sword and Shield Pack/Right Strafe.fbx'
 
 // Jumps
-import jump from '../../../assets/models/dr_dokta_anim_poses/Jump Over.fbx'
-import jumpWall from '../../../assets/models/dr_dokta_anim_poses/Flip Kick - Wall Jump.fbx'
+import jump from '../../../assets/models/dr_dokta_anim_poses/Jump.fbx'
+import jumpWall from '../../../assets/models/dr_dokta_anim_poses/Jump.fbx'
 
 // Attacks
 import attackLight from '../../../assets/models/dr_dokta_anim_poses/Lite Sword and Shield Pack/Standing 2H Magic Attack 03.fbx'

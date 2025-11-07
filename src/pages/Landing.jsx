@@ -64,8 +64,8 @@ export default function Landing() {
       />
 
       <div style={{height:'100vh', width: '100vw',display:'grid',justifyContent:'bottom',alignItems:'bottom',inset:0,zIndex:0}}>
-        <div style={{width:'100%',display:'flex',justifyContent:'center'}}>
-          <img src={LOGO} alt="Healthcare Heroes Logo" style={{margin:'10px auto',maxWidth:'50%'}} />
+        <div style={{width:'100%',display:'grid',justifyContent:'center',alignItems:'end'}}>
+          <img src={LOGO} className="logo-anim" alt="Healthcare Heroes Logo" style={{margin:'10px auto',width:'50%',height:'auto'}} />
         </div>
       </div>
 
@@ -73,17 +73,17 @@ export default function Landing() {
       <div style={{ position: "relative", zIndex: 1, paddingTop: 56 }}>
         <div
           style={{
-            maxWidth: 900,
+            maxWidth: '80%',
             margin: "32px auto",
             padding: "16px",
-            backgroundColor: "#02020282",
-            borderRadius: 8,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+            backgroundColor: "rgba(0, 85, 64, 0.6)", /*#02020282*/
+            borderRadius: 16,
+            boxShadow: "0 4px 12px #005540", /*#0000004d #*/
           }}
         >
-          <h1>Healthcare Heroes — Hazard Wave Battle</h1>
+          <h1>Become a Healthcare Hero Today!</h1>
           <p>
-            A fast top-down wave shooter with a data-driven leveling system and
+            <b>Healthcare Heroes: Hazard Wave Battle</b> is a fast top-down wave shooter with a data-driven leveling system and
             educational enemy roster.
           </p>
           <div
@@ -110,14 +110,9 @@ export default function Landing() {
               gap: 12,
               alignItems: "center",
               flexWrap: "wrap",
+              marginBottom: 24,
             }}
           >
-            <Link to="/game" className="button">
-              Start Game
-            </Link>
-            <Link to="/characters" className="button">
-              Character Viewer
-            </Link>
             <label
               style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
             >
@@ -133,14 +128,43 @@ export default function Landing() {
                 ))}
               </select>
             </label>
+            <Link to="/modes" className="button">
+              Start Playing
+            </Link>
+            <Link to="/characters" className="button">
+              Explore Character
+            </Link>
           </div>
-          <div style={{ marginTop: 24 }}>
-            <h3>What’s New</h3>
-            <ul>
-              <li>Leveling system with unlocks, budgets, and caps.</li>
-              <li>Performance Mode toggle for low-spec devices.</li>
-              <li>Boss schedule HUD and improved spawns.</li>
-            </ul>
+
+          {/* Two column layout */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, marginBottom: 28 }}>
+            {/* Left column - Selected Character Card */}
+            <div>
+              <h3>Selected Hero</h3>
+              {HEROES.find(h => h.name === selectedHero) && (
+                <div style={{
+                  backgroundColor: "#ffffff10",
+                  borderRadius: 8,
+                  padding: 16,
+                  border: "1px solid #ffffff20"
+                }}>
+                  <h4>{HEROES.find(h => h.name === selectedHero).name}</h4>
+                  <p style={{ opacity: 0.8 }}>
+                    {HEROES.find(h => h.name === selectedHero).description || "Ready for battle!"}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Right column - What's New */}
+            <div>
+              <h3>What's New</h3>
+              <ul>
+                <li>Leveling system with unlocks, budgets, and caps.</li>
+                <li>Performance Mode toggle for low-spec devices.</li>
+                <li>Boss schedule HUD and improved spawns.</li>
+              </ul>
+            </div>
           </div>
 
           <div style={{ marginTop: 28 }}>

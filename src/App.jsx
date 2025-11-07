@@ -2379,6 +2379,14 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem("heroRenderMode", heroRenderMode); } catch {}
   }, [heroRenderMode]);
+  // Auto-select render mode based on hero: use Factory controller for Dr Dokta, fallback for others
+  useEffect(() => {
+    // Only override when user hasn't explicitly forced a mode this session
+    // Simple heuristic: if selected hero is Dr Dokta, prefer 'factory'; otherwise 'model'
+    const isDokta = /dokta/i.test(String(selectedHero || ''))
+    const desired = isDokta ? 'factory' : 'model'
+    if (heroRenderMode !== desired) setHeroRenderMode(desired)
+  }, [selectedHero])
   useEffect(() => {
     try { localStorage.setItem("heroQuality", heroQuality); } catch {}
   }, [heroQuality]);
@@ -2467,6 +2475,8 @@ export default function App() {
   const [armorEvents, setArmorEvents] = useState([]);
   const [powerEffect, setPowerEffect] = useState({ active: false, amount: 0 });
   const powerRemainingRef = useRef(0); // ms remaining for effect
+  // Token for life-pickup-driven shield stack FX
+  const [lifeShieldToken, setLifeShieldToken] = useState(0);
   // Per-level score baseline to compute penalties on continue
   const levelScoreBaselineRef = useRef(0);
   const [invulnEffect, setInvulnEffect] = useState({ active: false });
@@ -4451,6 +4461,8 @@ export default function App() {
           try {
             play("life-pickup");
           } catch {}
+          // Trigger a shield-stack FX window
+          setLifeShieldToken((t) => t + 1);
         }
       }
     },
@@ -5188,6 +5200,10 @@ export default function App() {
           heroName={selectedHero}
           heroRenderMode={heroRenderMode}
           heroQuality={heroQuality}
+          heroVisualScale={heroQuality === 'low' ? 2 : 3}
+          powerActive={powerEffect.active}
+          powerAmount={powerEffect.amount}
+          shieldStackToken={lifeShieldToken}
           autoFollow={{
             active: invulnEffect.active && (autoFollowHeld || autoFollowHeld2),
             radius: SHAPE_PATH_RADIUS,

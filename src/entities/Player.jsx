@@ -1,11 +1,15 @@
-import React, { useEffect, useMemo, useRef } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { useGLTF, useFBX } from '@react-three/drei'
 import { AIM_RAY_LENGTH, BOUNDARY_LIMIT, FIRE_RATE, PLAYER_SPEED, SPEED_BUFF_DURATION_MS, SPEED_DEBUFF_DURATION_MS, SPEED_DEBUFF_FACTOR, RUNNER_SPEED_MULTIPLIER } from '../game/constants.js'
 import { HeroFromSpec, defaultHeroSpec } from '../heroes/factory/HeroFactory'
+import FXOrbs from '../components/FXOrbs'
+// Dr Dokta animation controller (HeroAnimTester) + mapped animation pack
+import { HeroAnimTester } from '../heroes/factory/HeroAnimTester'
+import { liteSwordShieldMap } from '../heroes/factory/animMaps/liteSwordShieldMap'
 
-export default function Player({ position, setPositionRef, onShoot, isPaused, autoFire, controlScheme = 'dpad', moveInputRef, moveSourceRef, onSlam, highContrast=false, portals=[], onDebuff, speedBoosts=[], onBoost, autoFollow, arcTriggerToken, resetToken=0, basePlayerSpeed=PLAYER_SPEED, autoAimEnabled=false, onBoundaryJumpChange, onLanding, dashTriggerToken=0, onDashStart, onDashEnd, primaryColor=0x22c55e, invulnActive=false, bouncers=[], boundaryLimit=BOUNDARY_LIMIT, heroName=null, heroRenderMode='model', heroQuality='high' }) {
+export default function Player({ position, setPositionRef, onShoot, isPaused, autoFire, controlScheme = 'dpad', moveInputRef, moveSourceRef, onSlam, highContrast=false, portals=[], onDebuff, speedBoosts=[], onBoost, autoFollow, arcTriggerToken, resetToken=0, basePlayerSpeed=PLAYER_SPEED, autoAimEnabled=false, onBoundaryJumpChange, onLanding, dashTriggerToken=0, onDashStart, onDashEnd, primaryColor=0x22c55e, invulnActive=false, bouncers=[], boundaryLimit=BOUNDARY_LIMIT, heroName=null, heroRenderMode='model', heroQuality='high', heroVisualScale=2, powerActive=false, powerAmount=0, shieldStackToken=0 }) {
   const ref = useRef()
   const lastShot = useRef(0)
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
@@ -53,6 +57,32 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
   const boostMulRef = useRef(1)
   const lastArcToken = useRef(0)
   const boundaryJumpActive = useRef(false)
+  // Animation bridge to FBX avatar (Dr Dokta)
+  const doktaActionRef = useRef('idle')
+  const [doktaAction, setDoktaAction] = useState('idle')
+  const attackTimerRef = useRef(0)
+  // FX orbs state
+  const [fxMode, setFxMode] = useState('wave') // 'wave' | 'atom' | 'push' | 'shield'
+  const [fxShieldShape, setFxShieldShape] = useState('circle')
+  const fxEventTimer = useRef(0)
+  const shieldStackTimer = useRef(0)
+
+  // React to life pickup (shield stack for 10s)
+  useEffect(() => {
+    if (!shieldStackToken) return
+    shieldStackTimer.current = 10.0
+    setFxMode('shield')
+    setFxShieldShape('circle')
+  }, [shieldStackToken])
+
+  // React to high-tier power effect (atom) while active
+  useEffect(() => {
+    if (powerActive && powerAmount >= 90) {
+      setFxMode('atom')
+      // Keep active while powerActive; fallback handled in frame loop
+      fxEventTimer.current = 1.0
+    }
+  }, [powerActive, powerAmount])
 
   // Reset on respawn/restart
   useEffect(() => {
@@ -103,6 +133,8 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
           dir.y = 0
           dir.normalize()
           onShoot(ref.current.position, [dir.x, 0, dir.z])
+          // Trigger a short attack animation window
+          attackTimerRef.current = 0.25
         }
       } else if (e.button === 2) {
         e.preventDefault()
@@ -550,6 +582,52 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
   ref.current.position.z = Math.max(Math.min(ref.current.position.z, BL), -BL)
     setPositionRef && setPositionRef(ref.current.position)
 
+    // Drive Dr Dokta animation state from current gameplay state
+    attackTimerRef.current = Math.max(0, attackTimerRef.current - dt)
+    const airborne = ref.current.position.y > 0.55
+    let nextAnim = 'idle'
+    if (airborne) {
+      nextAnim = boundaryJumpActive.current ? 'jumpWall' : 'jump'
+    } else {
+      const mvLen = Math.hypot(mx, mz)
+      if (attackTimerRef.current > 0 || dashing.current) {
+        nextAnim = dashing.current ? 'attackCharge' : 'attackLight'
+      } else if (mvLen > 0.1) {
+        // Compare movement to aim direction to decide forward/back/strafe
+        const fwd = new THREE.Vector3(aimDirRef.current.x, 0, aimDirRef.current.z).normalize()
+        const move = new THREE.Vector3(mx, 0, mz).normalize()
+        const dot = fwd.dot(move)
+        const crossY = fwd.clone().cross(move).y
+        if (dot > 0.6) nextAnim = 'runForward'
+        else if (dot < -0.6) nextAnim = 'runBackward'
+        else nextAnim = crossY > 0 ? 'strafeLeft' : 'strafeRight'
+      } else {
+        nextAnim = 'idle'
+      }
+    }
+    if (nextAnim !== doktaActionRef.current) {
+      doktaActionRef.current = nextAnim
+      setDoktaAction(nextAnim)
+    }
+
+    // Update FX modes precedence: Shield (if timer) > Atom (power 90+) > Push (shape runner active) > Wave
+    // Countdown timers
+    shieldStackTimer.current = Math.max(0, shieldStackTimer.current - dt)
+    fxEventTimer.current = Math.max(0, fxEventTimer.current - dt)
+    const pushActive = !!(autoFollow && autoFollow.active)
+    if (shieldStackTimer.current > 0) {
+      if (fxMode !== 'shield' || fxShieldShape !== 'circle') {
+        setFxMode('shield')
+        setFxShieldShape('circle')
+      }
+    } else if (powerActive && powerAmount >= 90) {
+      if (fxMode !== 'atom') setFxMode('atom')
+    } else if (pushActive) {
+      if (fxMode !== 'push') setFxMode('push')
+    } else {
+      if (fxMode !== 'wave') setFxMode('wave')
+    }
+
     // Indicators
     const charging = (isKeyJumpDown.current || isRmbDown.current) && ref.current.position.y <= 0.5
     if (charging) {
@@ -595,28 +673,66 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
 
   return (
     <group ref={ref} position={position}>
-      {/* Hero model or factory-rendered avatar */}
-      {heroRenderMode === 'factory' ? (
-        <HeroFromSpec spec={{
-          ...defaultHeroSpec((heroName || 'hero').toLowerCase().replace(/[^a-z0-9]+/g,'_')),
-          primaryColor: typeof primaryColor === 'number' ? '#' + primaryColor.toString(16).padStart(6, '0') : primaryColor,
-          secondaryColor: typeof primaryColor === 'number' ? '#' + primaryColor.toString(16).padStart(6, '0') : primaryColor,
-          accentColor: typeof primaryColor === 'number' ? '#' + primaryColor.toString(16).padStart(6, '0') : primaryColor,
-          quality: heroQuality,
-          fxRing: heroQuality !== 'low',
-        }} controller={heroCtrlRef.current} />
-      ) : heroName === 'Dr Dokta' ? (
-        <HeroDokta />
+      {/* Hero visual selection:
+          - Dr Dokta: full FBX per-action animation controller (HeroAnimTester)
+          - Other heroes with factory mode: procedural HeroFromSpec (with live movement/aim controller)
+          - Named static hero variants (e.g., Sr Sesta) or fallback block */}
+      {/dokta/i.test(heroName || '') ? (
+        <group position={[0,0,0]} rotation={[0, Math.PI, 0]} scale={[heroVisualScale, heroVisualScale, heroVisualScale]}>
+          <HeroAnimTester
+            anims={liteSwordShieldMap}
+            scale={0.01}
+            debug={false}
+            showDebugPanel={false}
+            onlyCurrentMount={true}
+            fade={0.20}
+            easeTransitions={true}
+            externalAction={doktaAction}
+          />
+        </group>
+      ) : heroRenderMode === 'factory' ? (
+        <group scale={[heroVisualScale, heroVisualScale, heroVisualScale]}>
+          <HeroFromSpec
+          spec={{
+            ...defaultHeroSpec((heroName || 'hero').toLowerCase().replace(/[^a-z0-9]+/g,'_')),
+            primaryColor: typeof primaryColor === 'number' ? '#' + primaryColor.toString(16).padStart(6, '0') : primaryColor,
+            secondaryColor: typeof primaryColor === 'number' ? '#' + primaryColor.toString(16).padStart(6, '0') : primaryColor,
+            accentColor: typeof primaryColor === 'number' ? '#' + primaryColor.toString(16).padStart(6, '0') : primaryColor,
+            quality: heroQuality,
+            fxRing: heroQuality !== 'low',
+          }}
+          controller={heroCtrlRef.current}
+        />
+        </group>
       ) : heroName === 'Sr Sesta' ? (
-        <HeroSesta />
+        <group scale={[heroVisualScale, heroVisualScale, heroVisualScale]}>
+          <HeroSesta />
+        </group>
       ) : (
-        <mesh castShadow>
+        <mesh castShadow scale={heroVisualScale}>
           <boxGeometry args={[1.8, 0.8, 1.2]} />
           <meshStandardMaterial color={primaryColor} metalness={0.2} roughness={0.6} />
         </mesh>
       )}
-      {/* Orbiting FX around hero */}
-  <OrbitingFX color={highContrast ? 0xffffff : primaryColor} />
+      {/* FX Orbs around hero (scaled with hero size) */}
+      <FXOrbs
+        spec={{
+          id: 'player_fx',
+          height: 1.7 * heroVisualScale,
+          fxRing: true,
+          fxRingRadius: 1.8 * heroVisualScale,
+          fxRingIntensity: 0.65,
+          fxCount: 14,
+          fxMode: fxMode,
+          fxAmplitude: fxMode === 'push' ? 0.7 : 0.45,
+          fxSpeed: fxMode === 'push' ? 1.6 : 1.0,
+          fxDirectionDeg: 0,
+          fxShieldShape: fxShieldShape,
+          accentColor: (typeof primaryColor === 'number' ? '#' + primaryColor.toString(16).padStart(6,'0') : primaryColor),
+        }}
+        quality={heroQuality}
+        forceShow
+      />
       {/* Aim ray */}
       <mesh ref={rayRef} position={[0, 0.5, -AIM_RAY_LENGTH / 2]}>
         <boxGeometry args={[1, 0.06, AIM_RAY_LENGTH]} />
@@ -634,27 +750,7 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
   )
 }
 
-// Simple orbiting effect (ring of sparkles)
-function OrbitingFX({ color = 0x22c55e }) {
-  const grp = useRef()
-  useFrame((_, dt) => {
-    if (grp.current) grp.current.rotation.y += dt * 1.4
-  })
-  return (
-    <group ref={grp} position={[0, 1.0, 0]}>
-      {Array.from({ length: 10 }).map((_, i) => {
-        const a = (i / 10) * Math.PI * 2
-        const r = 1.25
-        return (
-          <mesh key={i} position={[Math.cos(a) * r, 0, Math.sin(a) * r]}>
-            <sphereGeometry args={[0.095, 10, 10]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.6} />
-          </mesh>
-        )
-      })}
-    </group>
-  )
-}
+// Simple OrbitingFX removed; replaced with FXOrbs
 
 function HeroDokta() {
   // Prefer animated FBX if available; otherwise use static GLB
