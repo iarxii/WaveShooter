@@ -8,5 +8,6 @@ export default defineConfig({
     '**/*.gltf',
     '**/*.glb',
     '**/*.fbx',
+    '**/*.hdr',
   ],
 })

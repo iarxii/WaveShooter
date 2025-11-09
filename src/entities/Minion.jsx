@@ -4,7 +4,7 @@ import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import { ENEMY_SPEED, BOSS_SPEED, MINION_MAX_SPEED, APPROACH_SLOW_RADIUS, POST_LAND_SETTLE, DROP_SPEED, KNOCKBACK_DECAY, SPEED_SCALE } from '../game/constants.js'
 
-export default function Minion({ id, pos, playerPosRef, onDie, isBoss=false, waveNumber, health, isPaused, spawnHeight, speedScale=1 }) {
+export default function Minion({ id, pos, playerPosRef, onDie, isBoss=false, waveNumber, health, isPaused, spawnHeight, speedScale=1, visualScale=1 }) {
   const ref = useRef()
   const rawSpeed = isBoss ? BOSS_SPEED : ENEMY_SPEED + (waveNumber * 0.1)
   const maxSpeed = MINION_MAX_SPEED
@@ -132,7 +132,7 @@ export default function Minion({ id, pos, playerPosRef, onDie, isBoss=false, wav
   const baseColor = isBoss ? 0xffb020 : 0xff0055
 
   return (
-    <group>
+    <group scale={[visualScale, visualScale, visualScale]}>
       <mesh ref={ref} position={pos}>
         {isBoss ? (
           <cylinderGeometry args={[1.6, 1.6, 0.8, 6]} />

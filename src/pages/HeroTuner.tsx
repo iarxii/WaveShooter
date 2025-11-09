@@ -222,6 +222,34 @@ export default function HeroTuner() {
         const id = setInterval(step, 2500)
         return () => clearInterval(id)
     }, [shapeRunnerMode, animUrls, source])
+    // External bridge: listen for heroTunerCommand CustomEvents dispatched from Game App
+    React.useEffect(() => {
+        const handler = (e: any) => {
+            const detail = e.detail
+            if (!detail) return
+            if (detail.type === 'shapeRunner') {
+                setShapeRunnerMode(detail.mode === 'cw' ? 'cw' : detail.mode === 'ccw' ? 'ccw' : 'none')
+                if (source !== 'animViewer') setSource('animViewer')
+            } else if (detail.type === 'heroAction' && detail.action === 'dashBackward') {
+                // Reuse existing key '3' logic (backflip/dash) from animViewer shortcut
+                setShapeRunnerMode('none')
+                if (source !== 'animViewer') setSource('animViewer')
+                if (backflipUrl) {
+                    const idxExisting = animUrls.findIndex(u => u === backflipUrl)
+                    if (idxExisting >= 0) setAnimIndex(idxExisting)
+                    else {
+                        setAnimUrls(prev => [...prev, backflipUrl])
+                        setAnimIndex(animUrls.length)
+                    }
+                } else {
+                    const idx = animUrls.findIndex(u => /backflip|dash/i.test(u.split('/').pop() || ''))
+                    if (idx >= 0) setAnimIndex(idx)
+                }
+            }
+        }
+        window.addEventListener('heroTunerCommand', handler)
+        return () => window.removeEventListener('heroTunerCommand', handler)
+    }, [source, animUrls, backflipUrl])
     // Cleanup object URLs for animUrls on unmount
     React.useEffect(() => {
         return () => { try { animUrls.forEach(u => { if (u.startsWith('blob:')) URL.revokeObjectURL(u) }) } catch { } }

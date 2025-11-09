@@ -4,7 +4,7 @@ import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import { KNOCKBACK_DECAY, SPEED_SCALE, CONTACT_DAMAGE, DROP_SPEED } from '../game/constants.js'
 
-export default function ConeBoss({ id, pos, playerPosRef, onDamagePlayer, health, isPaused, spawnHeight, speedScale = 1 }) {
+export default function ConeBoss({ id, pos, playerPosRef, onDamagePlayer, health, isPaused, spawnHeight, speedScale = 1, visualScale = 1 }) {
   const ref = useRef()
   const idleTimer = useRef(10) // seconds between jumps
   const airVelY = useRef(0)
@@ -148,7 +148,7 @@ export default function ConeBoss({ id, pos, playerPosRef, onDamagePlayer, health
   const healthRatio = health / maxHealth
 
   return (
-    <group ref={ref} position={pos}>
+    <group ref={ref} position={pos} scale={[visualScale, visualScale, visualScale]}>
       {/* Visual mesh: cone rotated to stand on tip; offset up by half height so tip meets ground at group y */}
       <mesh ref={meshRef} position={[0, 1.3, 0]} rotation={[Math.PI, 0, 0]}>
         <cylinderGeometry args={[0, 1.6, 2.6, 16]} />

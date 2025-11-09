@@ -7,7 +7,8 @@ import React, {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Stats, Text } from "@react-three/drei";
+import { OrbitControls, Stats, Text, AdaptiveDpr } from "@react-three/drei";
+import { SceneEnvironment } from "./contexts/EnvironmentContext.tsx";
 import * as THREE from "three";
 import { useHistoryLog } from "./contexts/HistoryContext.jsx";
 import { useGame } from "./contexts/GameContext.jsx";
@@ -265,7 +266,7 @@ function rand(min, max) { return min + Math.random() * (max - min); }
 function randi(min, max) { return Math.floor(rand(min, max + 1)); }
 
 // Build a randomized Character Factory spec using roster hints
-function randomFactorySpecFromRoster(picked, waveNumber, baseHex) {
+function randomFactorySpecFromRoster(picked, waveNumber, baseHex, scaleFactor = 1) {
   const id = (picked?.name || 'enemy').toLowerCase().replace(/[^a-z0-9]+/g,'_');
   const base = baseHex || colorHex(picked?.color || 'Red');
   const seed = (Math.random()*1e9) | 0;
@@ -280,21 +281,25 @@ function randomFactorySpecFromRoster(picked, waveNumber, baseHex) {
 
   // Scale features slightly by wave for variety
   const waveT = Math.min(1, Math.max(0, (waveNumber - 1) / 20));
-  const radius = rand(0.9, 1.15);
+  // Apply scaleFactor to macro dimensions (radius/height) but keep subtle variation
+  const radius = rand(0.9, 1.15) * scaleFactor;
   const detail = randi(0, 2);
   const scaleX = rand(0.85, 1.25);
   const scaleY = rand(0.8, 1.35);
-  const height = baseShape === 'cylinder' || baseShape === 'capsule' || baseShape.includes('Prism') ? rand(1.2, 2.6) : undefined;
+  const height = baseShape === 'cylinder' || baseShape === 'capsule' || baseShape.includes('Prism') ? rand(1.2, 2.6) * scaleFactor : undefined;
 
-  const spikeCount = Math.max(10, Math.floor(22 + waveT * 12 + Math.random()*24));
-  const spikeLength = rand(0.34, 0.58);
-  const spikeRadius = rand(0.09, 0.14);
+  // Spike cluster scaling: length & radius scale directly; count scales sub-linearly for readability
+  const spikeCountBase = Math.max(10, Math.floor(22 + waveT * 12 + Math.random()*24));
+  const spikeCount = Math.round(spikeCountBase * (0.6 + 0.4 * Math.min(scaleFactor, 2))); // damp growth
+  const spikeLength = rand(0.34, 0.58) * (0.85 + 0.15 * scaleFactor);
+  const spikeRadius = rand(0.09, 0.14) * (0.7 + 0.3 * scaleFactor);
   const spikeStyles = ['cone','inverted','disk','block','tentacle'];
   const spikeStyle = spikeStyles[randi(0, spikeStyles.length-1)];
   const spikeBaseShift = rand(-0.12, 0.18);
 
-  const nodeCount = randi(3, 9);
-  const arcCount = randi(2, 7);
+  // Decorative nodes/arcs: scale count gently to avoid overdraw explosion
+  const nodeCount = randi(3, 9) + Math.round((scaleFactor - 1) * 2);
+  const arcCount = randi(2, 7) + Math.round((scaleFactor - 1) * 1);
   const baseColor = base;
   const spikeColor = darken(base, 0.05 + Math.random()*0.1);
   const nodeColor = lighten(base, 0.4 + Math.random()*0.2);
@@ -313,11 +318,11 @@ function randomFactorySpecFromRoster(picked, waveNumber, baseHex) {
     id,
     seed,
     baseShape,
-    radius,
+  radius,
     detail,
     height,
     scaleX, scaleY,
-    spikeCount, spikeLength, spikeRadius, spikeStyle, spikeBaseShift,
+  spikeCount, spikeLength, spikeRadius, spikeStyle, spikeBaseShift,
     spikePulse: true,
     spikePulseIntensity: rand(0.12, 0.35),
     nodeCount, arcCount,
@@ -1186,6 +1191,8 @@ function Player({
       window.removeEventListener("contextmenu", handleContextMenu);
     };
   }, [setPositionRef, onShoot, isPaused]);
+  // Global visual asset scale (does not affect gameplay math / collisions)
+  // (moved to App scope)
   // Dedicated key jump (Ctrl/Enter): short press -> vertical slam, long press (>2s) -> arc jump towards aim
   useEffect(() => {
     if (isPaused) return;
@@ -1257,6 +1264,21 @@ function Player({
   }, [isPaused]);
 
   // Trigger an external arc jump when arcTriggerToken increments
+  // Shape Runner -> HeroTuner bridge: map numeric keys to hero tuning commands
+  useEffect(() => {
+    if (isPaused) return;
+    const onKey = (e) => {
+      if (e.key === '1') {
+        window.dispatchEvent(new CustomEvent('heroTunerCommand', { detail: { type: 'shapeRunner', mode: 'cw' } }));
+      } else if (e.key === '2') {
+        window.dispatchEvent(new CustomEvent('heroTunerCommand', { detail: { type: 'shapeRunner', mode: 'ccw' } }));
+      } else if (e.key === '3') {
+        window.dispatchEvent(new CustomEvent('heroTunerCommand', { detail: { type: 'heroAction', action: 'dashBackward' } }));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isPaused]);
   useEffect(() => {
     if (!ref.current) return;
     if (arcTriggerToken && arcTriggerToken !== lastArcToken.current) {
@@ -2299,6 +2321,19 @@ export default function App() {
   const { addRun } = useHistoryLog();
   const { selectedHero, setSelectedHero } = useGame();
   const navigate = useNavigate();
+  // Global visual asset scale & camera view settings (persisted)
+  const [assetScale, setAssetScale] = useState(() => {
+    try { return parseFloat(localStorage.getItem('assetScale') || '1'); } catch { return 1; }
+  });
+  const [topDownZoom, setTopDownZoom] = useState(() => {
+    try { return parseFloat(localStorage.getItem('topDownZoom') || '0.85'); } catch { return 0.85; }
+  });
+  const [staticCamMargin, setStaticCamMargin] = useState(() => {
+    try { return parseFloat(localStorage.getItem('staticCamMargin') || '0.95'); } catch { return 0.95; }
+  });
+  useEffect(() => { try { localStorage.setItem('assetScale', String(assetScale)); } catch {} }, [assetScale]);
+  useEffect(() => { try { localStorage.setItem('topDownZoom', String(topDownZoom)); } catch {} }, [topDownZoom]);
+  useEffect(() => { try { localStorage.setItem('staticCamMargin', String(staticCamMargin)); } catch {} }, [staticCamMargin]);
   const [showDebugUI, setShowDebugUI] = useState(() => {
     try {
       return localStorage.getItem("showDebugUI") !== "0";
@@ -3745,7 +3780,7 @@ export default function App() {
                 // When in factory mode, attach a randomized Character Factory spec to drive visuals
                 factorySpec:
                   enemyRenderModeRef.current === "factory"
-                    ? randomFactorySpecFromRoster(picked, nextWave, ecolor)
+                    ? randomFactorySpecFromRoster(picked, nextWave, ecolor, (typeof assetScale !== 'undefined' ? assetScale : 1))
                     : null,
                 // traits (minimal initial wiring)
                 stunImmune: /CRE/.test(picked.name),
@@ -5126,12 +5161,18 @@ export default function App() {
     <div className="canvas-wrap">
       <Canvas
         shadows
+        dpr={[0.8, Math.min(1.25, window.devicePixelRatio || 1)]}
         camera={{ position: [0, 35, 30], fov: 50 }}
         onPointerMove={handlePointerMove}
       >
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[10, 40, 10]} intensity={0.8} castShadow />
-        {/* Semi-light ground plane */}
+        <React.Suspense fallback={null}>
+          {/* Dynamically reduce pixel ratio on slow frames */}
+          <AdaptiveDpr pixelated />
+          {/* HDRI-based lighting, fog, and exposure control */}
+          <SceneEnvironment />
+        {/* Keep a gentle key light to complement IBL */}
+        <directionalLight position={[10, 40, 10]} intensity={0.6} castShadow />
+          {/* Semi-light ground plane */}
         <mesh
           rotation={[-Math.PI / 2, 0, 0]}
           position={[0, 0, 0]}
@@ -5200,7 +5241,7 @@ export default function App() {
           heroName={selectedHero}
           heroRenderMode={heroRenderMode}
           heroQuality={heroQuality}
-          heroVisualScale={heroQuality === 'low' ? 2 : 3}
+          heroVisualScale={(heroQuality === 'low' ? 2 : 3) * assetScale}
           powerActive={powerEffect.active}
           powerAmount={powerEffect.amount}
           shieldStackToken={lifeShieldToken}
@@ -5368,6 +5409,7 @@ export default function App() {
                   enemySpeedScale *
                   (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
                 }
+                visualScale={assetScale}
               />
             ) : e.isCone ? (
               <ConeBossEntity
@@ -5383,6 +5425,7 @@ export default function App() {
                   enemySpeedScale *
                   (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
                 }
+                visualScale={assetScale}
               />
             ) : e.isPipe ? (
               <PipeBossEntity
@@ -5422,6 +5465,7 @@ export default function App() {
                     return arr;
                   });
                 }}
+                visualScale={assetScale}
               />
             ) : e.isCluster ? (
               <ClusterBossEntity
@@ -5432,6 +5476,7 @@ export default function App() {
                 onDie={onEnemyDie}
                 health={e.health}
                 isPaused={isPaused}
+                visualScale={assetScale}
               />
             ) : e.isFlying ? (
               <FlyingDroneEntity
@@ -5455,6 +5500,7 @@ export default function App() {
                   enemySpeedScale *
                   (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
                 }
+                visualScale={assetScale}
               />
             ) : e.isRoster ? (
               <RosterEnemyEntity
@@ -5479,6 +5525,7 @@ export default function App() {
                 moveSpeed={e.moveSpeed || 10}
                 shape={e.rosterShape || "Circle"}
                 factorySpec={e.factorySpec || null}
+                visualScale={assetScale}
                 onHazard={(hz) => {
                   // Add hazard zones managed by App
                   const id = Date.now() + Math.random();
@@ -5505,6 +5552,7 @@ export default function App() {
                   enemySpeedScale *
                   (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
                 }
+                visualScale={assetScale}
               />
             )
           )}
@@ -5639,7 +5687,7 @@ export default function App() {
               }
               playerPosRef={playerPosRef}
               isPaused={isPaused}
-              scaleMul={pickupScaleMul}
+              scaleMul={pickupScaleMul * assetScale}
             />
           ))}
 
@@ -5661,12 +5709,16 @@ export default function App() {
           />
         )}
         {cameraMode === "static" && (
-          <StaticCameraRig boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT} />
+          <StaticCameraRig
+            boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
+            margin={staticCamMargin}
+          />
         )}
         {cameraMode === "topdown" && (
           <TopDownRig
             playerPosRef={playerPosRef}
             boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
+            zoom={topDownZoom}
           />
         )}
         {/* AOE visuals */}
@@ -5792,7 +5844,8 @@ export default function App() {
 
         {/* Global effects renderer */}
         <EffectsRenderer />
-        {showDreiStats && <Stats />}
+          {showDreiStats && <Stats />}
+        </React.Suspense>
       </Canvas>
 
       <div
@@ -6316,6 +6369,68 @@ export default function App() {
                         style={{ width: "100%" }}
                         aria-label="Pickup scale multiplier"
                       />
+                      <div style={{ height: 10 }} />
+                      <div className="small" style={{ marginTop: 4 }}>
+                        Asset Scale:{" "}
+                        <strong>{assetScale.toFixed(2)}x</strong>
+                      </div>
+                      <input
+                        type="range"
+                        min={0.5}
+                        max={2.0}
+                        step={0.05}
+                        value={assetScale}
+                        onChange={(e) => setAssetScale(parseFloat(e.target.value))}
+                        style={{ width: "100%" }}
+                        aria-label="Global asset visual scale"
+                      />
+                      <div style={{ height: 6 }} />
+                      <div className="tiny" style={{ opacity: 0.8 }}>
+                        Scales hero, minions, roster enemies & pickups visually only.
+                      </div>
+                      <div style={{ height: 14 }} />
+                      <div className="small" style={{ marginTop: 4 }}>
+                        Top-Down Zoom (Camera): <strong>{topDownZoom.toFixed(2)}x</strong>
+                      </div>
+                      <input
+                        type="range"
+                        min={0.6}
+                        max={1.4}
+                        step={0.02}
+                        value={topDownZoom}
+                        onChange={(e) => setTopDownZoom(parseFloat(e.target.value))}
+                        style={{ width: "100%" }}
+                        aria-label="Top-down camera zoom (lower = closer)"
+                      />
+                      <div style={{ height: 6 }} />
+                      <div className="small" style={{ marginTop: 4 }}>
+                        Static Cam Margin: <strong>{staticCamMargin.toFixed(2)}</strong>
+                      </div>
+                      <input
+                        type="range"
+                        min={0.9}
+                        max={1.2}
+                        step={0.01}
+                        value={staticCamMargin}
+                        onChange={(e) => setStaticCamMargin(parseFloat(e.target.value))}
+                        style={{ width: "100%" }}
+                        aria-label="Static camera fit margin"
+                      />
+                      <div style={{ height: 6 }} />
+                      <div className="tiny" style={{ opacity: 0.8 }}>
+                        Lower margin brings static cam closer; may clip extreme arena growth.
+                      </div>
+                      <div style={{ height: 12 }} />
+                      <button
+                        className="button"
+                        onClick={() => {
+                          setAssetScale(1);
+                          setTopDownZoom(0.85);
+                          setStaticCamMargin(0.95);
+                        }}
+                      >
+                        Reset Camera/View Settings
+                      </button>
                       <div style={{ height: 10 }} />
                       <div className="small">
                         <strong>Arena</strong>
@@ -7692,16 +7807,18 @@ function CameraRig({
 
 // Static camera positioned back and above, looking at the arena center. Zoom is enabled via controls.
 function StaticCameraRig({
-  position = [0, 60, 80],
+  position = [0, 40, 55],
   target = [0, 0, 0],
   boundaryLimit,
+  margin = 1.02,
 }) {
   const { camera } = useThree();
   useEffect(() => {
     // Compute distance along the specified direction so the arena fits entirely
     const fovRad = THREE.MathUtils.degToRad(camera.fov || 75);
     const BL = boundaryLimit ?? BOUNDARY_LIMIT;
-    const requiredHeight = ((Math.SQRT2 * BL) / Math.tan(fovRad / 2)) * 1.05;
+    // Bring camera closer by reducing margin while ensuring edges stay visible
+    const requiredHeight = ((Math.SQRT2 * BL) / Math.tan(fovRad / 2)) * margin;
     const dx = position[0] - target[0];
     const dy = position[1] - target[1];
     const dz = position[2] - target[2];
@@ -7715,12 +7832,12 @@ function StaticCameraRig({
     const nz = target[2] + uz * dist;
     camera.position.set(nx, ny, nz);
     camera.lookAt(target[0], target[1], target[2]);
-  }, [camera, position, target, boundaryLimit]);
+  }, [camera, position, target, boundaryLimit, margin]);
   return null;
 }
 
 // Top-down camera that stays above the player and looks straight down for a 2D-style view
-function TopDownRig({ playerPosRef, boundaryLimit }) {
+function TopDownRig({ playerPosRef, boundaryLimit, zoom = 1.0 }) {
   const { camera, size } = useThree();
   const heightRef = useRef(120);
   const computeHeight = useCallback(() => {
@@ -7730,12 +7847,12 @@ function TopDownRig({ playerPosRef, boundaryLimit }) {
     const fovRad = THREE.MathUtils.degToRad(camera.fov || 75);
     const BL = boundaryLimit ?? BOUNDARY_LIMIT;
     const required = (Math.SQRT2 * BL) / Math.tan(fovRad / 2);
-    // Add a small margin so edges aren't clipped
-    return required * 1.05;
-  }, [camera, boundaryLimit]);
+    // Add a small margin so edges aren't clipped; apply zoom (<1 brings closer)
+    return (required * 1.02) * Math.max(0.5, Math.min(2.0, zoom));
+  }, [camera, boundaryLimit, zoom]);
   useEffect(() => {
     heightRef.current = computeHeight();
-  }, [computeHeight, size.width, size.height, boundaryLimit]);
+  }, [computeHeight, size.width, size.height, boundaryLimit, zoom]);
   useFrame(() => {
     const p = playerPosRef.current;
     if (!p) return;

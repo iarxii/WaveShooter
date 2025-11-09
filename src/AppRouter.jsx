@@ -13,6 +13,7 @@ import { HistoryProvider } from './contexts/HistoryContext.jsx'
 import NavBar from './components/NavBar.jsx'
 import { EffectsProvider } from './effects/EffectsContext.jsx'
 import { SoundProvider, UISoundLayer, useSound } from './contexts/SoundContext.jsx'
+import { EnvironmentProvider } from './contexts/EnvironmentContext.tsx'
 
 function RouteMusicSync() {
   const loc = useLocation()
@@ -35,6 +36,7 @@ export default function AppRouter() {
         <GameProvider>
           <EffectsProvider>
           <SoundProvider>
+          <EnvironmentProvider>
             <UISoundLayer />
             <RouteMusicSync />
             {/* Hide nav during gameplay; default hidden on Randomizer (toggleable from the page) */}
@@ -50,6 +52,7 @@ export default function AppRouter() {
               <Route path="/randomizer" element={<RandomizerMode navVisible={navVisible} setNavVisible={setNavVisible} />} />
               <Route path="*" element={<Landing />} />
             </Routes>
+          </EnvironmentProvider>
           </SoundProvider>
           </EffectsProvider>
         </GameProvider>

@@ -4,7 +4,7 @@ import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import { KNOCKBACK_DECAY, SPEED_SCALE } from '../game/constants.js'
 
-export default function ClusterBoss({ id, pos, playerPosRef, onDie, health, isPaused }) {
+export default function ClusterBoss({ id, pos, playerPosRef, onDie, health, isPaused, visualScale=1 }) {
   const ref = useRef()
   const stunTimer = useRef(0)
   const knockback = useRef(new THREE.Vector3())
@@ -51,7 +51,7 @@ export default function ClusterBoss({ id, pos, playerPosRef, onDie, health, isPa
   const geom = useMemo(() => new THREE.SphereGeometry(0.5, 12, 12), [])
   return (
     <group>
-      <group ref={ref} position={pos}>
+      <group ref={ref} position={pos} scale={[visualScale, visualScale, visualScale]}>
         {offsets.map((o,i)=>(
           <mesh key={i} position={o} geometry={geom} material={mat} />
         ))}

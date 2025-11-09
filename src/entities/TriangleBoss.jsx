@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { DROP_SPEED, TRIANGLE_CHARGE_MAX, TRIANGLE_CIRCLE_MAX, KNOCKBACK_DECAY, SPEED_SCALE } from '../game/constants.js'
 
-export default function TriangleBoss({ id, pos, playerPosRef, onDie, health, isPaused, spawnHeight, speedScale = 1 }) {
+export default function TriangleBoss({ id, pos, playerPosRef, onDie, health, isPaused, spawnHeight, speedScale = 1, visualScale = 1 }) {
   const ref = useRef()
   const chargeTimer = useRef(0)
   const isCharging = useRef(false)
@@ -79,7 +79,7 @@ export default function TriangleBoss({ id, pos, playerPosRef, onDie, health, isP
   const maxHealth = 3
   const healthRatio = health / maxHealth
   return (
-    <group>
+    <group scale={[visualScale, visualScale, visualScale]}>
       <mesh ref={ref} position={pos} rotation={[Math.PI, 0, 0]}>
         <coneGeometry args={[1.2, 1.8, 3]} />
         <meshStandardMaterial color={0xff4444} emissive={0x331111} opacity={0.35 + 0.65*healthRatio} transparent />

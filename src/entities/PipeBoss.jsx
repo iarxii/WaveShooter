@@ -4,7 +4,7 @@ import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import { KNOCKBACK_DECAY, SPEED_SCALE } from '../game/constants.js'
 
-export default function PipeBoss({ id, pos, playerPosRef, onDie, health, isPaused, onLaunchDrones }) {
+export default function PipeBoss({ id, pos, playerPosRef, onDie, health, isPaused, onLaunchDrones, visualScale=1 }) {
   const ref = useRef()
   const riseTimer = useRef(0)
   const launchCooldown = useRef(0)
@@ -53,7 +53,7 @@ export default function PipeBoss({ id, pos, playerPosRef, onDie, health, isPause
   }, [id])
 
   return (
-    <group>
+    <group scale={[visualScale, visualScale, visualScale]}>
       <mesh ref={ref} position={pos}>
         <cylinderGeometry args={[1.2, 1.2, 1.6, 16]} />
         <meshStandardMaterial color={0x6699cc} emissive={0x111111} metalness={0.3} roughness={0.5} />
