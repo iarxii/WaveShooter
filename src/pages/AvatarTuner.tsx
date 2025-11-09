@@ -1,5 +1,5 @@
 // src/pages/AvatarTuner.tsx
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import { PathogenFromSpec } from '../characters/factory/PathogenFactory';
@@ -12,8 +12,8 @@ function rgbToHex([r,g,b]: number[]) {
 function clamp(v:number,min:number,max:number){ return Math.max(min,Math.min(max,v)); }
 
 // naive k-means (k=3) for dominant colors — fast enough for 256px thumbnail
-async function dominantColors(file: File, k=3): Promise<string[]> {
-  const img = await createImageBitmap(await file.arrayBuffer().then(b=>new Blob([b])));
+async function dominantColorsFromBlob(blob: Blob, k=3): Promise<string[]> {
+  const img = await createImageBitmap(blob);
   const cnv = new OffscreenCanvas(256,256);
   const ctx = cnv.getContext('2d')!;
   ctx.drawImage(img,0,0,256,256);
@@ -45,6 +45,16 @@ async function dominantColors(file: File, k=3): Promise<string[]> {
     }
   }
   return centroids.map(v => rgbToHex(v.map(x=>Math.round(x)) as any));
+}
+
+async function dominantColors(input: File | string, k=3): Promise<string[]> {
+  if (typeof input !== 'string') {
+    const blob = await input.arrayBuffer().then(b=>new Blob([b]));
+    return dominantColorsFromBlob(blob, k);
+  }
+  const res = await fetch(input);
+  const blob = await res.blob();
+  return dominantColorsFromBlob(blob, k);
 }
 
 // very light “texture character” estimator -> suggests detail/spike counts
@@ -86,12 +96,26 @@ export default function AvatarTuner() {
   const [file,setFile] = useState<File|null>(null);
   const [spec,setSpec] = useState<AvatarSpec|null>(null);
   const [lightingMode, setLightingMode] = useState<'dark'|'light'>('dark');
+  const [galleryOpen, setGalleryOpen] = useState<boolean>(true);
+  const [pickedImageUrl, setPickedImageUrl] = useState<string | null>(null);
+
+  // Discover enemy avatar images with Vite glob
+  // Vite glob typing fallback: cast import.meta as any to access glob
+  const enemyImageUrls = useMemo(() => {
+    try {
+      const mods = (import.meta as any).glob('../assets/character_imgs/enemy_avatar/**/*.{png,jpg,jpeg,gif,webp}', { eager: true, as: 'url' }) as Record<string,string>;
+      return Object.entries(mods)
+        .sort((a,b)=>a[0].localeCompare(b[0]))
+        .map(([,url])=>url);
+    } catch {
+      return [] as string[];
+    }
+  }, []);
 
   async function onDrop(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
     setFile(f);
-
     const [c1,c2,c3] = await dominantColors(f);
     const hints = await estimateShapeHints(f);
     const initial: AvatarSpec = {
@@ -138,6 +162,63 @@ export default function AvatarTuner() {
       quality: 'high'
     };
     setSpec(initial);
+    setGalleryOpen(false);
+  }
+
+  async function onPickImage(url: string){
+    setPickedImageUrl(url);
+    const [c1,c2,c3] = await dominantColors(url);
+    // For hints, we convert the URL to a blob and reuse estimateShapeHints via a File-like path
+    // estimateShapeHints expects a File; we can create a Blob File with a mock name
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const fakeFile = new File([blob], 'picked.png', { type: blob.type || 'image/png' });
+    const hints = await estimateShapeHints(fakeFile);
+    const initial: AvatarSpec = {
+      id: 'picked_' + Math.floor(Math.random()*1e6),
+      seed: Math.floor(Math.random()*1e9),
+      baseShape:'icosahedron',
+      radius: 1.0,
+      height: 2.0,
+      scaleX: 1.0,
+      scaleY: 1.0,
+      detail: hints.detail,
+      spikeCount: hints.spikeCount,
+      spikeLength: hints.spikeLength,
+      spikeRadius: 0.11,
+      spikeStyle: 'cone',
+      spikeBaseShift: 0.0,
+      spikePulse: true,
+      spikePulseIntensity: 0.25,
+      nodeCount: hints.nodeCount,
+      arcCount: hints.arcCount,
+      baseColor: c2 ?? '#B5764C',
+      spikeColor: c2 ?? '#B5764C',
+      nodeColor: c1 ?? '#FFD24A',
+      arcColor: c3 ?? '#FFE9A3',
+      emissive: c2 ?? '#B0774F',
+      emissiveIntensityCore: 0.35,
+      spikeEmissive: c2 ?? '#B5764C',
+      emissiveIntensitySpikes: 0.12,
+      metalnessCore: 0.25, roughnessCore: 0.85,
+      metalnessSpikes: 0.15, roughnessSpikes: 0.9,
+      metalnessNodes: 1.0, roughnessNodes: 0.25,
+      nodeStrobeMode: 'off',
+      nodeStrobeColorA: c1 ?? '#FFD24A',
+      nodeStrobeColorB: c3 ?? '#FFE9A3',
+      nodeStrobeSpeed: 8.0,
+      spin: 0.22, breathe: 0.014, flickerSpeed: 7.5,
+      roll: 0.0,
+      hitboxEnabled: false,
+      hitboxVisible: false,
+      hitboxScaleMin: 1.0,
+      hitboxScaleMax: 1.0,
+      hitboxSpeed: 1.0,
+      hitboxMode: 'sin',
+      quality: 'high'
+    };
+    setSpec(initial);
+    setGalleryOpen(false);
   }
 
   function update<K extends keyof AvatarSpec>(k:K, v:AvatarSpec[K]) {
@@ -159,9 +240,36 @@ export default function AvatarTuner() {
       <aside style={{padding:'1rem', background:'#0B1220', color:'#E6F0FF', overflow:'auto'}}>
         <h2>Avatar Tuner</h2>
         <input type="file" accept="image/*" onChange={onDrop}/>
-        {!spec ? <p style={{opacity:0.8}}>Drop an avatar image to auto‑generate a starting spec.</p> : (
+        <div style={{margin:'8px 0'}}>
+          <button onClick={()=>setGalleryOpen(true)} disabled={galleryOpen}>
+            {galleryOpen ? 'Select an Image Below' : 'Change Image'}
+          </button>
+        </div>
+        {galleryOpen && (
+          <div>
+            <h3>Pick from Library</h3>
+            {enemyImageUrls.length === 0 && (
+              <p style={{opacity:0.8}}>No images found under assets/character_imgs/enemy_avatar.</p>
+            )}
+            <div style={{display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:8}}>
+              {enemyImageUrls.map((url, idx)=>(
+                <div key={idx} style={{cursor:'pointer', background:'#0f172a', border:'1px solid #1e293b', borderRadius:8, padding:6}} onClick={()=>onPickImage(url)}>
+                  <img src={url} style={{width:'100%', height:96, objectFit:'cover', borderRadius:6}}/>
+                  <div style={{fontSize:12, opacity:0.85, marginTop:4}}>{url.split('/').slice(-2).join('/')}</div>
+                </div>
+              ))}
+            </div>
+            <hr/>
+          </div>
+        )}
+        {!spec ? <p style={{opacity:0.8}}>Drop an avatar image or pick from the library to auto‑generate a starting spec.</p> : (
           <>
             <hr/>
+            {!galleryOpen && (
+              <div style={{marginBottom:8}}>
+                <button onClick={()=>setGalleryOpen(true)}>Change Image</button>
+              </div>
+            )}
             <label>ID</label>
             <input value={spec.id} onChange={e=>update('id', e.target.value)} style={{width:'100%'}}/>
             <label>Seed</label>
@@ -183,6 +291,8 @@ export default function AvatarTuner() {
                   <option value="hexPrism">Hex Prism</option>
                   <option value="cylinder">Cylinder</option>
                   <option value="capsule">Capsule</option>
+                  <option value="cube">Cube</option>
+                  <option value="snake">Snake (segmented)</option>
                 </select><br/>
             <label>Detail</label>
             <input type="range" min={0} max={2} value={spec.detail ?? 1} onChange={e=>update('detail', Number(e.target.value) as 0|1|2)}/><br/>
@@ -198,6 +308,43 @@ export default function AvatarTuner() {
             )}
             <label>Spike Count: {spec.spikeCount}</label>
             <input type="range" min={12} max={72} value={spec.spikeCount ?? 42} onChange={e=>update('spikeCount', Number(e.target.value))}/><br/>
+            {/* Boxy shape spike clusters */}
+            {(['cube','cylinder','capsule','triPrism','hexPrism'] as any).includes(spec.baseShape ?? '') && (
+              <>
+                <h3>Spike Clusters</h3>
+                <label>
+                  <input type="checkbox" checked={spec.spikeClusterMidEnabled ?? false} onChange={e=>update('spikeClusterMidEnabled', e.target.checked)} /> Mid Ring
+                </label><br/>
+                <label>
+                  <input type="checkbox" checked={spec.spikeClusterEndsEnabled ?? false} onChange={e=>update('spikeClusterEndsEnabled', e.target.checked)} /> End Rings
+                </label><br/>
+                <label>Mid Ring Count: {spec.spikeMidClusterCount ?? 8}</label>
+                <input type="range" min={0} max={48} value={spec.spikeMidClusterCount ?? 8} onChange={e=>update('spikeMidClusterCount', Number(e.target.value))}/><br/>
+                <label>End Ring Count: {spec.spikeEndClusterCount ?? 8}</label>
+                <input type="range" min={0} max={48} value={spec.spikeEndClusterCount ?? 8} onChange={e=>update('spikeEndClusterCount', Number(e.target.value))}/><br/>
+                <small style={{opacity:0.8}}>Note: Cluster spikes are currently additive; we can subtract from random spikes in a later step.</small>
+              </>
+            )}
+
+            {/* Snake shape parameters */}
+            {(spec.baseShape === 'snake') && (
+              <>
+                <h3>Snake Segments</h3>
+                <label>Segments: {spec.segmentCount ?? 8}</label>
+                <input type="range" min={2} max={32} value={spec.segmentCount ?? 8} onChange={e=>update('segmentCount', Number(e.target.value))}/><br/>
+                <label>Spacing: {spec.segmentSpacing ?? 0.6}</label>
+                <input type="range" step={0.01} min={0.2} max={1.5} value={spec.segmentSpacing ?? 0.6} onChange={e=>update('segmentSpacing', Number(e.target.value))}/><br/>
+                <label>Curvature: {spec.snakeCurvature ?? 0.3}</label>
+                <input type="range" step={0.01} min={0} max={1.0} value={spec.snakeCurvature ?? 0.3} onChange={e=>update('snakeCurvature', Number(e.target.value))}/><br/>
+                <label>Twist: {spec.snakeTwist ?? 0.2}</label>
+                <input type="range" step={0.01} min={0} max={1.0} value={spec.snakeTwist ?? 0.2} onChange={e=>update('snakeTwist', Number(e.target.value))}/><br/>
+                <label>Taper Start: {spec.segmentRadiusScaleStart ?? 1.0}</label>
+                <input type="range" step={0.01} min={0.5} max={1.5} value={spec.segmentRadiusScaleStart ?? 1.0} onChange={e=>update('segmentRadiusScaleStart', Number(e.target.value))}/><br/>
+                <label>Taper End: {spec.segmentRadiusScaleEnd ?? 0.6}</label>
+                <input type="range" step={0.01} min={0.2} max={1.5} value={spec.segmentRadiusScaleEnd ?? 0.6} onChange={e=>update('segmentRadiusScaleEnd', Number(e.target.value))}/><br/>
+                <small style={{opacity:0.8}}>Tip: Set spikeStyle to "tentacle" for animated quills along segments.</small>
+              </>
+            )}
             <label>Spike Length: {spec.spikeLength}</label>
             <input type="range" step={0.01} min={0.25} max={0.65} value={spec.spikeLength ?? 0.45} onChange={e=>update('spikeLength', Number(e.target.value))}/><br/>
             <label>Spike Base Shift: {spec.spikeBaseShift}</label>

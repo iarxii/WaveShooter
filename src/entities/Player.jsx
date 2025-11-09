@@ -9,7 +9,7 @@ import FXOrbs from '../components/FXOrbs'
 import { HeroAnimTester } from '../heroes/factory/HeroAnimTester'
 import { liteSwordShieldMap } from '../heroes/factory/animMaps/liteSwordShieldMap'
 
-export default function Player({ position, setPositionRef, onShoot, isPaused, autoFire, controlScheme = 'dpad', moveInputRef, moveSourceRef, onSlam, highContrast=false, portals=[], onDebuff, speedBoosts=[], onBoost, autoFollow, arcTriggerToken, resetToken=0, basePlayerSpeed=PLAYER_SPEED, autoAimEnabled=false, onBoundaryJumpChange, onLanding, dashTriggerToken=0, onDashStart, onDashEnd, primaryColor=0x22c55e, invulnActive=false, bouncers=[], boundaryLimit=BOUNDARY_LIMIT, heroName=null, heroRenderMode='model', heroQuality='high', heroVisualScale=2, powerActive=false, powerAmount=0, shieldStackToken=0 }) {
+export default function Player({ position, setPositionRef, onShoot, isPaused, autoFire, controlScheme = 'dpad', moveInputRef, moveSourceRef, onSlam, highContrast=false, portals=[], onDebuff, speedBoosts=[], onBoost, autoFollow, arcTriggerToken, resetToken=0, basePlayerSpeed=PLAYER_SPEED, autoAimEnabled=false, onBoundaryJumpChange, onLanding, dashTriggerToken=0, onDashStart, onDashEnd, primaryColor=0x22c55e, invulnActive=false, bouncers=[], boundaryLimit=BOUNDARY_LIMIT, heroName=null, heroRenderMode='model', heroQuality='high', heroVisualScale=2, powerActive=false, powerAmount=0, shieldStackToken=0, fireRateMs=null, fxOrbCount=null }) {
   const ref = useRef()
   const lastShot = useRef(0)
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), [])
@@ -127,7 +127,8 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
     function handleMouseDown(e) {
       if (e.button === 0) {
         const now = performance.now()
-        if (now - lastShot.current > FIRE_RATE) {
+        const rate = (fireRateMs ?? FIRE_RATE)
+        if (now - lastShot.current > rate) {
           lastShot.current = now
           const dir = forward.current.set(0, 0, -1).applyQuaternion(ref.current.quaternion)
           dir.y = 0
@@ -272,7 +273,8 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
     // Auto-fire cadence
     if (autoFire) {
       autoFireTimerRef.current += dt * 1000
-      if (autoFireTimerRef.current >= FIRE_RATE) {
+      const rate = (fireRateMs ?? FIRE_RATE)
+      if (autoFireTimerRef.current >= rate) {
         autoFireTimerRef.current = 0
         const dir = forward.current.set(0, 0, -1).applyQuaternion(ref.current.quaternion)
         dir.y = 0
@@ -715,24 +717,7 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
         </mesh>
       )}
       {/* FX Orbs around hero (scaled with hero size) */}
-      <FXOrbs
-        spec={{
-          id: 'player_fx',
-          height: 1.7 * heroVisualScale,
-          fxRing: true,
-          fxRingRadius: 1.8 * heroVisualScale,
-          fxRingIntensity: 0.65,
-          fxCount: 14,
-          fxMode: fxMode,
-          fxAmplitude: fxMode === 'push' ? 0.7 : 0.45,
-          fxSpeed: fxMode === 'push' ? 1.6 : 1.0,
-          fxDirectionDeg: 0,
-          fxShieldShape: fxShieldShape,
-          accentColor: (typeof primaryColor === 'number' ? '#' + primaryColor.toString(16).padStart(6,'0') : primaryColor),
-        }}
-        quality={heroQuality}
-        forceShow
-      />
+      {/* FX Orbs moved out of player local space; now rendered at global player position in App */}
       {/* Aim ray */}
       <mesh ref={rayRef} position={[0, 0.5, -AIM_RAY_LENGTH / 2]}>
         <boxGeometry args={[1, 0.06, AIM_RAY_LENGTH]} />

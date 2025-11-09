@@ -25,6 +25,11 @@ import { getHeroImageUrl } from "./data/heroImages.js";
 import { EffectsRenderer, useEffects } from "./effects/EffectsContext.jsx";
 import { ENEMIES as ROSTER } from "./data/roster.js";
 import { useSound } from "./contexts/SoundContext.jsx";
+import PerfCollector from "./components/PerfCollector.tsx";
+import PerfOverlay from "./components/PerfOverlay.tsx";
+import PerfLongTaskObserver from "./components/PerfLongTaskObserver.tsx";
+import * as perf from "./perf.ts";
+import FXOrbs from "./components/FXOrbs";
 
 // GAME CONSTANTS
 const PLAYER_SPEED = 24; // faster than minions to keep mobility advantage
@@ -241,7 +246,7 @@ function pickRosterByTier(level, tierNum) {
 
 // Lightweight color helpers for factory spec palettes
 function hexToRgb(hex) {
-  const h = hex.replace('#','');
+  const h = hex.replace("#", "");
   const bigint = parseInt(h, 16);
   const r = (bigint >> 16) & 255;
   const g = (bigint >> 8) & 255;
@@ -249,35 +254,76 @@ function hexToRgb(hex) {
   return [r, g, b];
 }
 function rgbToHex(r, g, b) {
-  const to = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+  const to = (v) =>
+    Math.max(0, Math.min(255, Math.round(v)))
+      .toString(16)
+      .padStart(2, "0");
   return `#${to(r)}${to(g)}${to(b)}`;
 }
-function lighten(hex, amt=0.2) {
-  const [r,g,b] = hexToRgb(hex);
+function lighten(hex, amt = 0.2) {
+  const [r, g, b] = hexToRgb(hex);
   const L = (v) => v + (255 - v) * amt;
   return rgbToHex(L(r), L(g), L(b));
 }
-function darken(hex, amt=0.2) {
-  const [r,g,b] = hexToRgb(hex);
+function darken(hex, amt = 0.2) {
+  const [r, g, b] = hexToRgb(hex);
   const D = (v) => v * (1 - amt);
   return rgbToHex(D(r), D(g), D(b));
 }
-function rand(min, max) { return min + Math.random() * (max - min); }
-function randi(min, max) { return Math.floor(rand(min, max + 1)); }
+function rand(min, max) {
+  return min + Math.random() * (max - min);
+}
+function randi(min, max) {
+  return Math.floor(rand(min, max + 1));
+}
+
+// Curated harmonious palettes used to shuffle enemy colors by default
+const PALETTES = [
+  { base: '#B5764C', spike: '#B5764C', node: '#FFD24A', arc: '#FFE9A3', emissive: '#B0774F' },
+  { base: '#6AB7FF', spike: '#6AB7FF', node: '#FFE08A', arc: '#FFEBCD', emissive: '#5AA7EF' },
+  { base: '#FF7AB6', spike: '#FF7AB6', node: '#FFD1E8', arc: '#FFF0F6', emissive: '#F564A5' },
+  { base: '#8BD17C', spike: '#8BD17C', node: '#EAF8D5', arc: '#FFF2C1', emissive: '#76C166' },
+  { base: '#C9A6FF', spike: '#C9A6FF', node: '#FFE08A', arc: '#FFEBCD', emissive: '#B38BFA' },
+  { base: '#FFB86B', spike: '#FFB86B', node: '#FFF0C2', arc: '#FFE5A0', emissive: '#F2A65A' },
+];
+function pickPalette() {
+  const p = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+  return { baseColor: p.base, spikeColor: p.spike, nodeColor: p.node, arcColor: p.arc, emissive: p.emissive };
+}
 
 // Build a randomized Character Factory spec using roster hints
-function randomFactorySpecFromRoster(picked, waveNumber, baseHex, scaleFactor = 1) {
-  const id = (picked?.name || 'enemy').toLowerCase().replace(/[^a-z0-9]+/g,'_');
-  const base = baseHex || colorHex(picked?.color || 'Red');
-  const seed = (Math.random()*1e9) | 0;
+function randomFactorySpecFromRoster(
+  picked,
+  waveNumber,
+  baseHex,
+  scaleFactor = 1
+) {
+  const id = (picked?.name || "enemy")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_");
+  const base = baseHex || colorHex(picked?.color || "Red");
+  const seed = (Math.random() * 1e9) | 0;
   // Map roster shape loosely to base shapes; otherwise randomize
-  const shapeName = (picked?.shape || '').toLowerCase();
-  const baseShapes = ['icosahedron','sphere','triPrism','hexPrism','cylinder','capsule'];
-  let baseShape = 'icosahedron';
-  if (shapeName.includes('triangle')) baseShape = 'triPrism';
-  else if (shapeName.includes('hex') || shapeName.includes('octa') || shapeName.includes('square')) baseShape = 'hexPrism';
-  else if (shapeName.includes('circle') || shapeName.includes('oval')) baseShape = Math.random() < 0.6 ? 'sphere' : 'icosahedron';
-  else baseShape = baseShapes[randi(0, baseShapes.length-1)];
+  const shapeName = (picked?.shape || "").toLowerCase();
+  const baseShapes = [
+    "icosahedron",
+    "sphere",
+    "triPrism",
+    "hexPrism",
+    "cylinder",
+    "capsule",
+  ];
+  let baseShape = "icosahedron";
+  if (shapeName.includes("triangle")) baseShape = "triPrism";
+  else if (
+    shapeName.includes("hex") ||
+    shapeName.includes("octa") ||
+    shapeName.includes("square")
+  )
+    baseShape = "hexPrism";
+  else if (shapeName.includes("circle") || shapeName.includes("oval"))
+    baseShape = Math.random() < 0.6 ? "sphere" : "icosahedron";
+  else baseShape = baseShapes[randi(0, baseShapes.length - 1)];
 
   // Scale features slightly by wave for variety
   const waveT = Math.min(1, Math.max(0, (waveNumber - 1) / 20));
@@ -286,62 +332,92 @@ function randomFactorySpecFromRoster(picked, waveNumber, baseHex, scaleFactor = 
   const detail = randi(0, 2);
   const scaleX = rand(0.85, 1.25);
   const scaleY = rand(0.8, 1.35);
-  const height = baseShape === 'cylinder' || baseShape === 'capsule' || baseShape.includes('Prism') ? rand(1.2, 2.6) * scaleFactor : undefined;
+  const height =
+    baseShape === "cylinder" ||
+    baseShape === "capsule" ||
+    baseShape.includes("Prism")
+      ? rand(1.2, 2.6) * scaleFactor
+      : undefined;
 
   // Spike cluster scaling: length & radius scale directly; count scales sub-linearly for readability
-  const spikeCountBase = Math.max(10, Math.floor(22 + waveT * 12 + Math.random()*24));
-  const spikeCount = Math.round(spikeCountBase * (0.6 + 0.4 * Math.min(scaleFactor, 2))); // damp growth
+  const spikeCountBase = Math.max(
+    10,
+    Math.floor(22 + waveT * 12 + Math.random() * 24)
+  );
+  const spikeCount = Math.round(
+    spikeCountBase * (0.6 + 0.4 * Math.min(scaleFactor, 2))
+  ); // damp growth
   const spikeLength = rand(0.34, 0.58) * (0.85 + 0.15 * scaleFactor);
   const spikeRadius = rand(0.09, 0.14) * (0.7 + 0.3 * scaleFactor);
-  const spikeStyles = ['cone','inverted','disk','block','tentacle'];
-  const spikeStyle = spikeStyles[randi(0, spikeStyles.length-1)];
+  const spikeStyles = ["cone", "inverted", "disk", "block", "tentacle"];
+  const spikeStyle = spikeStyles[randi(0, spikeStyles.length - 1)];
   const spikeBaseShift = rand(-0.12, 0.18);
 
   // Decorative nodes/arcs: scale count gently to avoid overdraw explosion
   const nodeCount = randi(3, 9) + Math.round((scaleFactor - 1) * 2);
   const arcCount = randi(2, 7) + Math.round((scaleFactor - 1) * 1);
-  const baseColor = base;
-  const spikeColor = darken(base, 0.05 + Math.random()*0.1);
-  const nodeColor = lighten(base, 0.4 + Math.random()*0.2);
-  const arcColor = lighten(base, 0.55 + Math.random()*0.2);
-  const emissive = darken(base, 0.15);
+  // Default to a shuffled curated palette for vivid variety (ignores baseHex)
+  const pal = pickPalette();
+  const baseColor = pal.baseColor;
+  const spikeColor = pal.spikeColor;
+  const nodeColor = pal.nodeColor;
+  const arcColor = pal.arcColor;
+  const emissive = pal.emissive;
 
-  const nodeStrobeModes = ['off','unified','alternating'];
-  const nodeStrobeMode = nodeStrobeModes[randi(0, nodeStrobeModes.length-1)];
+  const nodeStrobeModes = ["off", "unified", "alternating"];
+  const nodeStrobeMode = nodeStrobeModes[randi(0, nodeStrobeModes.length - 1)];
   const nodeStrobeColorA = nodeColor;
   const nodeStrobeColorB = arcColor;
   const nodeStrobeSpeed = rand(5, 12);
 
-  const quality = Math.random() < 0.5 ? 'med' : 'high';
+  const quality = Math.random() < 0.5 ? "med" : "high";
 
   return {
     id,
     seed,
     baseShape,
-  radius,
+    radius,
     detail,
     height,
-    scaleX, scaleY,
-  spikeCount, spikeLength, spikeRadius, spikeStyle, spikeBaseShift,
+    scaleX,
+    scaleY,
+    spikeCount,
+    spikeLength,
+    spikeRadius,
+    spikeStyle,
+    spikeBaseShift,
     spikePulse: true,
     spikePulseIntensity: rand(0.12, 0.35),
-    nodeCount, arcCount,
-    baseColor, spikeColor, nodeColor, arcColor, emissive,
+    nodeCount,
+    arcCount,
+    baseColor,
+    spikeColor,
+    nodeColor,
+    arcColor,
+    emissive,
     emissiveIntensityCore: 0.35,
     spikeEmissive: spikeColor,
     emissiveIntensitySpikes: 0.12,
-    metalnessCore: 0.25, roughnessCore: 0.85,
-    metalnessSpikes: 0.15, roughnessSpikes: 0.9,
-    metalnessNodes: 1.0, roughnessNodes: 0.25,
+    metalnessCore: 0.25,
+    roughnessCore: 0.85,
+    metalnessSpikes: 0.15,
+    roughnessSpikes: 0.9,
+    metalnessNodes: 1.0,
+    roughnessNodes: 0.25,
     nodeStrobeMode,
-    nodeStrobeColorA, nodeStrobeColorB, nodeStrobeSpeed,
-    spin: rand(0.12, 0.35), roll: rand(0.0, 0.15), breathe: rand(0.008, 0.02), flickerSpeed: rand(6, 10),
+    nodeStrobeColorA,
+    nodeStrobeColorB,
+    nodeStrobeSpeed,
+    spin: rand(0.12, 0.35),
+    roll: rand(0.0, 0.15),
+    breathe: rand(0.008, 0.02),
+    flickerSpeed: rand(6, 10),
     hitboxEnabled: Math.random() < 0.15,
     hitboxVisible: false,
     hitboxScaleMin: 1.0,
     hitboxScaleMax: 1.0 + rand(0, 0.3),
     hitboxSpeed: rand(0.5, 2.0),
-    hitboxMode: 'sin',
+    hitboxMode: "sin",
     quality,
   };
 }
@@ -370,6 +446,8 @@ function PickupPopup({ pickup, onComplete }) {
     };
   }, []);
 
+  // (Moved perf overlay toggle state to root App component for global scope)
+
   const info =
     pickup.type === "health"
       ? { name: "Health Pack", effect: "+25 Health", color: "#22c55e" }
@@ -384,7 +462,7 @@ function PickupPopup({ pickup, onComplete }) {
       : pickup.type === "bombs"
       ? { name: "Bomb Kit", effect: "4/s bombs for 6s", color: "#111827" }
       : pickup.type === "speedboost"
-  ? { name: "Speed Boost", effect: "Speed +10% (4s)", color: "#22c55e" }
+      ? { name: "Speed Boost", effect: "Speed +10% (4s)", color: "#22c55e" }
       : pickup.type === "dmgscale"
       ? {
           name: "Enemy Fury",
@@ -463,6 +541,8 @@ class BulletPool {
     this.bullets = [];
     this.activeBullets = new Map();
     this.nextId = 1;
+    // Maintain a freelist of indices for O(1) allocation
+    this.freeList = [];
     // Pre-create bullet objects
     for (let i = 0; i < size; i++) {
       this.bullets.push({
@@ -473,28 +553,35 @@ class BulletPool {
         timeAlive: 0,
         style: null,
       });
+      this.freeList.push(i);
     }
   }
 
   getBullet(pos, dir, style = null) {
-    const bullet = this.bullets.find((b) => !b.active);
-    if (bullet) {
-      bullet.id = this.nextId++;
-      bullet.active = true;
-      bullet.pos = [...pos];
-      bullet.dir = [...dir];
-      bullet.timeAlive = 0;
-      bullet.style = style;
-      this.activeBullets.set(bullet.id, bullet);
-      return bullet;
-    }
-    return null;
+    if (this.freeList.length === 0) return null;
+    const idx = this.freeList.pop();
+    const bullet = this.bullets[idx];
+    bullet.id = this.nextId++;
+    bullet.active = true;
+    bullet.pos[0] = pos[0];
+    bullet.pos[1] = pos[1];
+    bullet.pos[2] = pos[2];
+    bullet.dir[0] = dir[0];
+    bullet.dir[1] = dir[1];
+    bullet.dir[2] = dir[2];
+    bullet.timeAlive = 0;
+    bullet.style = style;
+    this.activeBullets.set(bullet.id, bullet);
+    return bullet;
   }
 
   returnBullet(id) {
     const bullet = this.activeBullets.get(id);
     if (bullet) {
       bullet.active = false;
+      // Push its index back to freelist (index is its position in this.bullets)
+      const idx = this.bullets.indexOf(bullet);
+      if (idx >= 0) this.freeList.push(idx);
       this.activeBullets.delete(id);
     }
   }
@@ -506,26 +593,43 @@ class BulletPool {
   clear() {
     this.bullets.forEach((b) => (b.active = false));
     this.activeBullets.clear();
+    this.freeList.length = 0;
+    for (let i = 0; i < this.bullets.length; i++) this.freeList.push(i);
   }
 }
 
 // Bullet component
-function Bullet({ bullet, onExpire, isPaused }) {
+function Bullet({ bullet, onExpire, isPaused, speed }) {
   const ref = useRef();
-  const geom = useMemo(() => new THREE.SphereGeometry(0.3, 12, 12), []);
+  const geom = useMemo(() => new THREE.SphereGeometry(0.25, 12, 12), []);
   const mat = useMemo(
     () =>
-      new THREE.MeshStandardMaterial({ color: 0x00ff66, emissive: 0x004422 }),
+      new THREE.MeshStandardMaterial({
+        color: 0x00ff66,
+        emissive: 0x004422,
+        roughness: 0.4,
+        metalness: 0,
+      }),
     []
   );
-  // apply style on mount/update
+  // Initialize position on mount
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.position.set(
+        bullet.pos[0],
+        bullet.pos[1] || 0.5,
+        bullet.pos[2]
+      );
+    }
+  }, [bullet.id]);
+  // Apply style on update
   useEffect(() => {
     if (!ref.current) return;
     const s = bullet?.style?.scale || 1;
     ref.current.scale.setScalar(s);
     if (bullet?.style?.color) {
       mat.color.set(bullet.style.color);
-      mat.emissive.set(0x001133);
+      mat.emissive.set(bullet.style.color);
     } else {
       mat.color.set(0x00ff66);
       mat.emissive.set(0x004422);
@@ -534,29 +638,24 @@ function Bullet({ bullet, onExpire, isPaused }) {
 
   useFrame((_, dt) => {
     if (!ref.current || !bullet.active || isPaused) return;
-
-    // Move bullet
-    ref.current.position.x += bullet.dir[0] * BULLET_SPEED * dt;
-    ref.current.position.z += bullet.dir[2] * BULLET_SPEED * dt;
-
-    // Update bullet data
+    perf.start("bullet_update");
+    // Move bullet using adjustable speed
+    const v = typeof speed === "number" ? speed : BULLET_SPEED;
+    ref.current.position.x += bullet.dir[0] * v * dt;
+    ref.current.position.z += bullet.dir[2] * v * dt;
+    // Update data
     bullet.pos[0] = ref.current.position.x;
     bullet.pos[2] = ref.current.position.z;
     bullet.timeAlive += dt * 1000;
-
-    // Expire bullet if too old or out of bounds
-    if (
+    const outOfBounds =
       bullet.timeAlive > BULLET_LIFETIME ||
       Math.abs(ref.current.position.x) > 50 ||
-      Math.abs(ref.current.position.z) > 50
-    ) {
-      onExpire(bullet.id);
-    }
+      Math.abs(ref.current.position.z) > 50;
+    perf.end("bullet_update");
+    if (outOfBounds) onExpire(bullet.id);
   });
 
-  return (
-    <mesh ref={ref} position={bullet.pos} geometry={geom} material={mat} />
-  );
+  return <mesh ref={ref} geometry={geom} material={mat} castShadow />;
 }
 
 // Pickup is a small box that floats with collision detection
@@ -1268,16 +1367,28 @@ function Player({
   useEffect(() => {
     if (isPaused) return;
     const onKey = (e) => {
-      if (e.key === '1') {
-        window.dispatchEvent(new CustomEvent('heroTunerCommand', { detail: { type: 'shapeRunner', mode: 'cw' } }));
-      } else if (e.key === '2') {
-        window.dispatchEvent(new CustomEvent('heroTunerCommand', { detail: { type: 'shapeRunner', mode: 'ccw' } }));
-      } else if (e.key === '3') {
-        window.dispatchEvent(new CustomEvent('heroTunerCommand', { detail: { type: 'heroAction', action: 'dashBackward' } }));
+      if (e.key === "1") {
+        window.dispatchEvent(
+          new CustomEvent("heroTunerCommand", {
+            detail: { type: "shapeRunner", mode: "cw" },
+          })
+        );
+      } else if (e.key === "2") {
+        window.dispatchEvent(
+          new CustomEvent("heroTunerCommand", {
+            detail: { type: "shapeRunner", mode: "ccw" },
+          })
+        );
+      } else if (e.key === "3") {
+        window.dispatchEvent(
+          new CustomEvent("heroTunerCommand", {
+            detail: { type: "heroAction", action: "dashBackward" },
+          })
+        );
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [isPaused]);
   useEffect(() => {
     if (!ref.current) return;
@@ -1390,6 +1501,8 @@ function Player({
         cz = 0,
         ccount = 0;
       if (window.gameEnemies && window.gameEnemies.length) {
+        // Enemy clustering analysis (enemy_ai)
+        perf.start("enemy_ai");
         for (const ge of window.gameEnemies) {
           if (!ge?.ref?.current) continue;
           const ex = ge.ref.current.position.x;
@@ -1430,6 +1543,7 @@ function Player({
           }
           if (best) target = { x: best.x, z: best.z };
         }
+        perf.end("enemy_ai");
       }
 
       if (target) {
@@ -1636,7 +1750,8 @@ function Player({
       : debuffTimer.current > 0
       ? SPEED_DEBUFF_FACTOR
       : 1;
-    const baseSpeed = basePlayerSpeed * (boostTimer.current > 0 ? boostMulRef.current : 1);
+    const baseSpeed =
+      basePlayerSpeed * (boostTimer.current > 0 ? boostMulRef.current : 1);
     const speedMul =
       (moveSourceRef && moveSourceRef.current === "runner"
         ? RUNNER_SPEED_MULTIPLIER
@@ -2027,10 +2142,12 @@ function Minion({
     }
 
     // Enhanced collision check
+    perf.start("collision_enemy_player");
     const playerDist = ref.current.position.distanceTo(playerPosRef.current);
     if (playerDist < (isBoss ? 1.8 : 1.2)) {
       onDie(id, true);
     }
+    perf.end("collision_enemy_player");
   });
 
   // (dash handling is in Player component)
@@ -2211,7 +2328,9 @@ function TriangleBoss({
     }
 
     // Enhanced collision
+    perf.start("collision_triangle_player");
     if (dist < 2.0) onDie(id, true);
+    perf.end("collision_triangle_player");
 
     // Apply knockback with decay
     if (knockback.current.lengthSq() > 1e-6) {
@@ -2323,17 +2442,41 @@ export default function App() {
   const navigate = useNavigate();
   // Global visual asset scale & camera view settings (persisted)
   const [assetScale, setAssetScale] = useState(() => {
-    try { return parseFloat(localStorage.getItem('assetScale') || '1'); } catch { return 1; }
+    try {
+      return parseFloat(localStorage.getItem("assetScale") || "1");
+    } catch {
+      return 1;
+    }
   });
   const [topDownZoom, setTopDownZoom] = useState(() => {
-    try { return parseFloat(localStorage.getItem('topDownZoom') || '0.85'); } catch { return 0.85; }
+    try {
+      return parseFloat(localStorage.getItem("topDownZoom") || "0.85");
+    } catch {
+      return 0.85;
+    }
   });
   const [staticCamMargin, setStaticCamMargin] = useState(() => {
-    try { return parseFloat(localStorage.getItem('staticCamMargin') || '0.95'); } catch { return 0.95; }
+    try {
+      return parseFloat(localStorage.getItem("staticCamMargin") || "0.95");
+    } catch {
+      return 0.95;
+    }
   });
-  useEffect(() => { try { localStorage.setItem('assetScale', String(assetScale)); } catch {} }, [assetScale]);
-  useEffect(() => { try { localStorage.setItem('topDownZoom', String(topDownZoom)); } catch {} }, [topDownZoom]);
-  useEffect(() => { try { localStorage.setItem('staticCamMargin', String(staticCamMargin)); } catch {} }, [staticCamMargin]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("assetScale", String(assetScale));
+    } catch {}
+  }, [assetScale]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("topDownZoom", String(topDownZoom));
+    } catch {}
+  }, [topDownZoom]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("staticCamMargin", String(staticCamMargin));
+    } catch {}
+  }, [staticCamMargin]);
   const [showDebugUI, setShowDebugUI] = useState(() => {
     try {
       return localStorage.getItem("showDebugUI") !== "0";
@@ -2341,6 +2484,17 @@ export default function App() {
       return true;
     }
   });
+  // Perf overlay toggle (F9) — global scope
+  const [showPerf, setShowPerf] = useState(false);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.code === "F9") {
+        setShowPerf((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   useEffect(() => {
     try {
       localStorage.setItem("showDebugUI", showDebugUI ? "1" : "0");
@@ -2412,18 +2566,22 @@ export default function App() {
     return "high";
   });
   useEffect(() => {
-    try { localStorage.setItem("heroRenderMode", heroRenderMode); } catch {}
+    try {
+      localStorage.setItem("heroRenderMode", heroRenderMode);
+    } catch {}
   }, [heroRenderMode]);
   // Auto-select render mode based on hero: use Factory controller for Dr Dokta, fallback for others
   useEffect(() => {
     // Only override when user hasn't explicitly forced a mode this session
     // Simple heuristic: if selected hero is Dr Dokta, prefer 'factory'; otherwise 'model'
-    const isDokta = /dokta/i.test(String(selectedHero || ''))
-    const desired = isDokta ? 'factory' : 'model'
-    if (heroRenderMode !== desired) setHeroRenderMode(desired)
-  }, [selectedHero])
+    const isDokta = /dokta/i.test(String(selectedHero || ""));
+    const desired = isDokta ? "factory" : "model";
+    if (heroRenderMode !== desired) setHeroRenderMode(desired);
+  }, [selectedHero]);
   useEffect(() => {
-    try { localStorage.setItem("heroQuality", heroQuality); } catch {}
+    try {
+      localStorage.setItem("heroQuality", heroQuality);
+    } catch {}
   }, [heroQuality]);
   const { triggerEffect } = useEffects();
   // game state
@@ -2434,6 +2592,93 @@ export default function App() {
   const [enemies, setEnemies] = useState([]); // {id, pos, isBoss, formationTarget, health}
   const [pickups, setPickups] = useState([]);
   const [bullets, setBullets] = useState([]);
+  // Debug tunables for projectile + FX systems (persisted)
+  const [debugBulletSpeed, setDebugBulletSpeed] = useState(() => {
+    const v = parseFloat(localStorage.getItem("dbgBulletSpeed"));
+    return isFinite(v) ? v : BULLET_SPEED;
+  });
+  const [debugFireRateMs, setDebugFireRateMs] = useState(() => {
+    const v = parseFloat(localStorage.getItem("dbgFireRateMs"));
+    return isFinite(v) ? v : FIRE_RATE;
+  });
+  const [debugFxOrbCount, setDebugFxOrbCount] = useState(() => {
+    const v = parseInt(localStorage.getItem("dbgFxOrbCount"), 10);
+    return isFinite(v) ? v : 14;
+  });
+  // FX Orb debug controls (persisted)
+  const [debugFxOrbRadius, setDebugFxOrbRadius] = useState(() => {
+    const v = parseFloat(localStorage.getItem("dbgFxOrbRadius"));
+    // Closer to player than previous default (1.8)
+    return isFinite(v) ? v : 1.2;
+  });
+  const [debugFxOrbSizeMul, setDebugFxOrbSizeMul] = useState(() => {
+    const v = parseFloat(localStorage.getItem("dbgFxOrbSizeMul"));
+    // Make orbs bigger by default (1.0 = previous base)
+    return isFinite(v) ? v : 1.6;
+  });
+  const [debugFxOrbLerp, setDebugFxOrbLerp] = useState(() => {
+    const v = parseFloat(localStorage.getItem("dbgFxOrbLerp"));
+    // Lerp alpha for smoother follow; 0 = snap disabled, 1 = snap immediately
+    return isFinite(v) ? v : 0.5;
+  });
+  // Tentacle animation debug (global window shim for shader uniforms)
+  const [tentacleSpeed, setTentacleSpeed] = useState(() => {
+    const v = parseFloat(localStorage.getItem('dbgTentacleSpeed')); return isFinite(v)? v : 1.2;
+  });
+  const [tentacleStrength, setTentacleStrength] = useState(() => {
+    const v = parseFloat(localStorage.getItem('dbgTentacleStrength')); return isFinite(v)? v : 1.0;
+  });
+  const [tentacleAmpX, setTentacleAmpX] = useState(() => {
+    const v = parseFloat(localStorage.getItem('dbgTentacleAmpX')); return isFinite(v)? v : 1.0;
+  });
+  const [tentacleAmpZ, setTentacleAmpZ] = useState(() => {
+    const v = parseFloat(localStorage.getItem('dbgTentacleAmpZ')); return isFinite(v)? v : 1.0;
+  });
+  const [tentacleYWobble, setTentacleYWobble] = useState(() => {
+    const v = parseFloat(localStorage.getItem('dbgTentacleYWobble')); return isFinite(v)? v : 0.05;
+  });
+  const [tentacleBendPow, setTentacleBendPow] = useState(() => {
+    const v = parseFloat(localStorage.getItem('dbgTentacleBendPow')); return isFinite(v)? v : 2.0;
+  });
+  useEffect(() => {
+    localStorage.setItem("dbgBulletSpeed", String(debugBulletSpeed));
+  }, [debugBulletSpeed]);
+  useEffect(() => {
+    localStorage.setItem("dbgFireRateMs", String(debugFireRateMs));
+  }, [debugFireRateMs]);
+  useEffect(() => {
+    localStorage.setItem("dbgFxOrbCount", String(debugFxOrbCount));
+  }, [debugFxOrbCount]);
+  useEffect(() => {
+    localStorage.setItem("dbgFxOrbRadius", String(debugFxOrbRadius));
+  }, [debugFxOrbRadius]);
+  useEffect(() => {
+    localStorage.setItem("dbgFxOrbSizeMul", String(debugFxOrbSizeMul));
+  }, [debugFxOrbSizeMul]);
+  useEffect(() => {
+    localStorage.setItem("dbgFxOrbLerp", String(debugFxOrbLerp));
+  }, [debugFxOrbLerp]);
+  // Persist tentacle debug values
+  useEffect(()=>{ localStorage.setItem('dbgTentacleSpeed', String(tentacleSpeed)); },[tentacleSpeed]);
+  useEffect(()=>{ localStorage.setItem('dbgTentacleStrength', String(tentacleStrength)); },[tentacleStrength]);
+  useEffect(()=>{ localStorage.setItem('dbgTentacleAmpX', String(tentacleAmpX)); },[tentacleAmpX]);
+  useEffect(()=>{ localStorage.setItem('dbgTentacleAmpZ', String(tentacleAmpZ)); },[tentacleAmpZ]);
+  useEffect(()=>{ localStorage.setItem('dbgTentacleYWobble', String(tentacleYWobble)); },[tentacleYWobble]);
+  useEffect(()=>{ localStorage.setItem('dbgTentacleBendPow', String(tentacleBendPow)); },[tentacleBendPow]);
+
+  // Bridge to shader (window.__tentacleFX consumed in Pathogen)
+  useEffect(()=>{
+    if (typeof window !== 'undefined') {
+      window.__tentacleFX = {
+        speed: tentacleSpeed,
+        strength: tentacleStrength,
+        ampX: tentacleAmpX,
+        ampZ: tentacleAmpZ,
+        yWobble: tentacleYWobble,
+        bendPow: tentacleBendPow,
+      };
+    }
+  }, [tentacleSpeed, tentacleStrength, tentacleAmpX, tentacleAmpZ, tentacleYWobble, tentacleBendPow]);
   const [wave, setWave] = useState(0);
   const [score, setScore] = useState(0);
   // Track score in a ref for baseline calculations without re-creating callbacks
@@ -2453,7 +2698,7 @@ export default function App() {
   const isStartedRef = useRef(false);
   const [boundaryJumpActive, setBoundaryJumpActive] = useState(false);
   const [showStats, setShowStats] = useState(false);
-  const [showDreiStats, setShowDreiStats] = useState(true);
+  const [showDreiStats, setShowDreiStats] = useState(false);
   const [fps, setFps] = useState(0);
   useEffect(() => {
     if (!showStats) return;
@@ -3424,6 +3669,7 @@ export default function App() {
     if (isPausedRef.current) return;
     // When spawns are disabled, fully stop wave progression/leveling updates
     if (disableEnemySpawnsRef.current) return;
+    perf.start("spawn_wave");
     // Establish per-level baseline: points at the start of this level
     levelScoreBaselineRef.current = scoreRef.current || 0;
     setWave((w) => {
@@ -3780,7 +4026,26 @@ export default function App() {
                 // When in factory mode, attach a randomized Character Factory spec to drive visuals
                 factorySpec:
                   enemyRenderModeRef.current === "factory"
-                    ? randomFactorySpecFromRoster(picked, nextWave, ecolor, (typeof assetScale !== 'undefined' ? assetScale : 1))
+                    ? (() => {
+                        const base = randomFactorySpecFromRoster(
+                          picked,
+                          nextWave,
+                          ecolor,
+                          typeof assetScale !== "undefined" ? assetScale : 1
+                        );
+                        // Randomize spin & roll further at spawn time for added variety
+                        const spinMul = 0.5 + Math.random() * 1.5; // 0.5x .. 2.0x
+                        const rollAdd = Math.random() * 0.6 - 0.3; // -0.3 .. +0.3
+                        const spin = Math.min(
+                          0.8,
+                          Math.max(0.06, base.spin * spinMul)
+                        );
+                        const roll = Math.min(
+                          0.6,
+                          Math.max(-0.4, base.roll + rollAdd)
+                        );
+                        return { ...base, spin, roll };
+                      })()
                     : null,
                 // traits (minimal initial wiring)
                 stunImmune: /CRE/.test(picked.name),
@@ -3836,6 +4101,7 @@ export default function App() {
 
       return nextWave;
     });
+    perf.end("spawn_wave");
   }, [openPortalAt, scheduleEnemyBatchAt]);
 
   // Handle shooting
@@ -4840,6 +5106,7 @@ export default function App() {
     let cancelled = false;
     const tick = () => {
       if (cancelled) return;
+      perf.start("hazard_tick");
       if (!isPausedRef.current) {
         const px = playerPosRef.current.x;
         const pz = playerPosRef.current.z;
@@ -4888,6 +5155,7 @@ export default function App() {
           }
         });
       }
+      perf.end("hazard_tick");
       setTimeout(tick, 100);
     };
     const t = setTimeout(tick, 100);
@@ -5107,6 +5375,20 @@ export default function App() {
   );
   // live enemy list ref for planners
   const enemiesRef = useRef([]);
+  // World-space FX orbs anchor (follows player position each frame)
+  const fxAnchorRef = useRef();
+
+  // ForwardRef component to track player position without re-rendering FXOrbs
+  const PlayerFXAnchor = useMemo(() => {
+    return React.forwardRef(({ playerPosRef }, ref) => {
+      useFrame(() => {
+        if (!ref.current || !playerPosRef?.current) return;
+        // Direct copy for tight follow; could lerp for smoothing if desired
+        ref.current.position.copy(playerPosRef.current);
+      });
+      return <group ref={ref} />;
+    });
+  }, []);
   useEffect(() => {
     enemiesRef.current = enemies;
   }, [enemies]);
@@ -5170,683 +5452,732 @@ export default function App() {
           <AdaptiveDpr pixelated />
           {/* HDRI-based lighting, fog, and exposure control */}
           <SceneEnvironment />
-        {/* Keep a gentle key light to complement IBL */}
-        <directionalLight position={[10, 40, 10]} intensity={0.6} castShadow />
+          {/* Performance collectors (no-op unless overlay or marks are read) */}
+          <PerfCollector enabled={true} />
+          <PerfLongTaskObserver enabled={true} />
+          {/* Keep a gentle key light to complement IBL */}
+          <directionalLight
+            position={[10, 40, 10]}
+            intensity={0.6}
+            castShadow
+          />
           {/* Semi-light ground plane */}
-        <mesh
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[0, 0, 0]}
-          receiveShadow
-        >
-          <planeGeometry args={[200, 200]} />
-          <meshStandardMaterial color={0xeaeef3} roughness={1} />
-        </mesh>
-        {/* Boundary visual cue */}
-        <BoundaryCue
-          limit={boundaryLimit ?? BOUNDARY_LIMIT}
-          isPaused={isPaused}
-        />
-        <primitive object={grid} position={[0, 0.001, 0]} />
-
-        {/* Active portals */}
-        {!isPaused &&
-          portals.map((pr) => (
-            <Portal key={pr.id} pos={pr.pos} isPaused={isPaused} />
-          ))}
-
-        {/* Active speed boost planes */}
-        {!isPaused &&
-          speedBoosts.map((sb) => (
-            <SpeedBoostPlane key={sb.id} pos={sb.pos} isPaused={isPaused} />
-          ))}
-
-        {/* Bouncer telegraphs and launched bouncers */}
-        {!isPaused &&
-          bouncerTelegraphs.map((bt) => (
-            <BouncerTelegraph key={bt.id} pos={bt.pos} />
-          ))}
-        {!isPaused &&
-          bouncers.map((b) => (
-            <Bouncer
-              key={b.id}
-              data={b}
-              onExpire={(id) =>
-                setBouncers((prev) => prev.filter((x) => x.id !== id))
-              }
-            />
-          ))}
-
-        <PlayerEntity
-          position={[0, 0.5, 0]}
-          setPositionRef={setPositionRef}
-          onShoot={handleShoot}
-          isPaused={isPaused}
-          autoFire={autoFire}
-          resetToken={playerResetToken}
-          basePlayerSpeed={
-            playerBaseSpeed *
-            (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
-          }
-          autoAimEnabled={cameraMode === "follow" || cameraMode === "topdown"}
-          controlScheme={controlScheme}
-          moveInputRef={moveInputRef}
-          moveSourceRef={moveSourceRef}
-          highContrast={highContrast}
-          portals={portals}
-          speedBoosts={speedBoosts}
-          bouncers={bouncers}
-          boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
-          invulnActive={invulnEffect.active || invulnTest}
-          primaryColor={parseInt(heroColorFor(selectedHero).replace("#", "0x"))}
-          heroName={selectedHero}
-          heroRenderMode={heroRenderMode}
-          heroQuality={heroQuality}
-          heroVisualScale={(heroQuality === 'low' ? 2 : 3) * assetScale}
-          powerActive={powerEffect.active}
-          powerAmount={powerEffect.amount}
-          shieldStackToken={lifeShieldToken}
-          autoFollow={{
-            active: invulnEffect.active && (autoFollowHeld || autoFollowHeld2),
-            radius: SHAPE_PATH_RADIUS,
-            center: [0, 0, 0],
-            shape: invulnEffect.shape || "circle",
-            dirSign: autoFollowHeld2 ? -1 : 1, // 1=CCW (key 1), -1=CW (key 2)
-          }}
-          arcTriggerToken={arcTriggerToken}
-          dashTriggerToken={dashTriggerToken}
-          onDashStart={() => {
-            setIsDashing(true);
-            try {
-              play("dash");
-            } catch {}
-          }}
-          onDashEnd={(endPos) => {
-            setIsDashing(false);
-            setCameraBoostUntilMs(performance.now() + 400);
-            // End-of-dash impact: strong pushback + stun in radius
-            const center = [endPos.x, 0.06, endPos.z];
-            const radius = 6.5;
-            const power = 90;
-            const stunMs = 3000;
-            if (window.gameEnemies) {
-              const cpos = new THREE.Vector3(center[0], 0.5, center[2]);
-              const epos = new THREE.Vector3();
-              window.gameEnemies.forEach((ge) => {
-                if (!ge?.ref?.current) return;
-                epos.copy(ge.ref.current.position);
-                const dx = epos.x - cpos.x;
-                const dz = epos.z - cpos.z;
-                const d2 = dx * dx + dz * dz;
-                const r2 = radius * radius;
-                if (d2 <= r2) {
-                  const d = Math.sqrt(Math.max(d2, 1e-6));
-                  const nx = dx / d;
-                  const nz = dz / d;
-                  const strength = power * (1 - d / radius);
-                  ge.impulse?.(nx, nz, strength);
-                  ge.stun?.(stunMs);
-                }
-              });
-            }
-            // Visualize the impact (cap AOEs to last 12)
-            setAoes((prev) => {
-              const next = [
-                ...prev,
-                {
-                  id: Date.now() + Math.random(),
-                  pos: center,
-                  start: performance.now(),
-                  radius,
-                },
-              ];
-              return next.length > 12 ? next.slice(next.length - 12) : next;
-            });
-          }}
-          onSlam={(slam) => {
-            // Create AOE visual and push back enemies
-            const center = slam.pos;
-            const radius = slam.radius;
-            const power = slam.power;
-            // Apply impulses to enemies (no allocations beyond few vectors)
-            const epos = new THREE.Vector3();
-            const cpos = new THREE.Vector3(center[0], center[1], center[2]);
-            if (window.gameEnemies) {
-              window.gameEnemies.forEach((ge) => {
-                if (!ge.ref || !ge.ref.current) return;
-                epos.copy(ge.ref.current.position);
-                const dx = epos.x - cpos.x;
-                const dz = epos.z - cpos.z;
-                const d2 = dx * dx + dz * dz;
-                const r2 = radius * radius;
-                if (d2 <= r2) {
-                  const d = Math.sqrt(Math.max(d2, 1e-6));
-                  const nx = dx / d;
-                  const nz = dz / d;
-                  const strength = power * (1 - d / radius);
-                  ge.impulse?.(nx, nz, strength);
-                  // Apply stun for 5 seconds
-                  ge.stun?.(5000);
-                  // Bosses drop a health pickup with ~15% chance upon being stunned (further reduced)
-                  if (ge.isBoss) {
-                    if (Math.random() < 0.15) {
-                      spawnPickup("health", [epos.x, 0.5, epos.z]);
-                    }
-                  }
-                }
-              });
-            }
-            // Add AOE visual (cap to last 12)
-            setAoes((prev) => {
-              const next = [
-                ...prev,
-                {
-                  id: Date.now(),
-                  pos: [center[0], 0.06, center[2]],
-                  start: performance.now(),
-                  radius,
-                },
-              ];
-              return next.length > 12 ? next.slice(next.length - 12) : next;
-            });
-          }}
-          onDebuff={() => {
-            const popupId = Date.now();
-            setPickupPopups((prev) => [
-              ...prev,
-              { id: popupId, pickup: { type: "debuff" } },
-            ]);
-            // Start debuff visualization timer
-            debuffRemainingRef.current = SPEED_DEBUFF_DURATION_MS;
-            setDebuffEffect({ active: true });
-          }}
-          onBoost={() => {
-            const popupId = Date.now();
-            setPickupPopups((prev) => [
-              ...prev,
-              { id: popupId, pickup: { type: "speedboost" } },
-            ]);
-            // Start boost visualization timer
-            boostRemainingRef.current = SPEED_BUFF_DURATION_MS;
-            setBoostEffect({ active: true });
-          }}
-          onBoundaryJumpChange={(active) => {
-            const v = !!active;
-            boundaryJumpActiveRef.current = v;
-            setBoundaryJumpActive(v);
-            if (v) {
-              try {
-                const p = playerPosRef.current;
-                triggerEffect &&
-                  triggerEffect("boundaryGlow", {
-                    position: [p.x, 0.05, p.z],
-                    radius: 2.4,
-                  });
-                play("boundary-jump");
-              } catch {}
-            }
-          }}
-          onLanding={() => {
-            if (expectingPostInvulnLandingRef.current) {
-              expectingPostInvulnLandingRef.current = false;
-              postInvulnShieldUntilRef.current = performance.now() + 2000;
-            }
-          }}
-        />
-
-        {!isPaused &&
-          enemies.map((e) =>
-            e.isTriangle ? (
-              <TriangleBossEntity
-                key={e.id}
-                id={e.id}
-                pos={e.pos}
-                playerPosRef={playerPosRef}
-                onDie={onEnemyDie}
-                health={e.health}
-                isPaused={isPaused}
-                spawnHeight={e.spawnHeight}
-                speedScale={
-                  enemySpeedScale *
-                  (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
-                }
-                visualScale={assetScale}
-              />
-            ) : e.isCone ? (
-              <ConeBossEntity
-                key={e.id}
-                id={e.id}
-                pos={e.pos}
-                playerPosRef={playerPosRef}
-                onDamagePlayer={damagePlayer}
-                health={e.health}
-                isPaused={isPaused}
-                spawnHeight={e.spawnHeight}
-                speedScale={
-                  enemySpeedScale *
-                  (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
-                }
-                visualScale={assetScale}
-              />
-            ) : e.isPipe ? (
-              <PipeBossEntity
-                key={e.id}
-                id={e.id}
-                pos={e.pos}
-                playerPosRef={playerPosRef}
-                onDie={onEnemyDie}
-                health={e.health}
-                isPaused={isPaused}
-                onLaunchDrones={(count, fromPos) => {
-                  // Respect drone unlock and cap total active drones
-                  const level = wave || 1;
-                  if (level < (LEVEL_CONFIG?.unlocks?.drone ?? 1)) return;
-                  const maxDrones = LEVEL_CONFIG?.caps?.drones ?? 16;
-                  setEnemies((prev) => {
-                    const activeDrones = prev.filter((x) => x.isFlying).length;
-                    const allowed = Math.max(0, maxDrones - activeDrones);
-                    const toSpawn = Math.min(count, allowed);
-                    if (toSpawn <= 0) return prev;
-                    const arr = [...prev];
-                    for (let i = 0; i < toSpawn; i++) {
-                      const id = enemyId.current++;
-                      // small offset ring around the pipe
-                      const a = Math.random() * Math.PI * 2;
-                      const r = 1.2 + Math.random() * 0.8;
-                      const px = fromPos[0] + Math.cos(a) * r;
-                      const pz = fromPos[2] + Math.sin(a) * r;
-                      arr.push({
-                        id,
-                        pos: [px, 4, pz],
-                        isFlying: true,
-                        health: 1,
-                        maxHealth: 1,
-                      });
-                    }
-                    return arr;
-                  });
-                }}
-                visualScale={assetScale}
-              />
-            ) : e.isCluster ? (
-              <ClusterBossEntity
-                key={e.id}
-                id={e.id}
-                pos={e.pos}
-                playerPosRef={playerPosRef}
-                onDie={onEnemyDie}
-                health={e.health}
-                isPaused={isPaused}
-                visualScale={assetScale}
-              />
-            ) : e.isFlying ? (
-              <FlyingDroneEntity
-                key={e.id}
-                id={e.id}
-                pos={e.pos}
-                playerPosRef={playerPosRef}
-                onDie={onEnemyDie}
-                isPaused={isPaused}
-                boundaryJumpActiveRef={boundaryJumpActiveRef}
-                assets={{
-                  bodyGeom: droneBodyGeom,
-                  tipGeom: droneTipGeom,
-                  trailGeom: droneTrailGeom,
-                  bodyMat: droneBodyMat,
-                  tipMat: droneTipMat,
-                }}
-                trailBaseMat={droneTrailBaseMat}
-                boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
-                speedScale={
-                  enemySpeedScale *
-                  (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
-                }
-                visualScale={assetScale}
-              />
-            ) : e.isRoster ? (
-              <RosterEnemyEntity
-                key={e.id}
-                id={e.id}
-                pos={e.pos}
-                playerPosRef={playerPosRef}
-                onDie={onEnemyDie}
-                isPaused={isPaused}
-                health={e.health}
-                maxHealth={e.maxHealth}
-                color={parseInt(
-                  (e.rosterColor || "#ff0055").replace("#", "0x")
-                )}
-                spawnHeight={e.spawnHeight}
-                label={e.rosterName}
-                stunImmune={!!e.stunImmune}
-                speedScale={
-                  enemySpeedScale *
-                  (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
-                }
-                moveSpeed={e.moveSpeed || 10}
-                shape={e.rosterShape || "Circle"}
-                factorySpec={e.factorySpec || null}
-                visualScale={assetScale}
-                onHazard={(hz) => {
-                  // Add hazard zones managed by App
-                  const id = Date.now() + Math.random();
-                  setHazards((prev) => [
-                    ...prev,
-                    { id, ...hz, createdAt: performance.now() },
-                  ]);
-                }}
-              />
-            ) : (
-              <MinionEntity
-                key={e.id}
-                id={e.id}
-                pos={e.pos}
-                playerPosRef={playerPosRef}
-                onDie={onEnemyDie}
-                isBoss={e.isBoss}
-                formationTarget={e.formationTarget}
-                waveNumber={e.waveNumber || wave}
-                health={e.health}
-                isPaused={isPaused}
-                spawnHeight={e.spawnHeight}
-                speedScale={
-                  enemySpeedScale *
-                  (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
-                }
-                visualScale={assetScale}
-              />
-            )
-          )}
-
-        {!isPaused &&
-          bullets.map((bullet) => (
-            <Bullet
-              key={bullet.id}
-              bullet={bullet}
-              onExpire={handleBulletExpire}
-              isPaused={isPaused}
-            />
-          ))}
-
-        {/* Bombs */}
-        {bombs.map((b) => (
-          <Bomb
-            key={b.id}
-            data={b}
+          <mesh
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[0, 0, 0]}
+            receiveShadow
+          >
+            <planeGeometry args={[200, 200]} />
+            <meshStandardMaterial color={0xeaeef3} roughness={1} />
+          </mesh>
+          {/* Boundary visual cue */}
+          <BoundaryCue
+            limit={boundaryLimit ?? BOUNDARY_LIMIT}
             isPaused={isPaused}
-            onUpdate={(id, patch) =>
-              setBombs((prev) =>
-                prev.map((x) => (x.id === id ? { ...x, ...patch } : x))
-              )
+          />
+          <primitive object={grid} position={[0, 0.001, 0]} />
+
+          {/* Active portals */}
+          {!isPaused &&
+            portals.map((pr) => (
+              <Portal key={pr.id} pos={pr.pos} isPaused={isPaused} />
+            ))}
+
+          {/* Active speed boost planes */}
+          {!isPaused &&
+            speedBoosts.map((sb) => (
+              <SpeedBoostPlane key={sb.id} pos={sb.pos} isPaused={isPaused} />
+            ))}
+
+          {/* Bouncer telegraphs and launched bouncers */}
+          {!isPaused &&
+            bouncerTelegraphs.map((bt) => (
+              <BouncerTelegraph key={bt.id} pos={bt.pos} />
+            ))}
+          {!isPaused &&
+            bouncers.map((b) => (
+              <Bouncer
+                key={b.id}
+                data={b}
+                onExpire={(id) =>
+                  setBouncers((prev) => prev.filter((x) => x.id !== id))
+                }
+              />
+            ))}
+
+          <PlayerEntity
+            position={[0, 0.5, 0]}
+            setPositionRef={setPositionRef}
+            onShoot={handleShoot}
+            isPaused={isPaused}
+            autoFire={autoFire}
+            fireRateMs={debugFireRateMs}
+            resetToken={playerResetToken}
+            basePlayerSpeed={
+              playerBaseSpeed *
+              (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
             }
-            onExplode={(id, pos) => {
-              // AOE stun+damage at detonation
-              const cx = pos[0],
-                cz = pos[2];
-              const r2 = BOMB_AOE_RADIUS * BOMB_AOE_RADIUS;
-              const idsToHit = [];
+            autoAimEnabled={cameraMode === "follow" || cameraMode === "topdown"}
+            controlScheme={controlScheme}
+            moveInputRef={moveInputRef}
+            moveSourceRef={moveSourceRef}
+            highContrast={highContrast}
+            portals={portals}
+            speedBoosts={speedBoosts}
+            bouncers={bouncers}
+            boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
+            invulnActive={invulnEffect.active || invulnTest}
+            primaryColor={parseInt(
+              heroColorFor(selectedHero).replace("#", "0x")
+            )}
+            heroName={selectedHero}
+            heroRenderMode={heroRenderMode}
+            heroQuality={heroQuality}
+            heroVisualScale={(heroQuality === "low" ? 2 : 3) * assetScale}
+            powerActive={powerEffect.active}
+            powerAmount={powerEffect.amount}
+            shieldStackToken={lifeShieldToken}
+            fxOrbCount={debugFxOrbCount}
+            autoFollow={{
+              active:
+                invulnEffect.active && (autoFollowHeld || autoFollowHeld2),
+              radius: SHAPE_PATH_RADIUS,
+              center: [0, 0, 0],
+              shape: invulnEffect.shape || "circle",
+              dirSign: autoFollowHeld2 ? -1 : 1, // 1=CCW (key 1), -1=CW (key 2)
+            }}
+            arcTriggerToken={arcTriggerToken}
+            dashTriggerToken={dashTriggerToken}
+            onDashStart={() => {
+              setIsDashing(true);
+              try {
+                play("dash");
+              } catch {}
+            }}
+            onDashEnd={(endPos) => {
+              setIsDashing(false);
+              setCameraBoostUntilMs(performance.now() + 400);
+              // End-of-dash impact: strong pushback + stun in radius
+              const center = [endPos.x, 0.06, endPos.z];
+              const radius = 6.5;
+              const power = 90;
+              const stunMs = 3000;
               if (window.gameEnemies) {
+                const cpos = new THREE.Vector3(center[0], 0.5, center[2]);
+                const epos = new THREE.Vector3();
                 window.gameEnemies.forEach((ge) => {
                   if (!ge?.ref?.current) return;
-                  if (ge.isFlying) return; // flying drones are immune to bombs
-                  const ex = ge.ref.current.position.x;
-                  const ez = ge.ref.current.position.z;
-                  const dx = ex - cx;
-                  const dz = ez - cz;
-                  if (dx * dx + dz * dz <= r2) {
-                    ge.stun?.(BOMB_STUN_MS);
-                    idsToHit.push(ge.id);
+                  epos.copy(ge.ref.current.position);
+                  const dx = epos.x - cpos.x;
+                  const dz = epos.z - cpos.z;
+                  const d2 = dx * dx + dz * dz;
+                  const r2 = radius * radius;
+                  if (d2 <= r2) {
+                    const d = Math.sqrt(Math.max(d2, 1e-6));
+                    const nx = dx / d;
+                    const nz = dz / d;
+                    const strength = power * (1 - d / radius);
+                    ge.impulse?.(nx, nz, strength);
+                    ge.stun?.(stunMs);
                   }
                 });
               }
-              if (idsToHit.length) {
-                setEnemies((prev) => {
-                  const died = [];
-                  const updated = prev
-                    .map((e) => {
-                      if (!idsToHit.includes(e.id)) return e;
-                      const dmg = e.isCone ? 5 : BOMB_DAMAGE;
-                      const nh = (e.health ?? 1) - dmg;
-                      if (nh <= 0) {
-                        died.push(e.id);
-                        return null;
-                      }
-                      return { ...e, health: nh };
-                    })
-                    .filter(Boolean);
-                  if (died.length)
-                    setTimeout(
-                      () => died.forEach((id) => onEnemyDie(id, false)),
-                      0
-                    );
-                  return updated;
-                });
-              }
-              // Visual explosion cue (cap to last 12)
+              // Visualize the impact (cap AOEs to last 12)
               setAoes((prev) => {
                 const next = [
                   ...prev,
                   {
                     id: Date.now() + Math.random(),
-                    pos: [cx, 0.06, cz],
+                    pos: center,
                     start: performance.now(),
-                    radius: BOMB_AOE_RADIUS,
+                    radius,
                   },
                 ];
                 return next.length > 12 ? next.slice(next.length - 12) : next;
               });
-              // VFX: scalable bomb explosion
-              try {
-                triggerEffect &&
-                  triggerEffect("bombExplosion", {
-                    position: [cx, 0.2, cz],
-                    power: 1.0,
-                  });
-              } catch {}
-              // SFX: bomb explosion
-              try {
-                play("bomb");
-              } catch {}
-              // remove bomb
-              setBombs((prev) => prev.filter((x) => x.id !== id));
             }}
-            onHitEnemy={(enemyId) => {
-              setEnemies((prev) => {
-                let died = false;
-                const updated = prev
-                  .map((e) => {
-                    if (e.id !== enemyId) return e;
-                    if (e.isFlying) return e; // flying drones ignore bomb contact
-                    const dmg = e.isCone ? 5 : BOMB_DAMAGE;
-                    const nh = (e.health ?? 1) - dmg;
-                    if (nh <= 0) {
-                      died = true;
-                      return null;
+            onSlam={(slam) => {
+              // Create AOE visual and push back enemies
+              const center = slam.pos;
+              const radius = slam.radius;
+              const power = slam.power;
+              // Apply impulses to enemies (no allocations beyond few vectors)
+              const epos = new THREE.Vector3();
+              const cpos = new THREE.Vector3(center[0], center[1], center[2]);
+              if (window.gameEnemies) {
+                window.gameEnemies.forEach((ge) => {
+                  if (!ge.ref || !ge.ref.current) return;
+                  epos.copy(ge.ref.current.position);
+                  const dx = epos.x - cpos.x;
+                  const dz = epos.z - cpos.z;
+                  const d2 = dx * dx + dz * dz;
+                  const r2 = radius * radius;
+                  if (d2 <= r2) {
+                    const d = Math.sqrt(Math.max(d2, 1e-6));
+                    const nx = dx / d;
+                    const nz = dz / d;
+                    const strength = power * (1 - d / radius);
+                    ge.impulse?.(nx, nz, strength);
+                    // Apply stun for 5 seconds
+                    ge.stun?.(5000);
+                    // Bosses drop a health pickup with ~15% chance upon being stunned (further reduced)
+                    if (ge.isBoss) {
+                      if (Math.random() < 0.15) {
+                        spawnPickup("health", [epos.x, 0.5, epos.z]);
+                      }
                     }
-                    return { ...e, health: nh };
-                  })
-                  .filter(Boolean);
-                if (died) setTimeout(() => onEnemyDie(enemyId, false), 0);
-                return updated;
+                  }
+                });
+              }
+              // Add AOE visual (cap to last 12)
+              setAoes((prev) => {
+                const next = [
+                  ...prev,
+                  {
+                    id: Date.now(),
+                    pos: [center[0], 0.06, center[2]],
+                    start: performance.now(),
+                    radius,
+                  },
+                ];
+                return next.length > 12 ? next.slice(next.length - 12) : next;
               });
             }}
-          />
-        ))}
-
-        {!isPaused &&
-          pickups.map((p) => (
-            <Pickup
-              key={p.id}
-              id={p.id}
-              pos={p.pos}
-              type={p.type}
-              amount={p.amount}
-              lifetimeMaxSec={p.lifetimeMaxSec}
-              onCollect={onPickupCollect}
-              onExpire={(pid) =>
-                setPickups((prev) => prev.filter((x) => x.id !== pid))
+            onDebuff={() => {
+              const popupId = Date.now();
+              setPickupPopups((prev) => [
+                ...prev,
+                { id: popupId, pickup: { type: "debuff" } },
+              ]);
+              // Start debuff visualization timer
+              debuffRemainingRef.current = SPEED_DEBUFF_DURATION_MS;
+              setDebuffEffect({ active: true });
+            }}
+            onBoost={() => {
+              const popupId = Date.now();
+              setPickupPopups((prev) => [
+                ...prev,
+                { id: popupId, pickup: { type: "speedboost" } },
+              ]);
+              // Start boost visualization timer
+              boostRemainingRef.current = SPEED_BUFF_DURATION_MS;
+              setBoostEffect({ active: true });
+            }}
+            onBoundaryJumpChange={(active) => {
+              const v = !!active;
+              boundaryJumpActiveRef.current = v;
+              setBoundaryJumpActive(v);
+              if (v) {
+                try {
+                  const p = playerPosRef.current;
+                  triggerEffect &&
+                    triggerEffect("boundaryGlow", {
+                      position: [p.x, 0.05, p.z],
+                      radius: 2.4,
+                    });
+                  play("boundary-jump");
+                } catch {}
               }
-              playerPosRef={playerPosRef}
+            }}
+            onLanding={() => {
+              if (expectingPostInvulnLandingRef.current) {
+                expectingPostInvulnLandingRef.current = false;
+                postInvulnShieldUntilRef.current = performance.now() + 2000;
+              }
+            }}
+          />
+
+          {/* World-space FX Orbs follow player via anchor ref */}
+          <PlayerFXAnchor ref={fxAnchorRef} playerPosRef={playerPosRef} />
+          {!isPaused && heroQuality !== "low" && debugFxOrbCount > 0 && (
+            <FXOrbs
+              spec={{
+                id: "player_fx_global",
+                height: 1.7 * (heroQuality === "low" ? 2 : 3) * assetScale,
+                fxRing: true,
+                fxRingRadius: debugFxOrbRadius * (heroQuality === "low" ? 2 : 3) * assetScale,
+                fxRingIntensity: 0.65,
+                fxCount: debugFxOrbCount,
+                fxMode: "wave",
+                fxAmplitude: 0.45,
+                fxSpeed: 1.0,
+                fxDirectionDeg: 0,
+                fxShieldShape: "circle",
+                accentColor: heroColorFor(selectedHero),
+                // pass size multiplier via amplitude scaling fallback if component extended later
+                fxOrbSizeMul: debugFxOrbSizeMul,
+                fxFollowLerp: debugFxOrbLerp,
+              }}
+              quality={heroQuality}
+              forceShow
+              followTarget={fxAnchorRef.current}
+            />
+          )}
+
+          {!isPaused &&
+            enemies.map((e) =>
+              e.isTriangle ? (
+                <TriangleBossEntity
+                  key={e.id}
+                  id={e.id}
+                  pos={e.pos}
+                  playerPosRef={playerPosRef}
+                  onDie={onEnemyDie}
+                  health={e.health}
+                  isPaused={isPaused}
+                  spawnHeight={e.spawnHeight}
+                  speedScale={
+                    enemySpeedScale *
+                    (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
+                  }
+                  visualScale={assetScale}
+                />
+              ) : e.isCone ? (
+                <ConeBossEntity
+                  key={e.id}
+                  id={e.id}
+                  pos={e.pos}
+                  playerPosRef={playerPosRef}
+                  onDamagePlayer={damagePlayer}
+                  health={e.health}
+                  isPaused={isPaused}
+                  spawnHeight={e.spawnHeight}
+                  speedScale={
+                    enemySpeedScale *
+                    (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
+                  }
+                  visualScale={assetScale}
+                />
+              ) : e.isPipe ? (
+                <PipeBossEntity
+                  key={e.id}
+                  id={e.id}
+                  pos={e.pos}
+                  playerPosRef={playerPosRef}
+                  onDie={onEnemyDie}
+                  health={e.health}
+                  isPaused={isPaused}
+                  onLaunchDrones={(count, fromPos) => {
+                    // Respect drone unlock and cap total active drones
+                    const level = wave || 1;
+                    if (level < (LEVEL_CONFIG?.unlocks?.drone ?? 1)) return;
+                    const maxDrones = LEVEL_CONFIG?.caps?.drones ?? 16;
+                    setEnemies((prev) => {
+                      const activeDrones = prev.filter(
+                        (x) => x.isFlying
+                      ).length;
+                      const allowed = Math.max(0, maxDrones - activeDrones);
+                      const toSpawn = Math.min(count, allowed);
+                      if (toSpawn <= 0) return prev;
+                      const arr = [...prev];
+                      for (let i = 0; i < toSpawn; i++) {
+                        const id = enemyId.current++;
+                        // small offset ring around the pipe
+                        const a = Math.random() * Math.PI * 2;
+                        const r = 1.2 + Math.random() * 0.8;
+                        const px = fromPos[0] + Math.cos(a) * r;
+                        const pz = fromPos[2] + Math.sin(a) * r;
+                        arr.push({
+                          id,
+                          pos: [px, 4, pz],
+                          isFlying: true,
+                          health: 1,
+                          maxHealth: 1,
+                        });
+                      }
+                      return arr;
+                    });
+                  }}
+                  visualScale={assetScale}
+                />
+              ) : e.isCluster ? (
+                <ClusterBossEntity
+                  key={e.id}
+                  id={e.id}
+                  pos={e.pos}
+                  playerPosRef={playerPosRef}
+                  onDie={onEnemyDie}
+                  health={e.health}
+                  isPaused={isPaused}
+                  visualScale={assetScale}
+                />
+              ) : e.isFlying ? (
+                <FlyingDroneEntity
+                  key={e.id}
+                  id={e.id}
+                  pos={e.pos}
+                  playerPosRef={playerPosRef}
+                  onDie={onEnemyDie}
+                  isPaused={isPaused}
+                  boundaryJumpActiveRef={boundaryJumpActiveRef}
+                  assets={{
+                    bodyGeom: droneBodyGeom,
+                    tipGeom: droneTipGeom,
+                    trailGeom: droneTrailGeom,
+                    bodyMat: droneBodyMat,
+                    tipMat: droneTipMat,
+                  }}
+                  trailBaseMat={droneTrailBaseMat}
+                  boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
+                  speedScale={
+                    enemySpeedScale *
+                    (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
+                  }
+                  visualScale={assetScale}
+                />
+              ) : e.isRoster ? (
+                <RosterEnemyEntity
+                  key={e.id}
+                  id={e.id}
+                  pos={e.pos}
+                  playerPosRef={playerPosRef}
+                  onDie={onEnemyDie}
+                  isPaused={isPaused}
+                  health={e.health}
+                  maxHealth={e.maxHealth}
+                  color={parseInt(
+                    (e.rosterColor || "#ff0055").replace("#", "0x")
+                  )}
+                  spawnHeight={e.spawnHeight}
+                  label={e.rosterName}
+                  stunImmune={!!e.stunImmune}
+                  speedScale={
+                    enemySpeedScale *
+                    (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
+                  }
+                  moveSpeed={e.moveSpeed || 10}
+                  shape={e.rosterShape || "Circle"}
+                  factorySpec={e.factorySpec || null}
+                  visualScale={assetScale}
+                  onHazard={(hz) => {
+                    // Add hazard zones managed by App
+                    const id = Date.now() + Math.random();
+                    setHazards((prev) => [
+                      ...prev,
+                      { id, ...hz, createdAt: performance.now() },
+                    ]);
+                  }}
+                />
+              ) : (
+                <MinionEntity
+                  key={e.id}
+                  id={e.id}
+                  pos={e.pos}
+                  playerPosRef={playerPosRef}
+                  onDie={onEnemyDie}
+                  isBoss={e.isBoss}
+                  formationTarget={e.formationTarget}
+                  waveNumber={e.waveNumber || wave}
+                  health={e.health}
+                  isPaused={isPaused}
+                  spawnHeight={e.spawnHeight}
+                  speedScale={
+                    enemySpeedScale *
+                    (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
+                  }
+                  visualScale={assetScale}
+                />
+              )
+            )}
+
+          {!isPaused &&
+            bullets.length > 0 &&
+            bullets.map((bullet) => (
+              <Bullet
+                key={bullet.id}
+                bullet={bullet}
+                onExpire={handleBulletExpire}
+                isPaused={isPaused}
+                speed={debugBulletSpeed}
+              />
+            ))}
+
+          {/* Bombs */}
+          {bombs.map((b) => (
+            <Bomb
+              key={b.id}
+              data={b}
               isPaused={isPaused}
-              scaleMul={pickupScaleMul * assetScale}
+              onUpdate={(id, patch) =>
+                setBombs((prev) =>
+                  prev.map((x) => (x.id === id ? { ...x, ...patch } : x))
+                )
+              }
+              onExplode={(id, pos) => {
+                // AOE stun+damage at detonation
+                const cx = pos[0],
+                  cz = pos[2];
+                const r2 = BOMB_AOE_RADIUS * BOMB_AOE_RADIUS;
+                const idsToHit = [];
+                if (window.gameEnemies) {
+                  window.gameEnemies.forEach((ge) => {
+                    if (!ge?.ref?.current) return;
+                    if (ge.isFlying) return; // flying drones are immune to bombs
+                    const ex = ge.ref.current.position.x;
+                    const ez = ge.ref.current.position.z;
+                    const dx = ex - cx;
+                    const dz = ez - cz;
+                    if (dx * dx + dz * dz <= r2) {
+                      ge.stun?.(BOMB_STUN_MS);
+                      idsToHit.push(ge.id);
+                    }
+                  });
+                }
+                if (idsToHit.length) {
+                  setEnemies((prev) => {
+                    const died = [];
+                    const updated = prev
+                      .map((e) => {
+                        if (!idsToHit.includes(e.id)) return e;
+                        const dmg = e.isCone ? 5 : BOMB_DAMAGE;
+                        const nh = (e.health ?? 1) - dmg;
+                        if (nh <= 0) {
+                          died.push(e.id);
+                          return null;
+                        }
+                        return { ...e, health: nh };
+                      })
+                      .filter(Boolean);
+                    if (died.length)
+                      setTimeout(
+                        () => died.forEach((id) => onEnemyDie(id, false)),
+                        0
+                      );
+                    return updated;
+                  });
+                }
+                // Visual explosion cue (cap to last 12)
+                setAoes((prev) => {
+                  const next = [
+                    ...prev,
+                    {
+                      id: Date.now() + Math.random(),
+                      pos: [cx, 0.06, cz],
+                      start: performance.now(),
+                      radius: BOMB_AOE_RADIUS,
+                    },
+                  ];
+                  return next.length > 12 ? next.slice(next.length - 12) : next;
+                });
+                // VFX: scalable bomb explosion
+                try {
+                  triggerEffect &&
+                    triggerEffect("bombExplosion", {
+                      position: [cx, 0.2, cz],
+                      power: 1.0,
+                    });
+                } catch {}
+                // SFX: bomb explosion
+                try {
+                  play("bomb");
+                } catch {}
+                // remove bomb
+                setBombs((prev) => prev.filter((x) => x.id !== id));
+              }}
+              onHitEnemy={(enemyId) => {
+                setEnemies((prev) => {
+                  let died = false;
+                  const updated = prev
+                    .map((e) => {
+                      if (e.id !== enemyId) return e;
+                      if (e.isFlying) return e; // flying drones ignore bomb contact
+                      const dmg = e.isCone ? 5 : BOMB_DAMAGE;
+                      const nh = (e.health ?? 1) - dmg;
+                      if (nh <= 0) {
+                        died = true;
+                        return null;
+                      }
+                      return { ...e, health: nh };
+                    })
+                    .filter(Boolean);
+                  if (died) setTimeout(() => onEnemyDie(enemyId, false), 0);
+                  return updated;
+                });
+              }}
             />
           ))}
 
-        {cameraMode === "static" && (
-          <OrbitControls
-            enableRotate={false}
-            enablePan={false}
-            enableZoom
-            maxPolarAngle={Math.PI / 2.2}
-            minPolarAngle={Math.PI / 3}
-          />
-        )}
-        {cameraMode === "follow" && (
-          <CameraRig
-            playerPosRef={playerPosRef}
-            isPaused={isPaused}
-            isDashing={isDashing}
-            boostUntilMs={cameraBoostUntilMs}
-          />
-        )}
-        {cameraMode === "static" && (
-          <StaticCameraRig
-            boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
-            margin={staticCamMargin}
-          />
-        )}
-        {cameraMode === "topdown" && (
-          <TopDownRig
-            playerPosRef={playerPosRef}
-            boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
-            zoom={topDownZoom}
-          />
-        )}
-        {/* AOE visuals */}
-        {aoes.map((a) => (
-          <AOEBlast
-            key={a.id}
-            pos={a.pos}
-            start={a.start}
-            radius={a.radius}
-            onDone={() => setAoes((prev) => prev.filter((x) => x.id !== a.id))}
-          />
-        ))}
-        {/* HP change floaters */}
-        {hpEvents.map((evt) => (
-          <HpFloater
-            key={evt.id}
-            amount={evt.amount}
-            start={evt.start}
-            playerPosRef={playerPosRef}
-            onDone={() => setHpEvents((e) => e.filter((x) => x.id !== evt.id))}
-          />
-        ))}
-        {/* Armor change floaters */}
-        {armorEvents.map((evt) => (
-          <HpFloater
-            key={evt.id}
-            amount={evt.amount}
-            start={evt.start}
-            playerPosRef={playerPosRef}
-            onDone={() =>
-              setArmorEvents((e) => e.filter((x) => x.id !== evt.id))
-            }
-          />
-        ))}
+          {!isPaused &&
+            pickups.map((p) => (
+              <Pickup
+                key={p.id}
+                id={p.id}
+                pos={p.pos}
+                type={p.type}
+                amount={p.amount}
+                lifetimeMaxSec={p.lifetimeMaxSec}
+                onCollect={onPickupCollect}
+                onExpire={(pid) =>
+                  setPickups((prev) => prev.filter((x) => x.id !== pid))
+                }
+                playerPosRef={playerPosRef}
+                isPaused={isPaused}
+                scaleMul={pickupScaleMul * assetScale}
+              />
+            ))}
 
-        {/* Buff/debuff indicators above player */}
-        {(() => {
-          const items = [];
-          if (invulnEffect.active || invulnTest)
-            items.push({ key: "inv", label: "INVULN", color: "#facc15" });
-          if (powerEffect.active)
-            items.push({
-              key: "pow",
-              label: `POWER ${powerEffect.amount}`,
-              color: "#60a5fa",
-            });
-          if (bombEffect.active)
-            items.push({ key: "bomb", label: "BOMBS", color: "#ffffff" });
-          if (boostEffect.active)
-            items.push({ key: "boost", label: "BOOST", color: "#22c55e" });
-          if (debuffEffect.active)
-            items.push({ key: "slow", label: "SLOW", color: "#f97316" });
-          if (regenDebuff.active)
-            items.push({ key: "regen", label: "REGEN-", color: "#10b981" });
-          if (corrosionEffect.active)
-            items.push({ key: "cor", label: "CORROSION", color: "#9ca3af" });
-          return items.length ? (
-            <BuffIndicators playerPosRef={playerPosRef} items={items} />
-          ) : null;
-        })()}
-
-        {/* Invulnerability visuals */}
-        {(invulnEffect.active || invulnTest) && (
-          <>
-            <InvulnRing
-              radius={SHAPE_PATH_RADIUS}
-              isPaused={isPaused}
-              shape={invulnEffect.shape || "circle"}
+          {cameraMode === "static" && (
+            <OrbitControls
+              enableRotate={false}
+              enablePan={false}
+              enableZoom
+              maxPolarAngle={Math.PI / 2.2}
+              minPolarAngle={Math.PI / 3}
             />
-            {/* Yellow translucent orb while invulnerability is active */}
+          )}
+          {cameraMode === "follow" && (
+            <CameraRig
+              playerPosRef={playerPosRef}
+              isPaused={isPaused}
+              isDashing={isDashing}
+              boostUntilMs={cameraBoostUntilMs}
+            />
+          )}
+          {cameraMode === "static" && (
+            <StaticCameraRig
+              boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
+              margin={staticCamMargin}
+            />
+          )}
+          {cameraMode === "topdown" && (
+            <TopDownRig
+              playerPosRef={playerPosRef}
+              boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
+              zoom={topDownZoom}
+            />
+          )}
+          {/* AOE visuals */}
+          {aoes.map((a) => (
+            <AOEBlast
+              key={a.id}
+              pos={a.pos}
+              start={a.start}
+              radius={a.radius}
+              onDone={() =>
+                setAoes((prev) => prev.filter((x) => x.id !== a.id))
+              }
+            />
+          ))}
+          {/* HP change floaters */}
+          {hpEvents.map((evt) => (
+            <HpFloater
+              key={evt.id}
+              amount={evt.amount}
+              start={evt.start}
+              playerPosRef={playerPosRef}
+              onDone={() =>
+                setHpEvents((e) => e.filter((x) => x.id !== evt.id))
+              }
+            />
+          ))}
+          {/* Armor change floaters */}
+          {armorEvents.map((evt) => (
+            <HpFloater
+              key={evt.id}
+              amount={evt.amount}
+              start={evt.start}
+              playerPosRef={playerPosRef}
+              onDone={() =>
+                setArmorEvents((e) => e.filter((x) => x.id !== evt.id))
+              }
+            />
+          ))}
+
+          {/* Buff/debuff indicators above player */}
+          {(() => {
+            const items = [];
+            if (invulnEffect.active || invulnTest)
+              items.push({ key: "inv", label: "INVULN", color: "#facc15" });
+            if (powerEffect.active)
+              items.push({
+                key: "pow",
+                label: `POWER ${powerEffect.amount}`,
+                color: "#60a5fa",
+              });
+            if (bombEffect.active)
+              items.push({ key: "bomb", label: "BOMBS", color: "#ffffff" });
+            if (boostEffect.active)
+              items.push({ key: "boost", label: "BOOST", color: "#22c55e" });
+            if (debuffEffect.active)
+              items.push({ key: "slow", label: "SLOW", color: "#f97316" });
+            if (regenDebuff.active)
+              items.push({ key: "regen", label: "REGEN-", color: "#10b981" });
+            if (corrosionEffect.active)
+              items.push({ key: "cor", label: "CORROSION", color: "#9ca3af" });
+            return items.length ? (
+              <BuffIndicators playerPosRef={playerPosRef} items={items} />
+            ) : null;
+          })()}
+
+          {/* Invulnerability visuals */}
+          {(invulnEffect.active || invulnTest) && (
+            <>
+              <InvulnRing
+                radius={SHAPE_PATH_RADIUS}
+                isPaused={isPaused}
+                shape={invulnEffect.shape || "circle"}
+              />
+              {/* Yellow translucent orb while invulnerability is active */}
+              <ShieldBubble
+                playerPosRef={playerPosRef}
+                isPaused={isPaused}
+                color={0xfacc15}
+                radius={1.5}
+                baseOpacity={0.28}
+              />
+            </>
+          )}
+          {boundaryJumpActive && (
             <ShieldBubble
               playerPosRef={playerPosRef}
               isPaused={isPaused}
-              color={0xfacc15}
-              radius={1.5}
-              baseOpacity={0.28}
+              color={0x66ccff}
+              radius={1.4}
+              baseOpacity={0.25}
             />
-          </>
-        )}
-        {boundaryJumpActive && (
-          <ShieldBubble
-            playerPosRef={playerPosRef}
-            isPaused={isPaused}
-            color={0x66ccff}
-            radius={1.4}
-            baseOpacity={0.25}
-          />
-        )}
-        {/* One-shot shimmer effects (e.g., when invulnerability cancels a debuff) */}
-        {shimmers.map((s) => (
-          <ShimmerPulse
-            key={s.id}
-            playerPosRef={playerPosRef}
-            isPaused={isPaused}
-            color={0x66ccff}
-            durationMs={560}
-            maxScale={1.9}
-            onDone={() =>
-              setShimmers((prev) => prev.filter((x) => x.id !== s.id))
-            }
-          />
-        ))}
-        {confetti.map((c) => (
-          <ConfettiBurst
-            key={c.id}
-            start={c.start}
-            onDone={() =>
-              setConfetti((prev) => prev.filter((x) => x.id !== c.id))
-            }
-          />
-        ))}
-        {/* Hazard zones */}
-        {hazards.map((h) => (
-          <HazardZone
-            key={h.id}
-            data={h}
-            isPaused={isPaused}
-            onExpire={(id) =>
-              setHazards((prev) => prev.filter((x) => x.id !== id))
-            }
-          />
-        ))}
+          )}
+          {/* One-shot shimmer effects (e.g., when invulnerability cancels a debuff) */}
+          {shimmers.map((s) => (
+            <ShimmerPulse
+              key={s.id}
+              playerPosRef={playerPosRef}
+              isPaused={isPaused}
+              color={0x66ccff}
+              durationMs={560}
+              maxScale={1.9}
+              onDone={() =>
+                setShimmers((prev) => prev.filter((x) => x.id !== s.id))
+              }
+            />
+          ))}
+          {confetti.map((c) => (
+            <ConfettiBurst
+              key={c.id}
+              start={c.start}
+              onDone={() =>
+                setConfetti((prev) => prev.filter((x) => x.id !== c.id))
+              }
+            />
+          ))}
+          {/* Hazard zones */}
+          {hazards.map((h) => (
+            <HazardZone
+              key={h.id}
+              data={h}
+              isPaused={isPaused}
+              onExpire={(id) =>
+                setHazards((prev) => prev.filter((x) => x.id !== id))
+              }
+            />
+          ))}
 
-        {/* Global effects renderer */}
-        <EffectsRenderer />
+          {/* Global effects renderer */}
+          <EffectsRenderer />
           {showDreiStats && <Stats />}
         </React.Suspense>
       </Canvas>
+      {/* Toggle PerfOverlay with F9 */}
+      <PerfOverlay enabled={showPerf} />
 
       <div
         ref={crosshairRef}
@@ -6086,7 +6417,10 @@ export default function App() {
                   {abilityName}
                 </div>
               </div>
-              <div className="abilities-panel small" style={{marginBottom: 8,}}>
+              <div
+                className="abilities-panel small"
+                style={{ marginBottom: 8 }}
+              >
                 <div className="ability">
                   <div className="label">
                     Dash <span className="hint">[3]</span>
@@ -6165,44 +6499,242 @@ export default function App() {
                     title="Accessibility Controls"
                     defaultOpen={true}
                   >
-                    <div className="small" style={{ display: "grid", gap: 8, height: "50vh", overflowY: "auto" }}>
+                    <div
+                      className="small"
+                      style={{
+                        display: "grid",
+                        gap: 8,
+                        height: "50vh",
+                        overflowY: "auto",
+                      }}
+                    >
                       {/* Enemy renderer mode */}
-                      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
                         <span>Enemy Visuals</span>
                         <select
                           value={enemyRenderMode}
                           onChange={(e) => setEnemyRenderMode(e.target.value)}
-                          style={{ marginLeft: "auto", background: "#111", color: "#fff", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: 2 }}
+                          style={{
+                            marginLeft: "auto",
+                            background: "#111",
+                            color: "#fff",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            borderRadius: 6,
+                            padding: 2,
+                          }}
                         >
                           <option value="factory">Factory (default)</option>
                           <option value="simple">Simple Shapes</option>
                         </select>
                       </label>
                       {/* Hero renderer mode */}
-                      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
                         <span>Hero Visuals</span>
                         <select
                           value={heroRenderMode}
                           onChange={(e) => setHeroRenderMode(e.target.value)}
-                          style={{ marginLeft: "auto", background: "#111", color: "#fff", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: 2 }}
+                          style={{
+                            marginLeft: "auto",
+                            background: "#111",
+                            color: "#fff",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            borderRadius: 6,
+                            padding: 2,
+                          }}
                         >
                           <option value="factory">Factory</option>
                           <option value="model">Model (default)</option>
                         </select>
                       </label>
                       {/* Hero quality */}
-                      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
                         <span>Hero Quality</span>
                         <select
                           value={heroQuality}
                           onChange={(e) => setHeroQuality(e.target.value)}
-                          style={{ marginLeft: "auto", background: "#111", color: "#fff", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: 2 }}
+                          style={{
+                            marginLeft: "auto",
+                            background: "#111",
+                            color: "#fff",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            borderRadius: 6,
+                            padding: 2,
+                          }}
                         >
                           <option value="low">Low</option>
                           <option value="med">Medium</option>
                           <option value="high">High</option>
                         </select>
                       </label>
+
+                          {/* add FX Orb controls here */}
+                      {/* FX Orb Accessibility / Debug Controls */}
+                      <div style={{
+                        background: 'rgba(0,0,0,0.55)',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        border: '1px solid rgba(255,255,255,0.08)'
+                      }}>
+                        <div style={{ fontSize:12, color:'#e5e7eb', marginBottom:6 }}>FX Orbs</div>
+                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11 }}>
+                          <span style={{ flex:1 }}>Count</span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={40}
+                            step={1}
+                            value={debugFxOrbCount}
+                            onChange={(e)=> setDebugFxOrbCount(parseInt(e.target.value,10))}
+                            style={{ flex:3 }}
+                            aria-label="FX Orb Count"
+                          />
+                          <span style={{ width:36, textAlign:'right' }}>{debugFxOrbCount}</span>
+                        </label>
+                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
+                          <span style={{ flex:1 }}>Ring Radius</span>
+                          <input
+                            type="range"
+                            min={0.4}
+                            max={3.0}
+                            step={0.05}
+                            value={debugFxOrbRadius}
+                            onChange={(e)=> setDebugFxOrbRadius(parseFloat(e.target.value))}
+                            style={{ flex:3 }}
+                            aria-label="FX Orb Ring Radius"
+                          />
+                          <span style={{ width:48, textAlign:'right' }}>{debugFxOrbRadius.toFixed(2)}</span>
+                        </label>
+                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
+                          <span style={{ flex:1 }}>Size</span>
+                          <input
+                            type="range"
+                            min={0.5}
+                            max={3.0}
+                            step={0.05}
+                            value={debugFxOrbSizeMul}
+                            onChange={(e)=> setDebugFxOrbSizeMul(parseFloat(e.target.value))}
+                            style={{ flex:3 }}
+                            aria-label="FX Orb Size Multiplier"
+                          />
+                          <span style={{ width:48, textAlign:'right' }}>{debugFxOrbSizeMul.toFixed(2)}x</span>
+                        </label>
+                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
+                          <span style={{ flex:1 }}>Follow Smooth</span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={0.95}
+                            step={0.01}
+                            value={debugFxOrbLerp}
+                            onChange={(e)=> setDebugFxOrbLerp(parseFloat(e.target.value))}
+                            style={{ flex:3 }}
+                            aria-label="FX Orb Follow Lerp"
+                          />
+                          <span style={{ width:48, textAlign:'right' }}>{(debugFxOrbLerp*100).toFixed(0)}%</span>
+                        </label>
+                        <div style={{ fontSize:10, opacity:0.75, marginTop:6 }}>
+                          Lower radius pulls ring closer. Increase size for accessibility. Follow Smooth (%) controls lerp aggressiveness (0 = snap, 95% = very damped).
+                        </div>
+                      </div>
+
+                      {/* Tentacle Animation Controls */}
+                      <div style={{
+                        background: 'rgba(0,0,0,0.55)',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        border: '1px solid rgba(255,255,255,0.08)'
+                      }}>
+                        <div style={{ fontSize:12, color:'#e5e7eb', marginBottom:6 }}>Tentacle Animation</div>
+                        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:6 }}>
+                          <button className="button" style={{ padding:'4px 6px' }}
+                            onClick={()=>{ setTentacleStrength(0.6); setTentacleSpeed(0.8); setTentacleAmpX(0.6); setTentacleAmpZ(0.6); setTentacleYWobble(0.02); setTentacleBendPow(2.2); }}>
+                            Calm
+                          </button>
+                          <button className="button" style={{ padding:'4px 6px' }}
+                            onClick={()=>{ setTentacleStrength(1.0); setTentacleSpeed(1.2); setTentacleAmpX(1.0); setTentacleAmpZ(1.0); setTentacleYWobble(0.06); setTentacleBendPow(2.0); }}>
+                            Pulsing
+                          </button>
+                          <button className="button" style={{ padding:'4px 6px' }}
+                            onClick={()=>{ setTentacleStrength(1.6); setTentacleSpeed(2.0); setTentacleAmpX(1.3); setTentacleAmpZ(1.3); setTentacleYWobble(0.12); setTentacleBendPow(1.6); }}>
+                            Chaotic
+                          </button>
+                          <button className="button" style={{ padding:'4px 6px' }}
+                            onClick={()=>{ setTentacleStrength(1.0); setTentacleSpeed(1.2); setTentacleAmpX(1.0); setTentacleAmpZ(1.0); setTentacleYWobble(0.05); setTentacleBendPow(2.0); }}>
+                            Reset
+                          </button>
+                        </div>
+                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11 }}>
+                          <span style={{ flex:1 }}>Strength</span>
+                          <input type="range" min={0} max={2.0} step={0.01}
+                            value={tentacleStrength}
+                            onChange={(e)=> setTentacleStrength(parseFloat(e.target.value))}
+                            style={{ flex:3 }} aria-label="Tentacle Strength" />
+                          <span style={{ width:48, textAlign:'right' }}>{tentacleStrength.toFixed(2)}</span>
+                        </label>
+                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
+                          <span style={{ flex:1 }}>Speed</span>
+                          <input type="range" min={0.2} max={3.0} step={0.01}
+                            value={tentacleSpeed}
+                            onChange={(e)=> setTentacleSpeed(parseFloat(e.target.value))}
+                            style={{ flex:3 }} aria-label="Tentacle Speed" />
+                          <span style={{ width:48, textAlign:'right' }}>{tentacleSpeed.toFixed(2)}x</span>
+                        </label>
+                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
+                          <span style={{ flex:1 }}>Tip Emphasis</span>
+                          <input type="range" min={1.0} max={3.0} step={0.05}
+                            value={tentacleBendPow}
+                            onChange={(e)=> setTentacleBendPow(parseFloat(e.target.value))}
+                            style={{ flex:3 }} aria-label="Tentacle Bend Exponent" />
+                          <span style={{ width:48, textAlign:'right' }}>{tentacleBendPow.toFixed(2)}</span>
+                        </label>
+                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
+                          <span style={{ flex:1 }}>Axis X</span>
+                          <input type="range" min={0} max={2.0} step={0.01}
+                            value={tentacleAmpX}
+                            onChange={(e)=> setTentacleAmpX(parseFloat(e.target.value))}
+                            style={{ flex:3 }} aria-label="Tentacle X Amplitude" />
+                          <span style={{ width:48, textAlign:'right' }}>{tentacleAmpX.toFixed(2)}</span>
+                        </label>
+                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
+                          <span style={{ flex:1 }}>Axis Z</span>
+                          <input type="range" min={0} max={2.0} step={0.01}
+                            value={tentacleAmpZ}
+                            onChange={(e)=> setTentacleAmpZ(parseFloat(e.target.value))}
+                            style={{ flex:3 }} aria-label="Tentacle Z Amplitude" />
+                          <span style={{ width:48, textAlign:'right' }}>{tentacleAmpZ.toFixed(2)}</span>
+                        </label>
+                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
+                          <span style={{ flex:1 }}>Vertical Wobble</span>
+                          <input type="range" min={0.0} max={0.25} step={0.005}
+                            value={tentacleYWobble}
+                            onChange={(e)=> setTentacleYWobble(parseFloat(e.target.value))}
+                            style={{ flex:3 }} aria-label="Tentacle Vertical Wobble" />
+                          <span style={{ width:48, textAlign:'right' }}>{tentacleYWobble.toFixed(3)}</span>
+                        </label>
+                        <div style={{ fontSize:10, opacity:0.75, marginTop:6 }}>
+                          Affects spikeStyle "tentacle" only. Strength multiplies overall bend; Tip Emphasis pushes motion towards the tip; Axis X/Z shape sideways sway; Vertical Wobble adds gentle lengthwise flutter.
+                        </div>
+                      </div>
+
+                      {/* High contrast aiming */}
                       <label
                         style={{
                           display: "flex",
@@ -6259,7 +6791,7 @@ export default function App() {
                         />{" "}
                         Performance Mode
                       </label>
-                        {/* add an option to disable enemy spawns */}
+                      {/* add an option to disable enemy spawns */}
                       <label
                         style={{
                           display: "flex",
@@ -6270,7 +6802,9 @@ export default function App() {
                         <input
                           type="checkbox"
                           checked={disableEnemySpawns}
-                          onChange={(e) => setDisableEnemySpawns(e.target.checked)}
+                          onChange={(e) =>
+                            setDisableEnemySpawns(e.target.checked)
+                          }
                         />{" "}
                         Disable Enemy Spawns
                       </label>
@@ -6371,8 +6905,7 @@ export default function App() {
                       />
                       <div style={{ height: 10 }} />
                       <div className="small" style={{ marginTop: 4 }}>
-                        Asset Scale:{" "}
-                        <strong>{assetScale.toFixed(2)}x</strong>
+                        Asset Scale: <strong>{assetScale.toFixed(2)}x</strong>
                       </div>
                       <input
                         type="range"
@@ -6380,17 +6913,21 @@ export default function App() {
                         max={2.0}
                         step={0.05}
                         value={assetScale}
-                        onChange={(e) => setAssetScale(parseFloat(e.target.value))}
+                        onChange={(e) =>
+                          setAssetScale(parseFloat(e.target.value))
+                        }
                         style={{ width: "100%" }}
                         aria-label="Global asset visual scale"
                       />
                       <div style={{ height: 6 }} />
                       <div className="tiny" style={{ opacity: 0.8 }}>
-                        Scales hero, minions, roster enemies & pickups visually only.
+                        Scales hero, minions, roster enemies & pickups visually
+                        only.
                       </div>
                       <div style={{ height: 14 }} />
                       <div className="small" style={{ marginTop: 4 }}>
-                        Top-Down Zoom (Camera): <strong>{topDownZoom.toFixed(2)}x</strong>
+                        Top-Down Zoom (Camera):{" "}
+                        <strong>{topDownZoom.toFixed(2)}x</strong>
                       </div>
                       <input
                         type="range"
@@ -6398,13 +6935,16 @@ export default function App() {
                         max={1.4}
                         step={0.02}
                         value={topDownZoom}
-                        onChange={(e) => setTopDownZoom(parseFloat(e.target.value))}
+                        onChange={(e) =>
+                          setTopDownZoom(parseFloat(e.target.value))
+                        }
                         style={{ width: "100%" }}
                         aria-label="Top-down camera zoom (lower = closer)"
                       />
                       <div style={{ height: 6 }} />
                       <div className="small" style={{ marginTop: 4 }}>
-                        Static Cam Margin: <strong>{staticCamMargin.toFixed(2)}</strong>
+                        Static Cam Margin:{" "}
+                        <strong>{staticCamMargin.toFixed(2)}</strong>
                       </div>
                       <input
                         type="range"
@@ -6412,13 +6952,16 @@ export default function App() {
                         max={1.2}
                         step={0.01}
                         value={staticCamMargin}
-                        onChange={(e) => setStaticCamMargin(parseFloat(e.target.value))}
+                        onChange={(e) =>
+                          setStaticCamMargin(parseFloat(e.target.value))
+                        }
                         style={{ width: "100%" }}
                         aria-label="Static camera fit margin"
                       />
                       <div style={{ height: 6 }} />
                       <div className="tiny" style={{ opacity: 0.8 }}>
-                        Lower margin brings static cam closer; may clip extreme arena growth.
+                        Lower margin brings static cam closer; may clip extreme
+                        arena growth.
                       </div>
                       <div style={{ height: 12 }} />
                       <button
@@ -6887,6 +7430,50 @@ export default function App() {
               <div>Flying: {enemies.filter((e) => e.isFlying).length}</div>
               <div>Pickups: {pickups.length}</div>
               <div>Bullets: {bullets.length}</div>
+              <div style={{ marginTop: 6 }}>
+                <label style={{ display: "block", fontSize: 11 }}>
+                  Bullet Speed {debugBulletSpeed.toFixed(1)}
+                  <input
+                    type="range"
+                    min={4}
+                    max={60}
+                    step={0.5}
+                    value={debugBulletSpeed}
+                    onChange={(e) =>
+                      setDebugBulletSpeed(parseFloat(e.target.value))
+                    }
+                    style={{ width: "100%" }}
+                  />
+                </label>
+                <label style={{ display: "block", fontSize: 11 }}>
+                  Fire Rate (ms) {Math.round(debugFireRateMs)}
+                  <input
+                    type="range"
+                    min={50}
+                    max={800}
+                    step={10}
+                    value={debugFireRateMs}
+                    onChange={(e) =>
+                      setDebugFireRateMs(parseFloat(e.target.value))
+                    }
+                    style={{ width: "100%" }}
+                  />
+                </label>
+                <label style={{ display: "block", fontSize: 11 }}>
+                  FX Orb Count {debugFxOrbCount}
+                  <input
+                    type="range"
+                    min={0}
+                    max={40}
+                    step={1}
+                    value={debugFxOrbCount}
+                    onChange={(e) =>
+                      setDebugFxOrbCount(parseInt(e.target.value, 10))
+                    }
+                    style={{ width: "100%" }}
+                  />
+                </label>
+              </div>
               <div>Status: {isPaused ? "PAUSED" : "PLAYING"}</div>
               <div>Scheme: {controlScheme.toUpperCase()}</div>
               <div>
@@ -7848,7 +8435,7 @@ function TopDownRig({ playerPosRef, boundaryLimit, zoom = 1.0 }) {
     const BL = boundaryLimit ?? BOUNDARY_LIMIT;
     const required = (Math.SQRT2 * BL) / Math.tan(fovRad / 2);
     // Add a small margin so edges aren't clipped; apply zoom (<1 brings closer)
-    return (required * 1.02) * Math.max(0.5, Math.min(2.0, zoom));
+    return required * 1.02 * Math.max(0.5, Math.min(2.0, zoom));
   }, [camera, boundaryLimit, zoom]);
   useEffect(() => {
     heightRef.current = computeHeight();

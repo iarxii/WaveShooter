@@ -1,7 +1,11 @@
 // src/pages/HeroTuner.tsx
 import React, { useMemo, useState } from 'react'
 import * as THREE from 'three'
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
+import PerfCollector from '../components/PerfCollector'
+import PerfLongTaskObserver from '../components/PerfLongTaskObserver'
+import PerfOverlay from '../components/PerfOverlay'
+import * as perf from '../perf'
 import { OrbitControls, Grid, GizmoHelper, GizmoViewport, useFBX, useGLTF, useAnimations } from '@react-three/drei'
 import { HeroFromSpec } from '../heroes/factory/HeroFactory'
 
@@ -12,7 +16,9 @@ function MultiFBXAnimViewer({ url, scale = 0.01, onReady, freezeAtFirstFrame = f
 }
 
 function DynamicFBXPlayer({ url, scale = 0.01, onReady, freezeAtFirstFrame = false }: { url: string, scale?: number, onReady?: (info: { object: THREE.Object3D, hips?: THREE.Object3D | null }) => void, freezeAtFirstFrame?: boolean }) {
+    perf.start('loader_parse')
     const fbx: any = useFBX(url)
+    perf.end('loader_parse')
     const { actions, names } = useAnimations(fbx.animations || [], fbx)
     // Try to locate a hips/pelvis bone on load and notify parent
     React.useEffect(() => {
@@ -48,7 +54,9 @@ function DynamicFBXPlayer({ url, scale = 0.01, onReady, freezeAtFirstFrame = fal
 }
 
 function PoseFBX({ url, scale = 1, onReady }: { url: string, scale?: number, onReady?: (info: { object: THREE.Object3D, hips?: THREE.Object3D | null }) => void }) {
+    perf.start('loader_parse')
     const fbx: any = useFBX(url)
+    perf.end('loader_parse')
     React.useEffect(() => {
         if (!fbx) return
         const findHips = (root: THREE.Object3D): THREE.Object3D | null => {
@@ -64,7 +72,9 @@ function PoseFBX({ url, scale = 1, onReady }: { url: string, scale?: number, onR
 }
 
 function PoseGLTF({ url, scale = 1, onReady }: { url: string, scale?: number, onReady?: (info: { object: THREE.Object3D, hips?: THREE.Object3D | null }) => void }) {
+    perf.start('loader_parse')
     const gltf: any = useGLTF(url)
+    perf.end('loader_parse')
     React.useEffect(() => {
         if (!gltf?.scene) return
         const scene: THREE.Object3D = gltf.scene
@@ -143,6 +153,12 @@ import type { HeroSpec } from '../heroes/factory/HeroSpec'
 function clamp(v: number, min: number, max: number) { return Math.max(min, Math.min(max, v)) }
 
 export default function HeroTuner() {
+    const [showPerf, setShowPerf] = useState(false)
+    React.useEffect(() => {
+        const onKey = (e: KeyboardEvent) => { if (e.code === 'F9') setShowPerf(v => !v) }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [])
     const [spec, setSpec] = useState<HeroSpec | null>(null)
     const [lightingMode, setLightingMode] = useState<'dark' | 'light'>('dark')
     const [source, setSource] = useState<'controller' | 'animViewer' | 'pose' | 'procedural'>('controller')
@@ -179,6 +195,18 @@ export default function HeroTuner() {
         window.addEventListener('keyup', up)
         return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
     }, [])
+    // Preload any user-selected FBX clips for the anim viewer
+    React.useEffect(() => {
+        const unique = Array.from(new Set(animUrls.filter(Boolean)))
+        unique.forEach(u => { if (/\.fbx($|\?)/i.test(u)) { try { (useFBX as any).preload?.(u) } catch {} } })
+        if (backflipUrl && /\.fbx($|\?)/i.test(backflipUrl)) { try { (useFBX as any).preload?.(backflipUrl) } catch {} }
+    }, [animUrls, backflipUrl])
+    // Preload pose viewer asset
+    React.useEffect(() => {
+        if (!poseUrl) return
+        if (/\.fbx($|\?)/i.test(poseUrl)) { try { (useFBX as any).preload?.(poseUrl) } catch {} }
+        else { try { (useGLTF as any).preload?.(poseUrl) } catch {} }
+    }, [poseUrl])
     // Anim Viewer keyboard shortcuts
     React.useEffect(() => {
         if (source !== 'animViewer') return
@@ -762,6 +790,9 @@ export default function HeroTuner() {
             </aside>
 
             <Canvas camera={{ position: [0, 1.6, 3.4], fov: 46 }}>
+                {/* Performance collection for Hero Tuner */}
+                <PerfCollector enabled={true} />
+                <PerfLongTaskObserver enabled={true} />
                 {lightingMode === 'dark' ? (
                     <>
                         <color attach="background" args={['#07111E']} />
@@ -838,8 +869,27 @@ export default function HeroTuner() {
                 <GizmoHelper alignment="bottom-right" margin={[80, 80]}>
                     <GizmoViewport axisColors={["#FF3653", "#8ADB00", "#2C8FFF"]} labelColor="white" />
                 </GizmoHelper>
-                <OrbitControls enablePan={false} />
+                <TrackedOrbitControls enablePan={false} />
             </Canvas>
+            {/* Toggle with F9 */}
+            <PerfOverlay enabled={showPerf} />
         </div>
     )
+}
+
+// Wrap OrbitControls to record per-frame update cost (tiny but visible when interacting)
+function TrackedOrbitControls(props: any) {
+    return (
+        <>
+            <OrbitControls {...props} />
+            <OrbitPerfTick />
+        </>
+    )
+}
+function OrbitPerfTick() {
+    // Each frame, emit a tiny measure so you can correlate interactions in the overlay
+    // This doesn't measure OrbitControls internal cost precisely, but provides a visible lane
+    // for camera manipulation periods.
+    useFrame(() => { perf.start('orbit_controls_update'); perf.end('orbit_controls_update') })
+    return null
 }

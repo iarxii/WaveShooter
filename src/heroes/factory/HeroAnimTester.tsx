@@ -3,8 +3,10 @@ import { Group, BoxGeometry, MeshBasicMaterial, Mesh } from 'three'
 import { SkeletonUtils } from 'three-stdlib'
 import { useFBX, useAnimations, Html, Stats, AdaptiveDpr } from '@react-three/drei'
 import { useThree, useFrame } from '@react-three/fiber'
+import * as perf from '../../perf'
 // Import a sample clip so even the default map resolves to a bundled URL
-import sampleRunBack from '../../assets/models/dr_dokta_anim_poses/Standing Run Back.fbx'
+// Use a sample FBX without spaces in the filename to avoid path resolution edge-cases on some setups
+import sampleRunBack from '../../assets/models/dr_dokta_anim_poses/Backflip.fbx'
 
 type ActionName =
   | 'idle'
@@ -38,7 +40,9 @@ function FBXAction({ url, active, scale = 0.01, onStatus, suppressWarnings = tru
     }
     return () => { console.warn = prev }
   }, [suppressWarnings])
+  perf.start('loader_parse')
   const fbx = useFBX(url) as any
+  perf.end('loader_parse')
   const group = useRef<Group>(null!)
   // Create a unique deep clone so the same FBX URL can be used by multiple actions without reparenting flicker
   const cloned = useMemo(() => (fbx ? SkeletonUtils.clone(fbx) : null), [fbx]) as any
@@ -60,6 +64,7 @@ function FBXAction({ url, active, scale = 0.01, onStatus, suppressWarnings = tru
     if (names?.[0] && actions?.[names[0]]) {
       clipRef.current = actions[names[0]]
       // Attempt autoplay when active and not already playing
+      perf.start('anim_clip_resolve')
       if (active && !playingRef.current) {
         clipRef.current.reset()
         if (fade > 0) clipRef.current.fadeIn(fade)
@@ -72,6 +77,7 @@ function FBXAction({ url, active, scale = 0.01, onStatus, suppressWarnings = tru
         }
         playingRef.current = true
       }
+      perf.end('anim_clip_resolve')
     }
   }, [actions, names, url, active, fade, paused, seek])
 
@@ -204,6 +210,27 @@ export function HeroAnimTester({
   const poseUrls = useMemo(() => Object.values(poseModules).map((m: any) => m?.default).filter(Boolean) as string[], [poseModules])
   const [overridePoseUrl, setOverridePoseUrl] = useState<string | null>(null)
 
+  // Preload all mapped FBX URLs up-front to prevent remount hitches when user starts interacting
+  useEffect(() => {
+    const urls: string[] = []
+    Object.values(anims).forEach((v) => {
+      if (!v) return
+      if (Array.isArray(v)) urls.push(...v)
+      else urls.push(v)
+    })
+    // Include random pose pool for shapeRunner overrides
+    try { urls.push(...poseUrls) } catch {}
+    // Deduplicate
+    const seen = new Set<string>()
+    urls.forEach((u) => {
+      if (!u || seen.has(u)) return
+      seen.add(u)
+      if (/\.fbx($|\?)/i.test(u)) {
+        try { (useFBX as any).preload?.(u) } catch { }
+      }
+    })
+  }, [anims, poseUrls])
+
   // Persist invert setting
   useEffect(() => {
     try { localStorage.setItem('invertDirections', invertDir ? '1' : '0') } catch { }
@@ -260,6 +287,8 @@ export function HeroAnimTester({
   const fpsSmooth = useRef<number>(0)
   const fpsAcc = useRef<number>(0)
   useFrame((state: any, delta: number) => {
+    // Track generic animation update cost in tuner
+    perf.start('anim_update')
     const instFps = 1 / Math.max(1e-6, delta)
     fpsSmooth.current = fpsSmooth.current ? fpsSmooth.current * 0.9 + instFps * 0.1 : instFps
     fpsAcc.current += delta
@@ -267,6 +296,7 @@ export function HeroAnimTester({
       setFps(fpsSmooth.current)
       fpsAcc.current = 0
     }
+    perf.end('anim_update')
   })
 
   // Decide action based on keys each 50ms (disabled when externalAction is provided)

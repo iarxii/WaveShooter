@@ -1,0 +1,63 @@
+hero-tuner:1  [GroupMarkerNotSet(crbug.com/242999)!:A0B0B2015C330000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content.
+HeroAnimTester.tsx:41  THREE.FBXLoader: Vertex has more than 4 skinning weights assigned to vertex. Deleting additional weights.
+overrideMethod @ hook.js:608
+(anonymous) @ FBXLoader.js:1049
+genBuffers @ FBXLoader.js:1026
+genGeometry @ FBXLoader.js:919
+parseMeshGeometry @ FBXLoader.js:911
+parseGeometry @ FBXLoader.js:874
+parse @ FBXLoader.js:864
+parse @ FBXLoader.js:67
+parse @ FBXLoader.js:53
+(anonymous) @ FBXLoader.js:25
+(anonymous) @ three.core.js:44186
+Promise.then
+load @ three.core.js:44174
+load @ FBXLoader.js:21
+(anonymous) @ events-f8cd670d.esm.js:1221
+(anonymous) @ events-f8cd670d.esm.js:1221
+(anonymous) @ events-f8cd670d.esm.js:1221
+query @ index.js:51
+suspend @ index.js:68
+useLoader @ events-f8cd670d.esm.js:1237
+useFBX @ Fbx.js:8
+FBXAction @ HeroAnimTester.tsx:41
+react-stack-bottom-frame @ react-reconciler.development.js:14492
+renderWithHooks @ react-reconciler.development.js:3914
+updateFunctionComponent @ react-reconciler.development.js:6059
+beginWork @ react-reconciler.development.js:7632
+runWithFiberInDEV @ react-reconciler.development.js:522
+performUnitOfWork @ react-reconciler.development.js:12641
+workLoopSync @ react-reconciler.development.js:12461
+renderRootSync @ react-reconciler.development.js:12441
+performWorkOnRoot @ react-reconciler.development.js:11909
+performWorkOnRootViaSchedulerTask @ react-reconciler.development.js:2137
+performWorkUntilDeadline @ scheduler.development.js:44
+index.js:120  Uncaught Error: Invalid argument not valid semver ('' received)
+    at validateAndParse (index.js:120:15)
+    at esm_compareVersions (index.js:10:16)
+    at gte (index.js:249:10)
+    at k.registerRendererInterface (agent.js:960:24)
+    at registerRendererInterface (index.js:31:11)
+    at index.js:70:5
+    at Map.forEach (<anonymous>)
+    at initBackend (index.js:69:27)
+    at activateBackend (backendManager.js:1:13128)
+    at backendManager.js:1:14182
+validateAndParse @ index.js:120
+esm_compareVersions @ index.js:10
+gte @ index.js:249
+registerRendererInterface @ agent.js:960
+registerRendererInterface @ index.js:31
+(anonymous) @ index.js:70
+initBackend @ index.js:69
+activateBackend @ backendManager.js:1
+(anonymous) @ backendManager.js:1
+(anonymous) @ hook.js:268
+emit @ hook.js:268
+(anonymous) @ backend.js:33
+(anonymous) @ backend.js:19
+(anonymous) @ react_devtools_backend_compact.js:1
+(anonymous) @ react_devtools_backend_compact.js:1
+5[Violation] 'requestAnimationFrame' handler took <N>ms
+6[Violation] Added non-passive event listener to a scroll-blocking <some> event. Consider marking event handler as 'passive' to make the page more responsive. See <URL>

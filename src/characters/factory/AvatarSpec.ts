@@ -1,5 +1,5 @@
 // src/characters/factory/AvatarSpec.ts
-export type BaseShape = 'icosahedron' | 'sphere' | 'triPrism' | 'hexPrism' | 'cylinder' | 'capsule';
+export type BaseShape = 'icosahedron' | 'sphere' | 'triPrism' | 'hexPrism' | 'cylinder' | 'capsule' | 'cube' | 'snake';
 
 export type AvatarSpec = {
   /** stable ID matching your balancing table */
@@ -26,6 +26,12 @@ export type AvatarSpec = {
   spikeStyle?: 'cone'|'inverted'|'disk'|'block'|'tentacle';
   /** Base offset for spikes along surface normal, in world units (negative=inward, positive=outward) */
   spikeBaseShift?: number;
+
+  // Spike cluster controls for boxy shapes
+  spikeClusterMidEnabled?: boolean;   // ring around midline
+  spikeClusterEndsEnabled?: boolean;  // rings near both end caps
+  spikeMidClusterCount?: number;      // spikes in mid ring
+  spikeEndClusterCount?: number;      // spikes per end ring
 
   // Spike animation (pulsing)
   spikePulse?: boolean;         // default true
@@ -85,4 +91,12 @@ export type AvatarSpec = {
   // Optional attack tuning (for future gameplay wiring; exposed in tuner)
   attackSpeed?: number;
   attackRange?: number;
+
+  // Snake segmented shape (WIP)
+  segmentCount?: number;           // number of body segments
+  segmentSpacing?: number;         // spacing between segments
+  snakeCurvature?: number;         // sinusoidal curve amplitude
+  snakeTwist?: number;             // twist along length
+  segmentRadiusScaleStart?: number;// taper start scale
+  segmentRadiusScaleEnd?: number;  // taper end scale
 };

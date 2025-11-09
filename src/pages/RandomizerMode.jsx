@@ -25,7 +25,7 @@ function pickPalette(){
 
 function randomSpec(i=0){
   const id = `rnd_${Date.now().toString(36)}_${i}`
-  const baseShapes = ['icosahedron','sphere','triPrism','hexPrism','cylinder','capsule']
+  const baseShapes = ['icosahedron','sphere','triPrism','hexPrism','cylinder','capsule','snake']
   const spikeStyles = ['cone','inverted','disk','block','tentacle']
   const palette = pickPalette()
   return {
@@ -105,6 +105,34 @@ export default function RandomizerMode({ navVisible = false, setNavVisible }){
   useEffect(() => {
     setSpecs(prev => prev.map(s => {
       const out = { ...s }
+      // Snake-specific tuning
+      if (out.baseShape === 'snake') {
+        // Keep detail lean; segments are capsules
+        out.detail = 0
+        // Segment chain params
+        out.segmentCount = randInt(6, 14)
+        out.segmentSpacing = rand(0.5, 0.9)
+        out.snakeCurvature = rand(0.15, 0.5)
+        out.snakeTwist = rand(0.0, 0.35)
+        out.segmentRadiusScaleStart = rand(0.9, 1.2)
+        out.segmentRadiusScaleEnd = rand(0.45, 0.8)
+
+        // Encourage tentacle spikes but allow variation
+        out.spikeStyle = pick(['tentacle','tentacle','cone','disk'])
+        out.spikeCount = randInt(36, 96) // total budget; divided per segment inside SnakePathogen
+        out.spikeLength = out.spikeStyle === 'tentacle' ? rand(0.5, 0.75) : rand(0.35, 0.6)
+        out.spikeRadius = rand(0.06, 0.12)
+
+        // Fewer nodes overall; segments divide these
+        out.nodeCount = randInt(6, 12)
+        // Body proportions baseline the segment Pathogen internals
+        out.scaleY = rand(0.9, 1.3)
+        out.scaleX = rand(0.9, 1.2)
+        out.height = rand(1.6, 2.4)
+        // Apply global hitbox mode selection
+        out.hitboxMode = hitboxMode
+        return out
+      }
       // Hard-edged shapes forced minimal detail
       if (['cylinder','capsule','triPrism','hexPrism'].includes(out.baseShape)) {
         out.detail = 0

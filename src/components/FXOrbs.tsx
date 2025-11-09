@@ -1,6 +1,7 @@
 import React, { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
+import * as perf from '../perf'
 import type { HeroSpec } from '../heroes/factory/HeroSpec'
 
 type Props = {
@@ -31,7 +32,11 @@ export default function FXOrbs({ spec, quality = 'high', forceShow=false, follow
     const hitboxRef = useRef<THREE.Mesh>(null)
 
     // Create one-time base geometries/materials
-    const geom = useMemo(() => new THREE.SphereGeometry(0.04 * H, 12, 12), [H])
+    const geom = useMemo(() => {
+        const sizeMul = (s as any).fxOrbSizeMul ?? 1.0
+        const r = Math.max(0.005, 0.04 * H * sizeMul)
+        return new THREE.SphereGeometry(r, 12, 12)
+    }, [H, (s as any).fxOrbSizeMul])
     const mat = useMemo(() => new THREE.MeshStandardMaterial({
         color: s.accentColor ?? '#FFD54F',
         emissive: s.accentColor ?? '#FFD54F',
@@ -41,12 +46,21 @@ export default function FXOrbs({ spec, quality = 'high', forceShow=false, follow
     }), [s.accentColor, s.fxRingIntensity])
 
     useFrame(({ clock }) => {
+        perf.start('fx_orbs_update')
         const t = clock.getElapsedTime()
         // Follow target if provided
         if (followRef.current && followTarget) {
             followTarget.updateMatrixWorld()
-            followRef.current.matrix.copy(followTarget.matrixWorld)
-            followRef.current.matrix.decompose(followRef.current.position as any, (followRef.current as any).quaternion, followRef.current.scale as any)
+            // target world position
+            const targetPos = new THREE.Vector3()
+            followTarget.getWorldPosition(targetPos)
+            // smoothing factor (0..1); 0 = snap disabled? here 0 means no smoothing (snap), >0 lerps
+            const lerpA = Math.max(0, Math.min(0.95, (s as any).fxFollowLerp ?? 0))
+            if (lerpA > 0) {
+                followRef.current.position.lerp(targetPos, lerpA)
+            } else {
+                followRef.current.position.copy(targetPos)
+            }
         }
         // Animate hitbox pulse
         if (hitboxRef.current && hitboxEnabled) {
@@ -158,6 +172,7 @@ export default function FXOrbs({ spec, quality = 'high', forceShow=false, follow
                 }
             }
         }
+        perf.end('fx_orbs_update')
     })
 
     if (!forceShow && !(s.fxRing && qual !== 'low')) return null
