@@ -1,12 +1,34 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useRef, useEffect } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
-import { ENEMY_SPEED, BOSS_SPEED, MINION_MAX_SPEED, APPROACH_SLOW_RADIUS, POST_LAND_SETTLE, DROP_SPEED, KNOCKBACK_DECAY, SPEED_SCALE } from '../game/constants.js'
+import * as perf from '../perf'
+import {
+  BOSS_SPEED,
+  ENEMY_SPEED,
+  MINION_MAX_SPEED,
+  POST_LAND_SETTLE,
+  DROP_SPEED,
+  APPROACH_SLOW_RADIUS,
+  KNOCKBACK_DECAY,
+  SPEED_SCALE,
+} from '../game/constants.js'
 
-export default function Minion({ id, pos, playerPosRef, onDie, isBoss=false, waveNumber, health, isPaused, spawnHeight, speedScale=1, visualScale=1 }) {
+export default function Minion({
+  id,
+  pos,
+  playerPosRef,
+  onDie,
+  isBoss = false,
+  waveNumber = 0,
+  health = 1,
+  isPaused = false,
+  spawnHeight,
+  speedScale = 1,
+  visualScale = 1,
+}) {
   const ref = useRef()
-  const rawSpeed = isBoss ? BOSS_SPEED : ENEMY_SPEED + (waveNumber * 0.1)
+  const rawSpeed = isBoss ? BOSS_SPEED : ENEMY_SPEED + waveNumber * 0.1
   const maxSpeed = MINION_MAX_SPEED
   const speed = Math.min(rawSpeed, maxSpeed)
   const lastDirection = useRef(new THREE.Vector3())
@@ -24,6 +46,8 @@ export default function Minion({ id, pos, playerPosRef, onDie, isBoss=false, wav
 
   useFrame((_, dt) => {
     if (!ref.current || isPaused) return
+
+    // Spawn drop-in handling
     if (isSpawning.current) {
       const groundY = pos?.[1] ?? 0.5
       ref.current.position.y = Math.max(groundY, ref.current.position.y - DROP_SPEED * dt)
@@ -35,17 +59,21 @@ export default function Minion({ id, pos, playerPosRef, onDie, isBoss=false, wav
       return
     }
 
+    // Stun countdown
     if (stunTimer.current > 0) stunTimer.current = Math.max(0, stunTimer.current - dt)
     const stunned = stunTimer.current > 0
+
+    // Chase logic
     const targetPos = playerPosRef.current
     const dir = new THREE.Vector3()
     dir.subVectors(targetPos, ref.current.position)
     const dist = dir.length()
 
+    // Simple separation to avoid clustering
     if (window.gameEnemies) {
       const separation = new THREE.Vector3()
       let neighborCount = 0
-      window.gameEnemies.forEach(enemy => {
+      window.gameEnemies.forEach((enemy) => {
         if (enemy.id !== id && enemy.ref && enemy.ref.current) {
           const diff = new THREE.Vector3()
           diff.subVectors(ref.current.position, enemy.ref.current.position)
@@ -65,6 +93,7 @@ export default function Minion({ id, pos, playerPosRef, onDie, isBoss=false, wav
       }
     }
 
+    // Anti-stuck tracking
     const currentDirection = dir.clone().normalize()
     if (lastDirection.current.dot(currentDirection) < 0.2) stuckTimer.current += dt
     else stuckTimer.current = 0
@@ -74,23 +103,23 @@ export default function Minion({ id, pos, playerPosRef, onDie, isBoss=false, wav
       if (dist > 0.6) {
         dir.normalize()
         const slow = Math.min(1, Math.max(0.2, dist / APPROACH_SLOW_RADIUS))
-        const ramp = settleTimer.current > 0 ? (1 - Math.max(0, settleTimer.current - dt) / POST_LAND_SETTLE) : 1
+        const ramp = settleTimer.current > 0 ? 1 - Math.max(0, settleTimer.current - dt) / POST_LAND_SETTLE : 1
         settleTimer.current = Math.max(0, settleTimer.current - dt)
         const stepSpeed = speed * slow * ramp * (speedScale || 1)
         ref.current.position.addScaledVector(dir, stepSpeed * dt)
       }
     }
 
+    // Knockback impulse decay
     if (knockback.current.lengthSq() > 1e-6) {
-      if (!stunned) {
-        ref.current.position.addScaledVector(knockback.current, dt)
-      }
+      if (!stunned) ref.current.position.addScaledVector(knockback.current, dt)
       const decayRate = (isBoss ? KNOCKBACK_DECAY.boss : KNOCKBACK_DECAY.minion) * SPEED_SCALE
       const decay = Math.exp(-decayRate * dt)
       knockback.current.multiplyScalar(decay)
       if (knockback.current.lengthSq() < 1e-6) knockback.current.set(0, 0, 0)
     }
 
+    // Visual stun shake
     if (stunned) {
       const t = performance.now() * 0.01 + id
       ref.current.rotation.x = Math.sin(t * 0.7) * 0.12
@@ -100,31 +129,30 @@ export default function Minion({ id, pos, playerPosRef, onDie, isBoss=false, wav
       ref.current.rotation.z = 0
     }
 
+    // Collision with player
+    perf.start('collision_enemy_player')
     const playerDist = ref.current.position.distanceTo(playerPosRef.current)
-    if (playerDist < (isBoss ? 1.8 : 1.2)) {
-      onDie(id, true)
-    }
+    if (playerDist < (isBoss ? 1.8 : 1.2)) onDie(id, true)
+    perf.end('collision_enemy_player')
   })
 
   useEffect(() => {
     if (!window.gameEnemies) window.gameEnemies = []
-    const enemyData = { 
-      id, 
-      ref, 
+    const enemyData = {
+      id,
+      ref,
       isBoss,
       impulse: (ix = 0, iz = 0, strength = 1) => {
         knockback.current.x += ix * strength
         knockback.current.z += iz * strength
       },
       stun: (ms = 5000) => {
-        const sec = Math.max(0, (ms|0) / 1000)
+        const sec = Math.max(0, (ms | 0) / 1000)
         stunTimer.current = Math.max(stunTimer.current, sec)
-      }
+      },
     }
     window.gameEnemies.push(enemyData)
-    return () => {
-      window.gameEnemies = window.gameEnemies.filter(e => e.id !== id)
-    }
+    return () => { window.gameEnemies = window.gameEnemies.filter((e) => e.id !== id) }
   }, [id, isBoss])
 
   const maxHealth = isBoss ? 3 : 1
@@ -139,8 +167,8 @@ export default function Minion({ id, pos, playerPosRef, onDie, isBoss=false, wav
         ) : (
           <sphereGeometry args={[0.6, 16, 16]} />
         )}
-        <meshStandardMaterial 
-          color={baseColor} 
+        <meshStandardMaterial
+          color={baseColor}
           opacity={0.3 + 0.7 * healthRatio}
           transparent={healthRatio < 1}
           emissive={healthRatio < 0.5 ? 0x440000 : 0x000000}
@@ -164,3 +192,4 @@ export default function Minion({ id, pos, playerPosRef, onDie, isBoss=false, wav
     </group>
   )
 }
+

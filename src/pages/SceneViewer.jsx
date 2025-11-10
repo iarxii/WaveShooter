@@ -162,7 +162,7 @@ export default function SceneViewer() {
   }
   return (
     <div style={{width:'100%',height:'100vh',position:'relative'}}>
-      <div style={{position:'absolute',top:8,left:8,zIndex:20,background:'rgba(0,0,0,0.5)',padding:'8px 12px',borderRadius:8,fontSize:14,color:'#fff',backdropFilter:'blur(4px)'}}>
+      <div style={{position:'absolute',top:100,left:8,zIndex:20,background:'rgba(0,0,0,0.5)',padding:'8px 12px',borderRadius:8,fontSize:14,color:'#fff',backdropFilter:'blur(4px)'}}>
         <div style={{fontWeight:600,marginBottom:6}}>Scene Viewer</div>
         <label style={{display:'block',marginBottom:4}}>Render Mode:</label>
         <select value={mode} onChange={e=> setMode(e.target.value)} style={{padding:'4px 6px',borderRadius:4}}>
