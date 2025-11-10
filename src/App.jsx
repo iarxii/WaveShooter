@@ -31,6 +31,7 @@ import PerfLongTaskObserver from "./components/PerfLongTaskObserver.tsx";
 import * as perf from "./perf.ts";
 import FXOrbs from "./components/FXOrbs";
 import applyDamageToHero from "./utils/damage.js";
+import PlayerRadialHUD from "./components/PlayerRadialHUD.jsx";
 
 // GAME CONSTANTS
 const PLAYER_SPEED = 24; // faster than minions to keep mobility advantage
@@ -117,6 +118,8 @@ const PORTAL_STAGGER_MS = 260; // ms between enemy drops per portal
 // Temporary feature flag to fully disable arena growth logic for performance
 const ARENA_GROWTH_DISABLED = true;
 const DROP_SPAWN_HEIGHT = 8; // y height enemies begin falling from
+// Feature flag: toggle player radial HUD rendering (disable while debugging)
+const SHOW_PLAYER_RADIAL_HUD = false
 const DROP_SPEED = 10; // units/sec downward during spawn
 
 // Contact damage by enemy type
@@ -2100,6 +2103,24 @@ export default function App({ navVisible, setNavVisible } = {}) {
       );
     } catch {}
   }, [disableEnemySpawns]);
+  // Debug: Spawn only hazards (allow hazards but prevent enemy spawns)
+  const [spawnOnlyHazards, setSpawnOnlyHazards] = useState(() => {
+    try {
+      const v = localStorage.getItem("spawnOnlyHazards");
+      return v === "1" || v === "true";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("spawnOnlyHazards", spawnOnlyHazards ? "1" : "0");
+    } catch {}
+  }, [spawnOnlyHazards]);
+  const spawnOnlyHazardsRef = useRef(false);
+  useEffect(() => {
+    spawnOnlyHazardsRef.current = spawnOnlyHazards;
+  }, [spawnOnlyHazards]);
   // Ref form to use inside timers/callbacks without re-subscribing
   const disableEnemySpawnsRef = useRef(false);
   useEffect(() => {
@@ -3112,7 +3133,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
     for (let i = 0; i < count; i++) {
       const handle = setTimeout(() => {
         if (isPausedRef.current) return;
-        if (disableEnemySpawnsRef.current) return;
+        // If spawning is globally disabled or we're testing hazards-only, skip enemy spawn
+        if (disableEnemySpawnsRef.current || spawnOnlyHazardsRef.current) return;
         const jitter = 1.2;
         const spawnPos = [
           pos[0] + (Math.random() - 0.5) * jitter,
@@ -3278,7 +3300,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const spawnWave = useCallback(() => {
     if (isPausedRef.current) return;
     // When spawns are disabled, fully stop wave progression/leveling updates
-    if (disableEnemySpawnsRef.current) return;
+    if (disableEnemySpawnsRef.current || spawnOnlyHazardsRef.current) return;
     perf.start("spawn_wave");
     // Establish per-level baseline: points at the start of this level
     levelScoreBaselineRef.current = scoreRef.current || 0;
@@ -5292,6 +5314,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
 
           {/* World-space FX Orbs follow player via anchor ref */}
           <PlayerFXAnchor ref={fxAnchorRef} playerPosRef={playerPosRef} />
+          {/* Player radial armour+health HUD (world-space HTML) */}
+          {SHOW_PLAYER_RADIAL_HUD && (
+            <PlayerRadialHUD playerPosRef={playerPosRef} health={health} armor={armor} maxHealth={100} maxArmor={500} />
+          )}
           {!isPaused && heroQuality !== "low" && debugFxOrbCount > 0 && (
             <FXOrbs
               spec={{
@@ -6352,6 +6378,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
                         />{" "}
                         High Contrast Aiming
                       </label>
+
+                      {/* Performance controls: Show FPS and Drei Overlay */}
                       <label
                         style={{
                           display: "flex",
@@ -6410,6 +6438,21 @@ export default function App({ navVisible, setNavVisible } = {}) {
                           }
                         />{" "}
                         Disable Enemy Spawns
+                      </label>
+                      {/* add an option to spawn only hazards for testing here */}
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={spawnOnlyHazards}
+                          onChange={(e) => setSpawnOnlyHazards(e.target.checked)}
+                        />{' '}
+                        Spawn Only Hazards (debug)
                       </label>
 
                       <hr />
@@ -7022,7 +7065,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
 
       {/* Top-left: in-game menu toggle for NavBar visibility */}
       {typeof setNavVisible === "function" && (
-        <div style={{ position: "fixed", top: 8, left: 12, zIndex: 1000 }}>
+        <div style={{ position: "fixed", top: 8, right: 12, zIndex: 1000 }}>
           <button
             className="button"
             onClick={() => setNavVisible((v) => !v)}
@@ -7036,7 +7079,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
       {/* Feeds & overlays */}
       {/* Top-right stack: HUD + pickup feed (collapsible) */}
       {/* Debug UI toggle */}
-      <div style={{ position: "fixed", top: 8, right: 12, zIndex: 1000 }}>
+      <div style={{ position: "fixed", top: 50, right: '12px', zIndex: 1000 }}>
         <label
           style={{
             background: "rgba(0,0,0,0.5)",
@@ -7058,7 +7101,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
       </div>
 
       {showDebugUI && (
-        <div className="hud-stack">
+        <div className="hud-stack" style={{top:80}}>
           <CollapsiblePanel id="debug-hud" title="Debug HUD" defaultOpen={true}>
             <div className="hud small">
               <div>Enemies: {enemies.length}</div>
