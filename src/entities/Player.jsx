@@ -57,6 +57,50 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
   const boostMulRef = useRef(1)
   const lastArcToken = useRef(0)
   const boundaryJumpActive = useRef(false)
+  // Health & regeneration
+  const healthRef = useRef(100) // current HP
+  const maxHealthRef = useRef(100) // base max HP (can be extended by pickups later)
+  const regenDelayRef = useRef(0) // seconds remaining before regen resumes after damage
+  const baseRegenRateRef = useRef(0.75) // HP per second (slow baseline)
+  const regenMultiplierRef = useRef(1) // scalable by future pickups/effects
+  const lastDamageAtRef = useRef(0)
+  // Expose imperative API to parent via window for now (can be ref prop later)
+  useEffect(() => {
+    window.playerHealth = {
+      get: () => ({ current: healthRef.current, max: maxHealthRef.current }),
+      applyDamage: (amount = 0, regenDelaySec = 4) => {
+        const v = Math.max(0, amount)
+        if (v <= 0) return healthRef.current
+        healthRef.current = Math.max(0, healthRef.current - v)
+        regenDelayRef.current = regenDelaySec
+        lastDamageAtRef.current = performance.now()
+        return healthRef.current
+      },
+      healFlat: (amount = 0) => {
+        const v = Math.max(0, amount)
+        if (v <= 0) return healthRef.current
+        healthRef.current = Math.min(maxHealthRef.current, healthRef.current + v)
+        return healthRef.current
+      },
+      boostRegenMultiplier: (mul = 1, durationSec = 5) => {
+        regenMultiplierRef.current = Math.max(0.1, mul)
+        // schedule reset after duration
+        const resetAt = performance.now() + durationSec * 1000
+        const id = setInterval(() => {
+          if (performance.now() >= resetAt) {
+            regenMultiplierRef.current = 1
+            clearInterval(id)
+          }
+        }, 250)
+      },
+      extendMax: (extra = 0) => {
+        maxHealthRef.current += Math.max(0, extra)
+        healthRef.current = Math.min(maxHealthRef.current, healthRef.current)
+        return maxHealthRef.current
+      }
+    }
+    return () => { if (window.playerHealth) delete window.playerHealth }
+  }, [])
   // Animation bridge to FBX avatar (Dr Dokta)
   const doktaActionRef = useRef('idle')
   const [doktaAction, setDoktaAction] = useState('idle')
@@ -656,6 +700,14 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
       if (chargeRingRef.current) chargeRingRef.current.scale.set(0.001, 0.001, 0.001)
       if (landingRingRef.current) landingRingRef.current.scale.set(0.001, 0.001, 0.001)
     }
+
+    // ===== Health Regeneration System =====
+    // Countdown regen delay (e.g., 4s after last damage)
+    regenDelayRef.current = Math.max(0, regenDelayRef.current - dt)
+    if (regenDelayRef.current <= 0 && healthRef.current < maxHealthRef.current) {
+      const gain = baseRegenRateRef.current * regenMultiplierRef.current * dt
+      healthRef.current = Math.min(maxHealthRef.current, healthRef.current + gain)
+    }
   })
 
   // Dash trigger
@@ -731,6 +783,19 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
       <mesh ref={landingRingRef} rotation={[-Math.PI / 2, 0, 0]} material={landingMat}>
         <primitive object={landingGeom} attach="geometry" />
       </mesh>
+      {/* Debug: simple health bar above player (optional, hidden by default) */}
+      {false && (
+        <group position={[0, 1.4, 0]}>
+          <mesh position={[0,0,0]} scale={[1.6,0.12,0.12]}> 
+            <boxGeometry args={[1,1,1]} />
+            <meshBasicMaterial color={0x222222} />
+          </mesh>
+          <mesh position={[(-1.6/2)+(1.6*(healthRef.current/maxHealthRef.current))/2,0,0]} scale={[1.6*(healthRef.current/maxHealthRef.current),0.08,0.08]}> 
+            <boxGeometry args={[1,1,1]} />
+            <meshBasicMaterial color={0x22c55e} />
+          </mesh>
+        </group>
+      )}
     </group>
   )
 }

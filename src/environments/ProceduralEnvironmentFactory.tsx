@@ -1,7 +1,9 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useCallback, useEffect } from 'react'
 import * as THREE from 'three'
 import { EnvironmentSpec } from './environments'
 import { useThree } from '@react-three/fiber'
+import { ShaderParkGround } from './ShaderParkGround'
+import { useEnvironment } from '../contexts/EnvironmentContext'
 
 // Lightweight pooled geometries
 const planeGeom = new THREE.PlaneGeometry(200, 200)
@@ -12,6 +14,16 @@ interface Props { spec: EnvironmentSpec; perfMode?: boolean }
 // Returns a group of optimized lights + optional simple silhouettes
 export function ProceduralEnvironmentFactory({ spec, perfMode }: Props) {
   const { scene } = useThree()
+  // Map env id to arena shader variant
+  const mode = useMemo(() => {
+    switch (spec.id) {
+      case 'proc_hazard_hospital': return 'plasma'
+      case 'proc_hazard_lab': return 'planetoid'
+      case 'proc_blue_sky': return 'void'
+      case 'proc_darkmode': return 'turbulence'
+      default: return 'planetoid'
+    }
+  }, [spec.id])
   // Background & fog adjustments (already applied in SceneEnvironment effect for fog; here only background)
   const backgroundColor = useMemo(() => {
     switch (spec.id) {
@@ -82,20 +94,14 @@ export function ProceduralEnvironmentFactory({ spec, perfMode }: Props) {
     return null
   }, [spec.id, perfMode])
 
-  // Ground plane minimal (no costly shadow receiving if not needed)
-  const ground = useMemo(() => {
-    const color = spec.id === 'proc_blue_sky' ? '#d9ecf8' : '#0e212a'
-    return (
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} geometry={planeGeom}>
-        <meshStandardMaterial color={color} roughness={1} />
-      </mesh>
-    )
-  }, [spec.id])
+  // Consume global pulses from environment context
+  const { pulses } = useEnvironment()
 
   return (
     <group>
       {lights}
-      {ground}
+  {/* ShaderPark applied to arena ground */}
+  <ShaderParkGround />
       {silhouettes}
     </group>
   )

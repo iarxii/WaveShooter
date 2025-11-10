@@ -2435,7 +2435,7 @@ function TriangleBoss({
 
 // Cone boss extracted to src/entities/ConeBoss.jsx
 
-export default function App() {
+export default function App({ navVisible, setNavVisible } = {}) {
   const { play } = useSound();
   const { addRun } = useHistoryLog();
   const { selectedHero, setSelectedHero } = useGame();
@@ -5461,21 +5461,14 @@ export default function App() {
             intensity={0.6}
             castShadow
           />
-          {/* Semi-light ground plane */}
-          <mesh
-            rotation={[-Math.PI / 2, 0, 0]}
-            position={[0, 0, 0]}
-            receiveShadow
-          >
-            <planeGeometry args={[200, 200]} />
-            <meshStandardMaterial color={0xeaeef3} roughness={1} />
-          </mesh>
+          {/* Legacy static ground removed; dynamic ShaderPark ground provided by ProceduralEnvironmentFactory */}
           {/* Boundary visual cue */}
           <BoundaryCue
             limit={boundaryLimit ?? BOUNDARY_LIMIT}
             isPaused={isPaused}
           />
-          <primitive object={grid} position={[0, 0.001, 0]} />
+          {/* Optional grid disabled to avoid z-fighting with ShaderPark ground */}
+          {/* <primitive object={grid} position={[0, 0.001, 0]} /> */}
 
           {/* Active portals */}
           {!isPaused &&
@@ -7332,6 +7325,12 @@ export default function App() {
                   </button>
                   <button
                     className="button"
+                    onClick={() => navigate("/")}
+                  >
+                    Quit to Home
+                  </button>
+                  <button
+                    className="button"
                     onClick={() => {
                       continueSameLevel();
                     }}
@@ -7379,6 +7378,19 @@ export default function App() {
                   <button
                     className="button"
                     onClick={() => {
+                      setIsGameOver(false);
+                      setLives(3);
+                      setRespawnCountdown(0);
+                      restartGame();
+                      setIsPaused(false);
+                      spawnWave();
+                    }}
+                  >
+                    Restart Run
+                  </button>
+                  <button
+                    className="button"
+                    onClick={() => {
                       try {
                         localStorage.setItem("savedScore", String(score));
                         localStorage.setItem("savedWave", String(wave));
@@ -7395,6 +7407,19 @@ export default function App() {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Top-left: in-game menu toggle for NavBar visibility */}
+      {typeof setNavVisible === "function" && (
+        <div style={{ position: "fixed", top: 8, left: 12, zIndex: 1000 }}>
+          <button
+            className="button"
+            onClick={() => setNavVisible((v) => !v)}
+            title={navVisible ? "Hide Menu" : "Show Menu"}
+          >
+            {navVisible ? "Hide Menu" : "Show Menu"}
+          </button>
         </div>
       )}
 
