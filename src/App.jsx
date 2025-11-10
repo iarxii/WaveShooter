@@ -30,6 +30,7 @@ import PerfOverlay from "./components/PerfOverlay.tsx";
 import PerfLongTaskObserver from "./components/PerfLongTaskObserver.tsx";
 import * as perf from "./perf.ts";
 import FXOrbs from "./components/FXOrbs";
+import applyDamageToHero from "./utils/damage.js";
 
 // GAME CONSTANTS
 const PLAYER_SPEED = 24; // faster than minions to keep mobility advantage
@@ -2272,6 +2273,14 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const [bestWave, setBestWave] = useState(0);
   const [health, setHealth] = useState(100);
   const [armor, setArmor] = useState(500);
+  const healthRef = useRef(health);
+  useEffect(() => {
+    healthRef.current = health;
+  }, [health]);
+  const armorRef = useRef(armor);
+  useEffect(() => {
+    armorRef.current = armor;
+  }, [armor]);
   const [lives, setLives] = useState(3);
   const [isGameOver, setIsGameOver] = useState(false);
   const [respawnCountdown, setRespawnCountdown] = useState(0);
@@ -2624,35 +2633,54 @@ export default function App({ navVisible, setNavVisible } = {}) {
         }
         return;
       }
+
       const scale = damageScaleRef.current || 1;
-      let remaining = Math.max(1, Math.ceil((dmg || 1) * scale));
-      setArmor((a) => {
-        if (a > 0 && remaining > 0) {
-          const take = Math.min(a, remaining);
-          const idEvt = Date.now() + Math.random();
+      const amount = Math.max(1, Math.ceil((dmg || 1) * scale));
+
+      // Use the latest snapshot via refs to compute deterministic result
+      const currentState = { health: healthRef.current || 0, armor: armorRef.current || 0 };
+      const res = applyDamageToHero(currentState, { amount, source: "enemy" });
+
+      // Emit events for UI floaters (preserve ordering: armor then hp)
+      for (const ev of res.events) {
+        const idEvt = Date.now() + Math.random();
+        if (ev.type === "armor") {
           setArmorEvents((evts) => [
             ...evts,
-            { id: idEvt, amount: -take, start: performance.now() },
+            { id: idEvt, amount: ev.delta, start: performance.now() },
           ]);
-          remaining -= take;
-          return a - take;
-        }
-        return a;
-      });
-      if (remaining > 0) {
-        setHealth((h) => {
-          const take = Math.min(h, remaining);
-          const idEvt = Date.now() + Math.random();
+        } else if (ev.type === "hp") {
           setHpEvents((evts) => [
             ...evts,
-            { id: idEvt, amount: -take, start: performance.now() },
+            { id: idEvt, amount: ev.delta, start: performance.now() },
           ]);
-          return Math.max(h - remaining, 0);
-        });
+        }
       }
+
+      // Apply state updates
+      setArmor(res.armor);
+      setHealth(res.health);
+
+      // Return the computed result for imperative callers
+      return res;
     },
     [isPlayerInvulnerable]
   );
+
+  // Expose damagePlayer globally so legacy imperative callers can delegate to the
+  // central armour-first logic (keeps backward compatibility with window APIs)
+  useEffect(() => {
+    try {
+      window.damagePlayer = damagePlayer;
+    } catch {
+      /* ignore */
+    }
+    return () => {
+      try {
+        if (window.damagePlayer === damagePlayer) delete window.damagePlayer;
+      } catch {}
+    };
+  }, [damagePlayer]);
 
   // Load persisted settings once
   useEffect(() => {

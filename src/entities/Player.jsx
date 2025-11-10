@@ -71,7 +71,23 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
       applyDamage: (amount = 0, regenDelaySec = 4) => {
         const v = Math.max(0, amount)
         if (v <= 0) return healthRef.current
-        healthRef.current = Math.max(0, healthRef.current - v)
+        // Prefer the centralized damage API when available so armor is considered.
+        try {
+          if (typeof window.damagePlayer === "function") {
+            const res = window.damagePlayer(v);
+            // If the global damagePlayer returned a result, sync local health for visual/regeneration logic
+            if (res && typeof res === "object" && typeof res.health === "number") {
+              healthRef.current = res.health;
+            } else {
+              // Fallback: apply locally
+              healthRef.current = Math.max(0, healthRef.current - v);
+            }
+          } else {
+            healthRef.current = Math.max(0, healthRef.current - v);
+          }
+        } catch (e) {
+          healthRef.current = Math.max(0, healthRef.current - v);
+        }
         regenDelayRef.current = regenDelaySec
         lastDamageAtRef.current = performance.now()
         return healthRef.current
