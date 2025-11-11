@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
+import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
 import * as perf from '../perf'
 import {
   BOSS_SPEED,
@@ -26,6 +27,8 @@ export default function Minion({
   spawnHeight,
   speedScale = 1,
   visualScale = 1,
+  spec = null,
+  useSpec = false,
 }) {
   const ref = useRef()
   const rawSpeed = isBoss ? BOSS_SPEED : ENEMY_SPEED + waveNumber * 0.1
@@ -161,19 +164,25 @@ export default function Minion({
 
   return (
     <group scale={[visualScale, visualScale, visualScale]}>
-      <mesh ref={ref} position={pos}>
-        {isBoss ? (
-          <cylinderGeometry args={[1.6, 1.6, 0.8, 6]} />
-        ) : (
-          <sphereGeometry args={[0.6, 16, 16]} />
-        )}
-        <meshStandardMaterial
-          color={baseColor}
-          opacity={0.3 + 0.7 * healthRatio}
-          transparent={healthRatio < 1}
-          emissive={healthRatio < 0.5 ? 0x440000 : 0x000000}
-        />
-      </mesh>
+      {spec && useSpec ? (
+        <group ref={ref} position={pos}>
+          <PathogenFromSpec spec={spec} />
+        </group>
+      ) : (
+        <mesh ref={ref} position={pos}>
+          {isBoss ? (
+            <cylinderGeometry args={[1.6, 1.6, 0.8, 6]} />
+          ) : (
+            <sphereGeometry args={[0.6, 16, 16]} />
+          )}
+          <meshStandardMaterial
+            color={baseColor}
+            opacity={0.3 + 0.7 * healthRatio}
+            transparent={healthRatio < 1}
+            emissive={healthRatio < 0.5 ? 0x440000 : 0x000000}
+          />
+        </mesh>
+      )}
       {health < maxHealth && (
         <mesh position={[pos[0], pos[1] + 1.5, pos[2]]}>
           <planeGeometry args={[1, 0.1]} />

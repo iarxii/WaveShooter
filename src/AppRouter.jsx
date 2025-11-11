@@ -6,6 +6,7 @@ import GamePage from './pages/Game.jsx'
 import SceneViewer from './pages/SceneViewer.jsx'
 import CharacterViewer from './pages/CharacterViewer.jsx'
 import AvatarTuner from './pages/AvatarTuner.tsx'
+import SpecialBossViewer from './pages/SpecialBossViewer.jsx'
 import HeroTuner from './pages/HeroTuner.tsx'
 import PathogenDemo from './pages/PathogenDemo.jsx'
 import RandomizerMode from './pages/RandomizerMode.jsx'
@@ -54,6 +55,7 @@ export default function AppRouter() {
               <Route path="/characters" element={<CharacterViewer />} />
               <Route path="/pathogen-demo" element={<PathogenDemo />} />
               <Route path="/avatar-tuner" element={<AvatarTuner />} />
+              <Route path="/special-boss-viewer" element={<SpecialBossViewer />} />
               <Route path="/hero-tuner" element={<HeroTuner />} />
               <Route path="/randomizer" element={<RandomizerMode navVisible={navVisible} setNavVisible={setNavVisible} />} />
               <Route path="/env-factory" element={<EnvironmentFactoryPage />} />

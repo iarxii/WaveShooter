@@ -2,9 +2,10 @@ import React, { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
+import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
 import { KNOCKBACK_DECAY, SPEED_SCALE, CONTACT_DAMAGE, DROP_SPEED } from '../game/constants.js'
 
-export default function ConeBoss({ id, pos, playerPosRef, onDamagePlayer, health, isPaused, spawnHeight, speedScale = 1, visualScale = 1 }) {
+export default function ConeBoss({ id, pos, playerPosRef, onDamagePlayer, health, isPaused, spawnHeight, speedScale = 1, visualScale = 1, spec = null, useSpec = false }) {
   const ref = useRef()
   const idleTimer = useRef(10) // seconds between jumps
   const airVelY = useRef(0)
@@ -149,11 +150,58 @@ export default function ConeBoss({ id, pos, playerPosRef, onDamagePlayer, health
 
   return (
     <group ref={ref} position={pos} scale={[visualScale, visualScale, visualScale]}>
-      {/* Visual mesh: cone rotated to stand on tip; offset up by half height so tip meets ground at group y */}
-      <mesh ref={meshRef} position={[0, 1.3, 0]} rotation={[Math.PI, 0, 0]}>
-        <cylinderGeometry args={[0, 1.6, 2.6, 16]} />
-        <meshStandardMaterial color={0xff7744} emissive={0x331100} opacity={0.35 + 0.65*healthRatio} transparent />
-      </mesh>
+      {/* If a spec is supplied (from AvatarTuner), render the generated model so preview matches entity visuals */}
+      {spec && useSpec ? (
+        <group ref={meshRef} position={[0, 0.15, 0]}>
+          <PathogenFromSpec spec={spec} />
+        </group>
+      ) : (
+        /* Visual mesh: bacteriophage-style assembly
+            - pipe body (cylinder)
+            - top: octahedron (D8-like die)
+            - bottom: thin disk with 6 radial legs extending down/out
+        */
+        <group ref={meshRef} position={[0, 1.3, 0]}>
+          {/* Pipe body */}
+          <mesh position={[0, 0.6, 0]}>
+            <cylinderGeometry args={[0.28, 0.28, 1.6, 24, 1, true]} />
+            <meshStandardMaterial color={0xf97316} emissive={0x44220a} metalness={0.2} roughness={0.6} transparent opacity={0.6 + 0.4 * healthRatio} side={THREE.DoubleSide} />
+          </mesh>
+
+          {/* Top octahedron (D8-like) */}
+          <mesh position={[0, 1.6, 0]} rotation={[0, 0, 0]}>
+            <octahedronGeometry args={[0.63, 0]} />
+            <meshStandardMaterial color={0xffb86b} emissive={0x5a2b07} metalness={0.1} roughness={0.4} />
+          </mesh>
+
+          {/* Bottom disk */}
+          <mesh position={[0, -0.1, 0]} rotation={[0, 0, 0]}>
+            <cylinderGeometry args={[0.48, 0.48, 0.06, 24]} />
+            <meshStandardMaterial color={0xffd9b6} emissive={0x2d1608} metalness={0.05} roughness={0.6} />
+          </mesh>
+
+          {/* Six radial legs: simple single-cylinder legs pointing straight out (no bending). */}
+          {Array.from({ length: 6 }).map((_, i) => {
+            const ang = (i / 6) * Math.PI * 2
+            const edgeR = 0
+            const x = Math.cos(ang) * edgeR
+            const z = Math.sin(ang) * edgeR
+            const rotY = ang
+            const legLen = 1.9
+            const tiltZ = -0.85 // tilt outward leg slightly downwards (radians)
+            // anchor the leg at the disk rim
+            return (
+              <group key={i} position={[x * 0.95, -0.85, z * 0.95]} rotation={[0, rotY, 0]}>
+                {/* simple cylindrical leg extending along local X */}
+                <mesh position={[legLen / 2, 0, 0]} rotation={[0, 0, -Math.PI / 2 + tiltZ]}>
+                  <cylinderGeometry args={[0.06, 0.06, legLen, 10]} />
+                  <meshStandardMaterial color={0xffb86b} emissive={0x4a2008} metalness={0.05} roughness={0.7} />
+                </mesh>
+              </group>
+            )
+          })}
+        </group>
+      )}
       {/* HP label above cone */}
       <Text position={[0, 3.6, 0]} fontSize={0.42} color="#ffffff" anchorX="center" anchorY="bottom">
         {`± ${health}/${maxHealth}`}

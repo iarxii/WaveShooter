@@ -1,8 +1,15 @@
 // src/pages/AvatarTuner.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom'
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import { PathogenFromSpec } from '../characters/factory/PathogenFactory';
+import ConeBoss from '../entities/ConeBoss.jsx'
+import TriangleBoss from '../entities/TriangleBoss.jsx'
+import PipeBoss from '../entities/PipeBoss.jsx'
+import ClusterBoss from '../entities/ClusterBoss.jsx'
+import Minion from '../entities/Minion.jsx'
+import StarBoss from '../entities/StarBoss.jsx'
 import type { AvatarSpec } from '../characters/factory/AvatarSpec';
 
 // --- tiny color helper ---
@@ -98,6 +105,9 @@ export default function AvatarTuner() {
   const [lightingMode, setLightingMode] = useState<'dark'|'light'>('dark');
   const [galleryOpen, setGalleryOpen] = useState<boolean>(true);
   const [pickedImageUrl, setPickedImageUrl] = useState<string | null>(null);
+  const [previewEntityMesh, setPreviewEntityMesh] = useState(false)
+  const [previewEntityType, setPreviewEntityType] = useState('ConeBoss')
+  const mockPlayerRef = useRef({ current: { x: 0, y: 0, z: 0 } })
 
   // Discover enemy avatar images with Vite glob
   // Vite glob typing fallback: cast import.meta as any to access glob
@@ -235,11 +245,122 @@ export default function AvatarTuner() {
     a.click();
   }
 
+  // --- Special Boss Presets (generate AvatarSpec matching boss art directions) ---
+  function makeInfluenzaSpec(): AvatarSpec {
+    return {
+      id: 'influenza', seed: Math.floor(Math.random()*1e9), baseShape: 'sphere',
+      radius: 1.2, height: 1.2, scaleX: 1, scaleY: 1, detail: 1,
+      spikeCount: 36, spikeLength: 0.42, spikeRadius: 0.08, spikeStyle: 'disk',
+      spikePulse: true, spikePulseIntensity: 0.18,
+      baseColor: '#16a34a', spikeColor: '#86efac', nodeColor: '#bbf7d0', arcColor: '#bbf7d0',
+      emissive: '#16a34a', emissiveIntensityCore: 0.22, emissiveIntensitySpikes: 0.08,
+      quality: 'high'
+    } as AvatarSpec
+  }
+
+  function makeHepCSpec(): AvatarSpec {
+    return {
+      id: 'hepatitis_c', seed: Math.floor(Math.random()*1e9), baseShape: 'sphere',
+      radius: 1.1, height: 1.1, scaleX: 1, scaleY: 1, detail: 1,
+      spikeCount: 40, spikeLength: 0.36, spikeRadius: 0.12, spikeStyle: 'block',
+      baseColor: '#bfdbfe', spikeColor: '#facc15', nodeColor: '#fde68a', arcColor: '#fef3c7',
+      emissive: '#93c5fd', emissiveIntensityCore: 0.18, emissiveIntensitySpikes: 0.06,
+      quality: 'high'
+    } as AvatarSpec
+  }
+
+  function makeRotavirusSpec(): AvatarSpec {
+    return {
+      id: 'rotavirus', seed: Math.floor(Math.random()*1e9), baseShape: 'sphere',
+      radius: 1.25, height: 1.25, scaleX: 1, scaleY: 1, detail: 2,
+      spikeCount: 28, spikeLength: 0.5, spikeRadius: 0.09, spikeStyle: 'inverted',
+      baseColor: '#1e40af', spikeColor: '#93c5fd', nodeColor: '#bfdbfe', arcColor: '#bfdbfe',
+      emissive: '#60a5fa', emissiveIntensityCore: 0.25, emissiveIntensitySpikes: 0.08,
+      quality: 'high'
+    } as AvatarSpec
+  }
+
+  function makeBacteriophageSpec(): AvatarSpec {
+    // multi-part look approximated with elongated body and clustered spikes
+    return {
+      id: 'bacteriophage', seed: Math.floor(Math.random()*1e9), baseShape: 'cylinder',
+      radius: 0.9, height: 2.0, scaleX: 0.9, scaleY: 1.6, detail: 2,
+      spikeCount: 18, spikeLength: 0.9, spikeRadius: 0.12, spikeStyle: 'tentacle',
+      baseColor: '#f97316', spikeColor: '#fde68a', nodeColor: '#fff7ed', arcColor: '#fff7ed',
+      emissive: '#fb923c', emissiveIntensityCore: 0.28, emissiveIntensitySpikes: 0.12,
+      quality: 'high'
+    } as AvatarSpec
+  }
+
+  function makePapillomaSpec(): AvatarSpec {
+    return {
+      id: 'papillomavirus', seed: Math.floor(Math.random()*1e9), baseShape: 'sphere',
+      radius: 1.15, height: 1.15, scaleX: 1, scaleY: 1, detail: 1,
+      spikeCount: 36, spikeLength: 0.44, spikeRadius: 0.1, spikeStyle: 'block',
+      baseColor: '#fde68a', spikeColor: '#f59e0b', nodeColor: '#fff7ed', arcColor: '#fff7ed',
+      emissive: '#fbbf24', emissiveIntensityCore: 0.22, emissiveIntensitySpikes: 0.1,
+      quality: 'high'
+    } as AvatarSpec
+  }
+
+  function makeEbolaSpec(): AvatarSpec {
+    return {
+      id: 'ebolavirus', seed: Math.floor(Math.random()*1e9), baseShape: 'snake',
+      radius: 0.8, height: 2.4, scaleX: 0.9, scaleY: 1.6, detail: 2,
+      spikeCount: 0, spikeLength: 0.0, spikeRadius: 0.06, spikeStyle: 'tentacle',
+      baseColor: '#6b21a8', spikeColor: '#ef4444', nodeColor: '#fca5a5', arcColor: '#fca5a5',
+      emissive: '#7c3aed', emissiveIntensityCore: 0.2, emissiveIntensitySpikes: 0.06,
+      segmentCount: 18, segmentSpacing: 0.5, snakeCurvature: 0.6, quality: 'high'
+    } as AvatarSpec
+  }
+
+  function makeAdenoSpec(): AvatarSpec {
+    return {
+      id: 'adenovirus', seed: Math.floor(Math.random()*1e9), baseShape: 'icosahedron',
+      radius: 1.0, height: 1.0, scaleX: 1, scaleY: 1, detail: 2,
+      spikeCount: 24, spikeLength: 0.9, spikeRadius: 0.06, spikeStyle: 'tentacle',
+      spikeEmissive: '#93c5fd', baseColor: '#60a5fa', spikeColor: '#60a5fa', nodeColor: '#fff',
+      emissive: '#60a5fa', emissiveIntensityCore: 0.2, emissiveIntensitySpikes: 0.12,
+      quality: 'high'
+    } as AvatarSpec
+  }
+
+  function applyBossPreset(kind: string){
+    let s: AvatarSpec | null = null
+    switch(kind){
+      case 'influenza': s = makeInfluenzaSpec(); break
+      case 'hepc': s = makeHepCSpec(); break
+      case 'rotavirus': s = makeRotavirusSpec(); break
+      case 'bacteriophage': s = makeBacteriophageSpec(); break
+      case 'papilloma': s = makePapillomaSpec(); break
+      case 'ebola': s = makeEbolaSpec(); break
+      case 'adeno': s = makeAdenoSpec(); break
+      default: break
+    }
+    if (s) { setSpec(s); setGalleryOpen(false); }
+  }
+
   return (
     <div style={{display:'grid', gridTemplateColumns:'320px 1fr', height:'100vh',minWidth:'600px'}}>
       <aside style={{padding:'1rem', background:'#0B1220', color:'#E6F0FF', overflow:'auto'}}>
         <h2>Avatar Tuner</h2>
         <input type="file" accept="image/*" onChange={onDrop}/>
+        <div style={{marginTop:12, marginBottom:12}}>
+          <h3>Special Boss Presets</h3>
+          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+            <button onClick={()=>applyBossPreset('influenza')}>Influenza</button>
+            <button onClick={()=>applyBossPreset('hepc')}>Hepatitis C</button>
+            <button onClick={()=>applyBossPreset('rotavirus')}>Rotavirus</button>
+            <button onClick={()=>applyBossPreset('bacteriophage')}>Bacteriophage</button>
+            <button onClick={()=>applyBossPreset('papilloma')}>Papillomavirus</button>
+            <button onClick={()=>applyBossPreset('ebola')}>Ebolavirus</button>
+            <button onClick={()=>applyBossPreset('adeno')}>Adenovirus</button>
+          </div>
+          <div style={{marginTop:10}}>
+            <Link to="/special-boss-viewer">Open Special Boss Viewer →</Link>
+            <div style={{fontSize:12, opacity:0.8}}>Opens a dedicated page to inspect procedural entity meshes.</div>
+          </div>
+        </div>
         <div style={{margin:'8px 0'}}>
           <button onClick={()=>setGalleryOpen(true)} disabled={galleryOpen}>
             {galleryOpen ? 'Select an Image Below' : 'Change Image'}
@@ -459,9 +580,26 @@ export default function AvatarTuner() {
           </>
         )}
         {spec && (
-          <group position={[0,0.15,0]}>
-            <PathogenFromSpec spec={spec}/>
-          </group>
+          // If previewEntityMesh is true, render the entity's procedural mesh instead of PathogenFromSpec
+          previewEntityMesh ? (
+            (() => {
+              const pos = [0, 0.5, 0]
+              const commonProps = { id: 'preview', pos, playerPosRef: mockPlayerRef.current, onDie: ()=>{}, health: 1, isPaused: true, spawnHeight: 0 }
+              switch (previewEntityType) {
+                case 'ConeBoss': return <ConeBoss {...commonProps} onDamagePlayer={()=>{}} visualScale={1} />
+                case 'TriangleBoss': return <TriangleBoss {...commonProps} speedScale={1} />
+                case 'PipeBoss': return <PipeBoss {...commonProps} onLaunchDrones={()=>{}} visualScale={1} />
+                case 'ClusterBoss': return <ClusterBoss {...commonProps} visualScale={1} />
+                case 'Minion': return <Minion {...commonProps} visualScale={1} />
+                case 'StarBoss': return <StarBoss spec={spec} position={pos} />
+                default: return <PathogenFromSpec spec={spec} />
+              }
+            })()
+          ) : (
+            <group position={[0,0.15,0]}>
+              <PathogenFromSpec spec={spec}/>
+            </group>
+          )
         )}
         <OrbitControls enablePan={false}/>
       </Canvas>

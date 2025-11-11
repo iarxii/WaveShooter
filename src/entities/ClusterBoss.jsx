@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
+import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
 import { KNOCKBACK_DECAY, SPEED_SCALE } from '../game/constants.js'
 
-export default function ClusterBoss({ id, pos, playerPosRef, onDie, health, isPaused, visualScale=1 }) {
+export default function ClusterBoss({ id, pos, playerPosRef, onDie, health, isPaused, visualScale=1, spec = null, useSpec = false }) {
   const ref = useRef()
   const stunTimer = useRef(0)
   const knockback = useRef(new THREE.Vector3())
@@ -51,12 +52,18 @@ export default function ClusterBoss({ id, pos, playerPosRef, onDie, health, isPa
   const geom = useMemo(() => new THREE.SphereGeometry(0.5, 12, 12), [])
   return (
     <group>
-      <group ref={ref} position={pos} scale={[visualScale, visualScale, visualScale]}>
-        {offsets.map((o,i)=>(
-          <mesh key={i} position={o} geometry={geom} material={mat} />
-        ))}
-        <Text position={[0, 1.6, 0]} fontSize={0.35} color="#fff" anchorX="center" anchorY="bottom">{`± ${health}/3`}</Text>
-      </group>
+      {spec && useSpec ? (
+        <group ref={ref} position={pos} scale={[visualScale, visualScale, visualScale]}>
+          <PathogenFromSpec spec={spec} />
+        </group>
+      ) : (
+        <group ref={ref} position={pos} scale={[visualScale, visualScale, visualScale]}>
+          {offsets.map((o,i)=>(
+            <mesh key={i} position={o} geometry={geom} material={mat} />
+          ))}
+          <Text position={[0, 1.6, 0]} fontSize={0.35} color="#fff" anchorX="center" anchorY="bottom">{`± ${health}/3`}</Text>
+        </group>
+      )}
     </group>
   )
 }

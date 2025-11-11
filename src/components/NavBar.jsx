@@ -7,8 +7,9 @@ import { ENV_OPTIONS_ORDERED } from '../environments/environments'
 import LOGO from '../assets/Healthcare_Heroes_3d_logo.png'
 
 export default function NavBar({ hidden = false }) {
-  if (hidden) return null
   const loc = useLocation()
+  // Always show the navbar on the landing page regardless of the `hidden` prop
+  if (hidden && loc.pathname !== '/') return null
   const isActive = (p) => loc.pathname === p
   const { envId, setEnvId, cycle } = useEnvironment()
   const [perfMode, setPerfMode] = React.useState(() => {

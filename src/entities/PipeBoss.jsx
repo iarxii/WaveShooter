@@ -2,9 +2,10 @@ import React, { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
+import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
 import { KNOCKBACK_DECAY, SPEED_SCALE } from '../game/constants.js'
 
-export default function PipeBoss({ id, pos, playerPosRef, onDie, health, isPaused, onLaunchDrones, visualScale=1 }) {
+export default function PipeBoss({ id, pos, playerPosRef, onDie, health, isPaused, onLaunchDrones, visualScale=1, spec = null, useSpec = false }) {
   const ref = useRef()
   const riseTimer = useRef(0)
   const launchCooldown = useRef(0)
@@ -54,10 +55,16 @@ export default function PipeBoss({ id, pos, playerPosRef, onDie, health, isPause
 
   return (
     <group scale={[visualScale, visualScale, visualScale]}>
-      <mesh ref={ref} position={pos}>
-        <cylinderGeometry args={[1.2, 1.2, 1.6, 16]} />
-        <meshStandardMaterial color={0x6699cc} emissive={0x111111} metalness={0.3} roughness={0.5} />
-      </mesh>
+      {spec && useSpec ? (
+        <group ref={ref} position={pos}>
+          <PathogenFromSpec spec={spec} />
+        </group>
+      ) : (
+        <mesh ref={ref} position={pos}>
+          <cylinderGeometry args={[1.2, 1.2, 1.6, 16]} />
+          <meshStandardMaterial color={0x6699cc} emissive={0x111111} metalness={0.3} roughness={0.5} />
+        </mesh>
+      )}
       <Text position={[pos[0], pos[1] + 2.2, pos[2]]} fontSize={0.35} color="#ffffff" anchorX="center" anchorY="bottom">
         {`± ${health}/2`}
       </Text>

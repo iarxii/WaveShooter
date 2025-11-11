@@ -455,6 +455,14 @@ function PickupPopup({ pickup, onComplete }) {
   const info =
     pickup.type === "health"
       ? { name: "Health Pack", effect: "+25 Health", color: "#22c55e" }
+      : pickup.type === "armour"
+      ? { name: "Armour Pack", effect: `+${pickup.amount ?? 25} AP`, color: "#60a5fa" }
+      : pickup.type === "lasers"
+      ? { name: "Laser Array", effect: "High Damage (5s)", color: "#ff4d4d" }
+      : pickup.type === "shield"
+      ? { name: "Shield Bubble", effect: "Keeps enemies away (5s)", color: "#66ccff" }
+      : pickup.type === "pulsewave"
+      ? { name: "Pulse Wave", effect: "3 bursts launch enemies (5s)", color: "#f97316" }
       : pickup.type === "power"
       ? {
           name: "Power Up",
@@ -797,6 +805,14 @@ function Pickup({
         <primitive object={heartGeom} attach="geometry" />
       ) : type === "health" ? (
         <boxGeometry args={[0.5, 0.5, 0.5]} />
+      ) : type === "armour" ? (
+        <boxGeometry args={[0.6, 0.4, 0.6]} />
+      ) : type === "lasers" ? (
+        <cylinderGeometry args={[0.18, 0.18, 0.9, 10]} />
+      ) : type === "shield" ? (
+        <sphereGeometry args={[0.45, 16, 12]} />
+      ) : type === "pulsewave" ? (
+        <torusGeometry args={[0.45, 0.12, 8, 24]} />
       ) : type === "invuln" ? (
         <capsuleGeometry args={[0.25, 0.6, 4, 8]} />
       ) : type === "bombs" ? (
@@ -824,29 +840,45 @@ function Pickup({
         <primitive object={heartMat} attach="material" />
       ) : (
         <meshStandardMaterial
-          color={
-            type === "health"
-              ? 0x22c55e
-              : type === "invuln"
-              ? 0xfacc15
-              : type === "bombs"
-              ? 0x000000
-              : 0x60a5fa
-          }
-          emissive={
-            type === "power" && isDiamond
-              ? 0x224466
-              : type === "health"
-              ? 0x001100
-              : type === "invuln"
-              ? 0x443300
-              : type === "bombs"
-              ? 0x000000
-              : 0x000044
-          }
-          emissiveIntensity={
-            type === "power" && isDiamond ? 1.5 : type === "invuln" ? 0.9 : 0.4
-          }
+            color={
+              type === "health"
+                ? 0x22c55e
+                : type === "armour"
+                ? 0x60a5fa
+                : type === "lasers"
+                ? 0xff4444
+                : type === "shield"
+                ? 0x66ccff
+                : type === "pulsewave"
+                ? 0xf97316
+                : type === "invuln"
+                ? 0xfacc15
+                : type === "bombs"
+                ? 0x000000
+                : 0x60a5fa
+            }
+            emissive={
+              type === "power" && isDiamond
+                ? 0x224466
+                : type === "health"
+                ? 0x001100
+                : type === "invuln"
+                ? 0x443300
+                : type === "bombs"
+                ? 0x000000
+                : type === "lasers"
+                ? 0x440000
+                : 0x000044
+            }
+            emissiveIntensity={
+              type === "power" && isDiamond
+                ? 1.5
+                : type === "invuln"
+                ? 0.9
+                : type === "lasers"
+                ? 1.2
+                : 0.4
+            }
         />
       )}
     </mesh>
@@ -2367,6 +2399,26 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const [armorEvents, setArmorEvents] = useState([]);
   const [powerEffect, setPowerEffect] = useState({ active: false, amount: 0 });
   const powerRemainingRef = useRef(0); // ms remaining for effect
+  // New pickup effects: lasers, shield bubble, pulse wave
+  const [lasersEffect, setLasersEffect] = useState({ active: false });
+  const lasersRemainingRef = useRef(0);
+  const lasersActiveRef = useRef(false);
+  useEffect(() => {
+    lasersActiveRef.current = !!lasersEffect.active;
+  }, [lasersEffect.active]);
+
+  const [shieldEffect, setShieldEffect] = useState({ active: false });
+  const shieldRemainingRef = useRef(0);
+  const shieldActiveRef = useRef(false);
+  useEffect(() => {
+    shieldActiveRef.current = !!shieldEffect.active;
+  }, [shieldEffect.active]);
+
+  const [pulseWaveEffect, setPulseWaveEffect] = useState({ active: false });
+  const pulseWaveActiveRef = useRef(false);
+  useEffect(() => {
+    pulseWaveActiveRef.current = !!pulseWaveEffect.active;
+  }, [pulseWaveEffect.active]);
   // Token for life-pickup-driven shield stack FX
   const [lifeShieldToken, setLifeShieldToken] = useState(0);
   // Per-level score baseline to compute penalties on continue
@@ -3877,6 +3929,32 @@ export default function App({ navVisible, setNavVisible } = {}) {
       });
     } else {
       const pos = atPos ?? randPos(30);
+      if (type === "armour") {
+        const amount = randi(10, 50);
+        setPickups((p) => {
+          if (p.length >= MAX_PICKUPS) return p;
+          return [...p, { id, pos, type: "armour", amount, lifetimeMaxSec: 20 }];
+        });
+        return;
+      } else if (type === "lasers") {
+        setPickups((p) => {
+          if (p.length >= MAX_PICKUPS) return p;
+          return [...p, { id, pos, type: "lasers", lifetimeMaxSec: 8 }];
+        });
+        return;
+      } else if (type === "shield") {
+        setPickups((p) => {
+          if (p.length >= MAX_PICKUPS) return p;
+          return [...p, { id, pos, type: "shield", lifetimeMaxSec: 12 }];
+        });
+        return;
+      } else if (type === "pulsewave") {
+        setPickups((p) => {
+          if (p.length >= MAX_PICKUPS) return p;
+          return [...p, { id, pos, type: "pulsewave", lifetimeMaxSec: 12 }];
+        });
+        return;
+      }
       if (type === "health") {
         setPickups((p) => {
           if (p.length >= MAX_PICKUPS) return p;
@@ -4073,8 +4151,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
           continue;
         }
 
-        // Cone boss is immune to player bullets (bombs still affect them)
-        if (hitEnemy.isCone) {
+        // Cone boss is immune to player bullets unless lasers pickup is active
+        if (hitEnemy.isCone && !lasersActiveRef.current) {
           continue;
         }
 
@@ -4123,7 +4201,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
               }
 
               // Compute scaled bullet damage and fraction accumulator
-              let dmgUnits = PLAYER_BULLET_DAMAGE;
+        let dmgUnits = PLAYER_BULLET_DAMAGE;
+        // Lasers pickup: high damage bullets
+        if (lasersActiveRef.current) dmgUnits = Math.max(PLAYER_BULLET_DAMAGE * 4, 8);
               let scale = e.bulletDamageScale || 1;
               // Enterobacter ESBL: Adaptive Shield — extra defense near allies
               if (
@@ -4389,6 +4469,78 @@ export default function App({ navVisible, setNavVisible } = {}) {
           bombEffectTimeRef.current = BOMB_ABILITY_DURATION_MS;
           bombSpawnTimerRef.current = 0;
           setBombEffect({ active: true });
+        } else if (pickup.type === "armour") {
+          // Armour topup: randomized AP between 10-50
+          const amt = Math.max(10, Math.min(50, Math.floor(pickup.amount || (10 + Math.floor(Math.random() * 41)))));
+          setArmor((a) => {
+            const next = a + amt;
+            const idEvt = Date.now() + Math.random();
+            setArmorEvents((evts) => [...evts, { id: idEvt, amount: +amt, start: performance.now() }]);
+            return next;
+          });
+          try { play("powerup"); } catch {}
+        } else if (pickup.type === "lasers") {
+          // Laser array: high damage bullets that also affect cone boss; 5s
+          lasersRemainingRef.current = 5000;
+          setLasersEffect({ active: true });
+          try { play("powerup"); } catch {}
+        } else if (pickup.type === "shield") {
+          // Shield bubble: keep enemies at distance for 5s
+          shieldRemainingRef.current = 5000;
+          setShieldEffect({ active: true });
+          try { play("invuln-on"); } catch {}
+        } else if (pickup.type === "pulsewave") {
+          // Pulse Wave: 3 bursts over ~5s that launch enemies and spawn air-bombs on them
+          setPulseWaveEffect({ active: true });
+          try { play("powerup"); } catch {}
+          // schedule 3 bursts (0ms, ~1700ms, ~3400ms)
+          const scheduleBurst = (delayMs, idToken) => {
+            setTimeout(() => {
+              if (isPausedRef.current) return; // skip if paused (best-effort)
+              const R = 6.0; // short radius
+              const now = performance.now();
+              const p = playerPosRef.current;
+              if (!window.gameEnemies) return;
+              const enemies = window.gameEnemies.slice();
+              enemies.forEach((ge) => {
+                try {
+                  if (!ge?.ref?.current) return;
+                  const ex = ge.ref.current.position.x;
+                  const ez = ge.ref.current.position.z;
+                  const dx = ex - p.x;
+                  const dz = ez - p.z;
+                  const d2 = dx * dx + dz * dz;
+                  if (d2 <= R * R) {
+                    const d = Math.sqrt(Math.max(d2, 1e-6));
+                    const nx = dx / d;
+                    const nz = dz / d;
+                    // immediate outward impulse
+                    ge.impulse?.(nx, nz, 32);
+                    // spawn an air-bomb at enemy location that will land & explode like player bombs
+                    const speed = 3 + Math.random() * 3;
+                    const idb = Date.now() + Math.random();
+                    setBombs((prev) => [
+                      ...prev,
+                      {
+                        id: idb,
+                        pos: [ex, 0.8, ez],
+                        vel: [nx * speed, BOMB_UP_VEL, nz * speed],
+                        state: "air",
+                        landedAt: 0,
+                        explodeAt: 0,
+                        hits: {},
+                      },
+                    ]);
+                  }
+                } catch {}
+              });
+            }, delayMs);
+          };
+          scheduleBurst(0, pickup.id);
+          scheduleBurst(1700, pickup.id);
+          scheduleBurst(3400, pickup.id);
+          // clear active flag after 5s
+          setTimeout(() => setPulseWaveEffect({ active: false }), 5200);
         } else if (pickup.type === "life") {
           setLives((l) => Math.min(l + 1, 5));
           try {
@@ -4431,6 +4583,72 @@ export default function App({ navVisible, setNavVisible } = {}) {
       clearTimeout(t);
     };
   }, [powerEffect.active]);
+
+  // Lasers effect timer (pause-aware, 5s)
+  useEffect(() => {
+    if (!lasersEffect.active) return;
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled) return;
+      if (!isPausedRef.current) {
+        lasersRemainingRef.current = Math.max(0, lasersRemainingRef.current - 100);
+        if (lasersRemainingRef.current <= 0) {
+          setLasersEffect({ active: false });
+          return;
+        }
+      }
+      setTimeout(tick, 100);
+    };
+    const t = setTimeout(tick, 100);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [lasersEffect.active]);
+
+  // Shield bubble timer + keep-away loop (pause-aware, 5s)
+  useEffect(() => {
+    if (!shieldEffect.active) return;
+    let cancelled = false;
+    shieldRemainingRef.current = shieldRemainingRef.current || 5000;
+    const tick = () => {
+      if (cancelled) return;
+      if (!isPausedRef.current) {
+        shieldRemainingRef.current = Math.max(0, shieldRemainingRef.current - 150);
+        // Apply periodic impulse to nearby enemies to keep them away
+        try {
+          if (window.gameEnemies) {
+            const p = playerPosRef.current;
+            const R = 6.0;
+            for (const ge of window.gameEnemies) {
+              if (!ge?.ref?.current) continue;
+              const dx = ge.ref.current.position.x - p.x;
+              const dz = ge.ref.current.position.z - p.z;
+              const d2 = dx * dx + dz * dz;
+              if (d2 <= R * R) {
+                const d = Math.sqrt(Math.max(d2, 1e-6));
+                const nx = dx / d;
+                const nz = dz / d;
+                // stronger push when closer
+                const strength = 30 * (1 - Math.min(1, d / R));
+                ge.impulse?.(nx, nz, strength);
+              }
+            }
+          }
+        } catch {}
+        if (shieldRemainingRef.current <= 0) {
+          setShieldEffect({ active: false });
+          return;
+        }
+      }
+      setTimeout(tick, 150);
+    };
+    const t = setTimeout(tick, 150);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [shieldEffect.active]);
 
   // Bomb kit effect: spawn 4 bombs/sec for 4s (pause-aware)
   useEffect(() => {
@@ -5311,6 +5529,17 @@ export default function App({ navVisible, setNavVisible } = {}) {
               }
             }}
           />
+
+          {/* Shield bubble visual when active */}
+          {!isPaused && shieldEffect.active && (
+            <ShieldBubble
+              playerPosRef={playerPosRef}
+              isPaused={isPaused}
+              color={0x66ccff}
+              radius={1.6}
+              baseOpacity={0.22}
+            />
+          )}
 
           {/* World-space FX Orbs follow player via anchor ref */}
           <PlayerFXAnchor ref={fxAnchorRef} playerPosRef={playerPosRef} />

@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
+import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
 import * as perf from '../perf'
 import {
   BOSS_SPEED,
@@ -22,6 +23,8 @@ export default function TriangleBoss({
   isPaused,
   spawnHeight,
   speedScale = 1,
+  spec = null,
+  useSpec = false,
 }) {
   const ref = useRef()
   const chargeTimer = useRef(0)
@@ -131,10 +134,16 @@ export default function TriangleBoss({
 
   return (
     <group>
-      <mesh ref={ref} position={pos} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[2.2, 2.2, 0.9, 3]} />
-        <meshStandardMaterial color={isCharging.current ? 0xff4444 : 0x8b5cf6} emissive={isCharging.current ? 0x220000 : 0x000000} opacity={0.3 + 0.7 * healthRatio} transparent={healthRatio < 1} />
-      </mesh>
+      {spec && useSpec ? (
+        <group ref={ref} position={pos} rotation={[0, 0, 0]}>
+          <PathogenFromSpec spec={spec} />
+        </group>
+      ) : (
+        <mesh ref={ref} position={pos} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[2.2, 2.2, 0.9, 3]} />
+          <meshStandardMaterial color={isCharging.current ? 0xff4444 : 0x8b5cf6} emissive={isCharging.current ? 0x220000 : 0x000000} opacity={0.3 + 0.7 * healthRatio} transparent={healthRatio < 1} />
+        </mesh>
+      )}
       {isCharging.current && (
         <mesh position={[pos[0], pos[1] + 2, pos[2]]}>
           <sphereGeometry args={[0.3, 8, 8]} />
