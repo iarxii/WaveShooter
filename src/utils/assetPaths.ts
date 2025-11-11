@@ -4,12 +4,14 @@
 
 /** Build a URL to an asset located in the public/assets directory. */
 export function publicAsset(rel: string): string {
+  if (!rel || typeof rel !== 'string') return ''
   const url = `/assets/${rel}`.replace(/\\/g, '/');
   return registerAsset(url);
 }
 
 /** Attempt to resolve a source asset via import.meta.url; fallback to public path. */
 export function srcAsset(rel: string): string {
+  if (!rel || typeof rel !== 'string') return ''
   try {
     // Using new URL requires the asset to exist under src during build; warnings occur if missing.
     const url = new URL(`../assets/${rel}`, import.meta.url).href;
@@ -19,9 +21,19 @@ export function srcAsset(rel: string): string {
   }
 }
 
-/** Prefer source asset if present; otherwise use public asset path. */
+/** Prefer source asset if present; but route large moved directories directly to public.
+ * Moved dirs: models/, sounds/, hdri/ live under /public/assets to avoid bundling & LFS issues.
+ * Character images & small UI art remain in src/assets so they still benefit from hashing.
+ */
 export function assetUrl(rel: string): string {
-  return srcAsset(rel);
+  if (!rel || typeof rel !== 'string') {
+    if ((import.meta as any).env?.DEV) {
+      try { console.warn('[assets] assetUrl called with invalid rel:', rel) } catch {}
+    }
+    return ''
+  }
+  // Single source of truth: serve everything from /public/assets
+  return publicAsset(rel)
 }
 
 /**
@@ -29,15 +41,8 @@ export function assetUrl(rel: string): string {
  */
 export function assetMap<T extends string>(rels: T[]): Record<T, string | undefined> {
   const out: Record<string, string | undefined> = {};
-  rels.forEach(r => {
-    try {
-      const url = new URL(`../assets/${r}`, import.meta.url).href;
-      out[r] = registerAsset(url);
-    } catch {
-      out[r] = publicAsset(r);
-    }
-  });
-  return out as Record<T, string | undefined>;
+  rels.forEach(r => { out[r] = r ? publicAsset(r) : undefined })
+  return out as Record<T, string | undefined>
 }
 
 // --- Dev-time asset 404 checker ---
@@ -46,6 +51,7 @@ const assetRegistry: Set<string> = new Set();
 function registerAsset(url: string): string {
   // Only register same-origin assets
   try {
+    if (!url) return url
     const u = new URL(url, window.location.origin);
     if (u.origin === window.location.origin) assetRegistry.add(u.pathname + u.search);
   } catch {

@@ -33,13 +33,6 @@ import FXOrbs from "./components/FXOrbs";
 import applyDamageToHero from "./utils/damage.js";
 import PlayerRadialHUD from "./components/PlayerRadialHUD.jsx";
 import { verifyRegisteredAssets } from './utils/assetPaths.ts'
-  // Dev-only: verify that registered assets (via assetUrl/publicAsset) are reachable to catch 404s early
-  useEffect(() => {
-    if (import.meta?.env?.DEV) {
-      const t = setTimeout(() => { verifyRegisteredAssets().catch(() => {}) }, 1500)
-      return () => clearTimeout(t)
-    }
-  }, [])
 
 // GAME CONSTANTS
 const PLAYER_SPEED = 24; // faster than minions to keep mobility advantage
@@ -2066,6 +2059,13 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const { addRun } = useHistoryLog();
   const { selectedHero, setSelectedHero } = useGame();
   const navigate = useNavigate();
+  // Dev-only: verify registered assets (via assetUrl/publicAsset) are reachable to catch 404s early
+  useEffect(() => {
+    if (import.meta?.env?.DEV) {
+      const t = setTimeout(() => { verifyRegisteredAssets().catch(() => {}) }, 1500)
+      return () => clearTimeout(t)
+    }
+  }, [])
   // Global visual asset scale & camera view settings (persisted)
   const [assetScale, setAssetScale] = useState(() => {
     try {

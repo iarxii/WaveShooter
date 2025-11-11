@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react'
 import { useFBX, useAnimations } from '@react-three/drei'
-
-// Import FBX as URL (declared in src/types/assets.d.ts)
-import clipUrl from '../assets/models/dr_dokta_anim_poses/Standing Run Back.fbx'
+import { assetUrl } from '../utils/assetPaths'
+// Resolve from unified public assets directory
+const clipUrl = assetUrl('models/dr_dokta_anim_poses/Standing Run Back.fbx')
 
 export default function FBXAnimViewer(props: any) {
   const group = useRef<any>(null)

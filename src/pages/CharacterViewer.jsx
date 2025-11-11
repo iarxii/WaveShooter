@@ -1,7 +1,5 @@
-import React, { Suspense, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Canvas } from '@react-three/fiber'
-import { Environment, Lightformer, OrbitControls, useFBX, useGLTF } from '@react-three/drei'
 import { ENEMIES, HEROES } from '../data/roster.js'
 import { getEnemyImageUrl } from '../data/enemyImages.js'
 import { getHeroImageUrl } from '../data/heroImages.js'
@@ -12,20 +10,6 @@ const colorHex = {
   Gray: '#6b7280', Black: '#111827', Green: '#22c55e', 'Dark Green': '#065f46',
   Cyan: '#06b6d4', 'Dark Cyan': '#155e75', Pink: '#ec4899', 'Dark Pink': '#9d174d',
   Purple: '#a855f7', Yellow: '#f59e0b', Violet: '#7c3aed', White: '#e5e7eb', Brown: '#92400e',
-}
-
-// Pre-resolve asset URLs via Vite so bundler includes them
-const GLB_DOKTA = assetUrl('models/dr_dokta_glp_pbr/base_basic_pbr.glb')
-const GLB_GENERIC = assetUrl('models/textured_mesh.glb')
-
-const MODEL_MAP = {
-  hero: {
-    'Dr. Dokta': { url: GLB_DOKTA, kind: 'gltf' },
-  },
-  enemy: {
-    // Map named enemies to models here when available
-  },
-  default: { url: GLB_GENERIC, kind: 'gltf' },
 }
 
 // Placeholder image for enemies until dedicated avatars provided (bundled asset)
@@ -59,16 +43,6 @@ function SelectCard({ title, subtitle, chip, selected, onClick, children }){
   )
 }
 
-function GLTFModel({ url }){
-  const { scene } = useGLTF(url)
-  return <primitive object={scene} />
-}
-
-function FBXModel({ url }){
-  const fbx = useFBX(url)
-  return <primitive object={fbx} />
-}
-
 function ImageViewer({ src, alt = 'Enemy avatar' }){
   const [hover, setHover] = useState(false)
   return (
@@ -95,48 +69,10 @@ function ImageViewer({ src, alt = 'Enemy avatar' }){
   )
 }
 
-function ModelViewer({ model }){
-  const { url, kind } = model || {}
-
-  return (
-    <div style={{height: 420, border:'1px solid #333', borderRadius:8, overflow:'hidden'}}>
-      <Canvas camera={{ position: [2.5, 1.8, 3.2], fov: 50 }} shadows>
-        {/* Soft light blue surrounding */}
-        <color attach="background" args={["#b9dcff"]} />
-        {/* Optional very subtle fog to feel enveloped by the blue */}
-        <fog attach="fog" args={["#b9dcff", 12, 38]} />
-
-        {/* Brighter, cool-toned lighting */}
-        <ambientLight intensity={0.9} color="#e8f5ff" />
-        <hemisphereLight intensity={0.6} skyColor="#cfe9ff" groundColor="#a8bacb" />
-        <directionalLight position={[5, 5, 5]} intensity={1.6} color="#ffffff" castShadow />
-        <directionalLight position={[-5, 2, 2]} intensity={0.8} color="#cfe9ff" />
-
-        {/* Environment lightformers for soft reflections/speculars */}
-        <Environment background={false} resolution={256}>
-          <Lightformer intensity={1.1} color="#e6f5ff" position={[0, 5, 6]} scale={[10, 10, 1]} />
-          <Lightformer intensity={0.6} color="#bfe7ff" position={[-6, 2, -2]} rotation={[0, Math.PI / 2, 0]} scale={[8, 8, 1]} />
-          <Lightformer intensity={0.5} color="#ffffff" position={[6, 3, 0]} rotation={[0, -Math.PI / 2, 0]} scale={[6, 6, 1]} />
-        </Environment>
-
-        <Suspense fallback={null}>
-          <group position={[0, -0.75, 0]}>
-            {kind === 'fbx' ? <FBXModel url={url} /> : <GLTFModel url={url} />}
-          </group>
-        </Suspense>
-        <OrbitControls enablePan enableZoom enableRotate makeDefault />
-      </Canvas>
-    </div>
-  )
-}
-
 export default function CharacterViewer(){
   const [minLevel, setMinLevel] = useState(1)
   const [tier, setTier] = useState('all')
   const [selected, setSelected] = useState(()=> ({ kind:'hero', item: HEROES[0] }))
-  const [model, setModel] = useState(MODEL_MAP.hero['Dr. Dokta'] || MODEL_MAP.default)
-  const [loadingModel, setLoadingModel] = useState(false)
-  const [modelError, setModelError] = useState(null)
 
   const enemies = useMemo(()=>{
     return ENEMIES
@@ -144,13 +80,6 @@ export default function CharacterViewer(){
       .filter(e => tier==='all' ? true : e.tier===Number(tier))
       .sort((a,b)=> a.unlock - b.unlock || a.tier - b.tier)
   }, [minLevel, tier])
-
-  // Preload current model for smoother switch
-  useEffect(()=>{
-    if(model?.url && model.kind !== 'fbx'){
-      try { useGLTF.preload(model.url) } catch { /* no-op */ }
-    }
-  }, [model])
 
   // Preload currently listed enemy images to reduce first-click flicker
   useEffect(()=>{
@@ -163,35 +92,15 @@ export default function CharacterViewer(){
     HEROES.forEach(h => { const u = getHeroImageUrl(h.name); if(u){ const i = new Image(); i.src = u } })
   }, [])
 
-  async function loadModelForCharacter(next){
-    setLoadingModel(true)
-    setModelError(null)
-    try {
-      // Simulate API lookup/mapping
-      const entry = (next.kind==='hero' ? MODEL_MAP.hero[next.item.name] : MODEL_MAP.enemy[next.item.name]) || MODEL_MAP.default
-      // Optional small delay to visualize loading state
-      await new Promise(r=>setTimeout(r, 100))
-      setModel(entry)
-    } catch (e) {
-      console.error(e)
-      setModelError('Failed to load 3D model')
-      setModel(MODEL_MAP.default)
-    } finally {
-      setLoadingModel(false)
-    }
-  }
-
   function selectHero(h){
     const next = { kind:'hero', item: h }
     setSelected(next)
-    loadModelForCharacter(next)
   }
   function selectEnemy(e){
     const next = { kind:'enemy', item: e }
     setSelected(next)
     // For enemies we show an image viewer; clear any model loading/errors
-    setLoadingModel(false)
-    setModelError(null)
+    // no-op
   }
 
   return (
@@ -229,13 +138,9 @@ export default function CharacterViewer(){
           <div>
             <h1 style={{margin:'0 0 8px'}}>Character Viewer</h1>
             <p style={{margin:'0 0 12px',opacity:0.85}}>Heroes show a 3D model with orbit/pan/zoom. Enemies show avatar images.</p>
-            {selected.kind==='hero' && modelError && <div style={{color:'#f87171',marginBottom:8}}>Error: {modelError}</div>}
-            {selected.kind==='hero' && <div style={{opacity: loadingModel ? 0.8 : 0, height: loadingModel ? 'auto' : 0, marginBottom: loadingModel ? 8 : 0 }}>{loadingModel ? 'Loading model…' : ''}</div>}
-            {selected.kind==='hero' ? (
-              <ModelViewer model={model} />
-            ) : (
-              <ImageViewer src={getEnemyImageUrl(selected.item?.name) || ENEMY_IMG_PLACEHOLDER} alt={`${selected.item?.name} avatar`} />
-            )}
+            {selected.kind==='hero'
+              ? <ImageViewer src={getHeroImageUrl(selected.item?.name)} alt={`${selected.item?.name} portrait`} />
+              : <ImageViewer src={getEnemyImageUrl(selected.item?.name) || ENEMY_IMG_PLACEHOLDER} alt={`${selected.item?.name} avatar`} />}
           </div>
 
           {/* Extended details */}
