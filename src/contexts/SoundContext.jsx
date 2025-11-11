@@ -2,32 +2,32 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 // Import SFX assets
-import sfxBomb from '../assets/sounds/mixkit-arcade-game-explosion-2759.wav'
-import sfxLifeSpawn from '../assets/sounds/mixkit-game-success-alert-2039.wav'
-import sfxLifePickup from '../assets/sounds/mixkit-game-success-alert-2039.wav'
-import sfxPowerUp from '../assets/sounds/mixkit-game-treasure-coin-2038.wav'
-import sfxDiamond from '../assets/sounds/mixkit-extra-bonus-in-a-video-game-2045.wav'
-import sfxDash from '../assets/sounds/mixkit-cinematic-laser-swoosh-1467.wav'
-import sfxHealthPickup from '../assets/sounds/mixkit-player-boost-recharging-2040.wav'
-import sfxBoundaryJump from '../assets/sounds/mixkit-golf-shot-with-whistle-2118.wav'
-import sfxLifeLost from '../assets/sounds/mixkit-troll-warrior-laugh-409.wav'
-import sfxGameOver1 from '../assets/sounds/mixkit-boxer-punch-exhaling-2054.wav'
-import sfxGameOver2 from '../assets/sounds/mixkit-arcade-retro-game-over-213.wav'
-import sfxUiSelect from '../assets/sounds/mixkit-player-select-notification-2037.mp3'
-import sfxUiHover from '../assets/sounds/mixkit-arcade-player-select-2036.wav'
-
-// New SFX assignments for gameplay events
-import sfxEnemyDestroy from '../assets/sounds/mixkit-quick-knife-slice-cutting-2152.mp3'
-import sfxHitT1 from '../assets/sounds/attacks/hit-tree-01-266310.mp3'
-import sfxHitT2 from '../assets/sounds/attacks/Widget_Flight.mp3'
-import sfxHitT3 from '../assets/sounds/attacks/Faerie_Chime.mp3'
-import sfxHitT4 from '../assets/sounds/attacks/Enchanting_Tune.mp3'
-import sfxHitT5 from '../assets/sounds/attacks/Arcane_Cadence.mp3'
-import sfxPlayerSpawn from '../assets/sounds/attacks/appear-magic-384915.mp3'
-import sfxInvulnOn from "../assets/sounds/attacks/Oracle's_Riddle.mp3"
-import sfxBossSpawn from '../assets/sounds/attacks/magic-ascend-2-259523.mp3'
-// Assumption for boss kill: using magic-ascend-1 (not specified explicitly)
-import sfxBossKill from '../assets/sounds/attacks/magic-ascend-1-259521.mp3'
+// All large audio files moved to public/assets/sounds; resolve via helper
+import { assetUrl } from '../utils/assetPaths.ts'
+const sfxBomb = assetUrl('sounds/mixkit-arcade-game-explosion-2759.wav')
+const sfxLifeSpawn = assetUrl('sounds/mixkit-game-success-alert-2039.wav')
+const sfxLifePickup = assetUrl('sounds/mixkit-game-success-alert-2039.wav')
+const sfxPowerUp = assetUrl('sounds/mixkit-game-treasure-coin-2038.wav')
+const sfxDiamond = assetUrl('sounds/mixkit-extra-bonus-in-a-video-game-2045.wav')
+const sfxDash = assetUrl('sounds/mixkit-cinematic-laser-swoosh-1467.wav')
+const sfxHealthPickup = assetUrl('sounds/mixkit-player-boost-recharging-2040.wav')
+const sfxBoundaryJump = assetUrl('sounds/mixkit-golf-shot-with-whistle-2118.wav')
+const sfxLifeLost = assetUrl('sounds/mixkit-troll-warrior-laugh-409.wav')
+const sfxGameOver1 = assetUrl('sounds/mixkit-boxer-punch-exhaling-2054.wav')
+const sfxGameOver2 = assetUrl('sounds/mixkit-arcade-retro-game-over-213.wav')
+const sfxUiSelect = assetUrl('sounds/mixkit-player-select-notification-2037.mp3')
+const sfxUiHover = assetUrl('sounds/mixkit-arcade-player-select-2036.wav')
+// Gameplay event SFX
+const sfxEnemyDestroy = assetUrl('sounds/mixkit-quick-knife-slice-cutting-2152.mp3')
+const sfxHitT1 = assetUrl('sounds/attacks/hit-tree-01-266310.mp3')
+const sfxHitT2 = assetUrl('sounds/attacks/Widget_Flight.mp3')
+const sfxHitT3 = assetUrl('sounds/attacks/Faerie_Chime.mp3')
+const sfxHitT4 = assetUrl('sounds/attacks/Enchanting_Tune.mp3')
+const sfxHitT5 = assetUrl('sounds/attacks/Arcane_Cadence.mp3')
+const sfxPlayerSpawn = assetUrl('sounds/attacks/appear-magic-384915.mp3')
+const sfxInvulnOn = assetUrl("sounds/attacks/Oracle's_Riddle.mp3")
+const sfxBossSpawn = assetUrl('sounds/attacks/magic-ascend-2-259523.mp3')
+const sfxBossKill = assetUrl('sounds/attacks/magic-ascend-1-259521.mp3')
 
 const SoundContext = createContext(null)
 
@@ -122,22 +122,22 @@ export function SoundProvider({ children }) {
   // Import music tracks
   const music = useMemo(() => ({
     landing: [
-      new URL('../assets/sounds/music/mixkit-this-is-seeb-haus-631.mp3', import.meta.url).href,
-      new URL('../assets/sounds/music/mixkit-karma-1183.mp3', import.meta.url).href,
-      new URL('../assets/sounds/music/mixkit-to-the-next-round-1047.mp3', import.meta.url).href,
-      new URL('../assets/sounds/music/mixkit-infected-vibes-157.mp3', import.meta.url).href,
+      assetUrl('sounds/music/mixkit-this-is-seeb-haus-631.mp3'),
+      assetUrl('sounds/music/mixkit-karma-1183.mp3'),
+      assetUrl('sounds/music/mixkit-to-the-next-round-1047.mp3'),
+      assetUrl('sounds/music/mixkit-infected-vibes-157.mp3'),
     ],
     game: [
-      new URL('../assets/sounds/music/mixkit-this-is-seeb-haus-631.mp3', import.meta.url).href,
-      new URL('../assets/sounds/music/mixkit-deep-urban-623.mp3', import.meta.url).href,
-      new URL('../assets/sounds/music/mixkit-infected-vibes-157.mp3', import.meta.url).href,
-      new URL('../assets/sounds/music/mixkit-games-music-706.mp3', import.meta.url).href,
-      new URL('../assets/sounds/music/mixkit-our-nights-627.mp3', import.meta.url).href,
+      assetUrl('sounds/music/mixkit-this-is-seeb-haus-631.mp3'),
+      assetUrl('sounds/music/mixkit-deep-urban-623.mp3'),
+      assetUrl('sounds/music/mixkit-infected-vibes-157.mp3'),
+      assetUrl('sounds/music/mixkit-games-music-706.mp3'),
+      assetUrl('sounds/music/mixkit-our-nights-627.mp3'),
     ],
     characters: [
-      new URL('../assets/sounds/music/mixkit-this-is-seeb-haus-631.mp3', import.meta.url).href,
-      new URL('../assets/sounds/music/mixkit-sweatin-it-103.mp3', import.meta.url).href,
-      new URL('../assets/sounds/music/mixkit-manuela-626.mp3', import.meta.url).href,
+      assetUrl('sounds/music/mixkit-this-is-seeb-haus-631.mp3'),
+      assetUrl('sounds/music/mixkit-sweatin-it-103.mp3'),
+      assetUrl('sounds/music/mixkit-manuela-626.mp3'),
     ],
   }), [])
 

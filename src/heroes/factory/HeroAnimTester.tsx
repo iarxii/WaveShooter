@@ -6,7 +6,8 @@ import { useThree, useFrame } from '@react-three/fiber'
 import * as perf from '../../perf'
 // Import a sample clip so even the default map resolves to a bundled URL
 // Use a sample FBX without spaces in the filename to avoid path resolution edge-cases on some setups
-import sampleRunBack from '../../assets/models/dr_dokta_anim_poses/Backflip.fbx'
+import { assetUrl } from '../../utils/assetPaths'
+const sampleRunBack = assetUrl('models/dr_dokta_anim_poses/Backflip.fbx')
 
 type ActionName =
   | 'idle'

@@ -1,9 +1,10 @@
 // Central definitions for environment themes and HDRI assets
 // Add new themes here to make them appear in the selector automatically.
 
-import hospitalHDR from '../assets/hdri/hospital_room_1k.hdr'
-import surgeryHDR from '../assets/hdri/surgery_1k.hdr'
-import orchardHDR from '../assets/hdri/citrus_orchard_road_puresky_1k.hdr'
+import { assetUrl } from '../utils/assetPaths'
+const hospitalHDR = assetUrl('hdri/hospital_room_1k.hdr')
+const surgeryHDR = assetUrl('hdri/surgery_1k.hdr')
+const orchardHDR = assetUrl('hdri/citrus_orchard_road_puresky_1k.hdr')
 
 export type EnvId =
   | 'proc_hazard_hospital'

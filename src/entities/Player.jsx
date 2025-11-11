@@ -818,14 +818,16 @@ export default function Player({ position, setPositionRef, onShoot, isPaused, au
 
 // Simple OrbitingFX removed; replaced with FXOrbs
 
+import { assetUrl } from '../utils/assetPaths.ts'
+
 function HeroDokta() {
   // Prefer animated FBX if available; otherwise use static GLB
   let fbx = null, gltf = null, mixer = null
   try {
-    fbx = useFBX('/src/assets/models/dr_dokta_anim_poses/Standing Run Back.fbx')
+    fbx = useFBX(assetUrl('models/dr_dokta_anim_poses/Standing Run Back.fbx'))
   } catch {}
   try {
-    gltf = useGLTF('/src/assets/models/dr_dokta_glp_pbr/base_basic_pbr.glb')
+    gltf = useGLTF(assetUrl('models/dr_dokta_glp_pbr/base_basic_pbr.glb'))
   } catch {}
   const obj = fbx?.clone ? fbx.clone() : (gltf?.scene ? gltf.scene.clone() : null)
   const anim = fbx?.animations && fbx.animations[0]
@@ -857,7 +859,7 @@ function HeroDokta() {
 function HeroSesta() {
   let gltf = null
   try {
-    gltf = useGLTF('/src/assets/models/sesta_pose_textured_mesh.glb')
+    gltf = useGLTF(assetUrl('models/sesta_pose_textured_mesh.glb'))
   } catch {}
   const obj = gltf?.scene ? gltf.scene.clone() : null
   if (obj) {
