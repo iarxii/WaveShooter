@@ -1,16 +1,16 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
-import Landing from './pages/Landing.jsx'
-import GameMode from './pages/GameMode.jsx'
-import GamePage from './pages/Game.jsx'
-import SceneViewer from './pages/SceneViewer.jsx'
-import CharacterViewer from './pages/CharacterViewer.jsx'
-import AvatarTuner from './pages/AvatarTuner.tsx'
-import SpecialBossViewer from './pages/SpecialBossViewer.jsx'
-import HeroTuner from './pages/HeroTuner.tsx'
-import PathogenDemo from './pages/PathogenDemo.jsx'
-import RandomizerMode from './pages/RandomizerMode.jsx'
-import EnvironmentFactoryPage from './pages/EnvironmentFactory.tsx'
+const Landing = React.lazy(() => import('./pages/Landing.jsx'))
+const GameMode = React.lazy(() => import('./pages/GameMode.jsx'))
+const GamePage = React.lazy(() => import('./pages/Game.jsx'))
+const SceneViewer = React.lazy(() => import('./pages/SceneViewer.jsx'))
+const CharacterViewer = React.lazy(() => import('./pages/CharacterViewer.jsx'))
+const AvatarTuner = React.lazy(() => import('./pages/AvatarTuner.tsx'))
+const SpecialBossViewer = React.lazy(() => import('./pages/SpecialBossViewer.jsx'))
+const HeroTuner = React.lazy(() => import('./pages/HeroTuner.tsx'))
+const PathogenDemo = React.lazy(() => import('./pages/PathogenDemo.jsx'))
+const RandomizerMode = React.lazy(() => import('./pages/RandomizerMode.jsx'))
+const EnvironmentFactoryPage = React.lazy(() => import('./pages/EnvironmentFactory.tsx'))
 import { GameProvider } from './contexts/GameContext.jsx'
 import { HistoryProvider } from './contexts/HistoryContext.jsx'
 import NavBar from './components/NavBar.jsx'
@@ -48,20 +48,22 @@ export default function AppRouter() {
               (window.location?.pathname === '/game' && !navVisible) ||
               (window.location?.pathname === '/randomizer' && !navVisible)
             } />
-            <Routes>
-              <Route path="/" element={<Landing />} />
-              <Route path="/game" element={<GamePage navVisible={navVisible} setNavVisible={setNavVisible} />} />
-              <Route path="/modes" element={<GameMode />} />
-              <Route path="/characters" element={<CharacterViewer />} />
-              <Route path="/pathogen-demo" element={<PathogenDemo />} />
-              <Route path="/avatar-tuner" element={<AvatarTuner />} />
-              <Route path="/special-boss-viewer" element={<SpecialBossViewer />} />
-              <Route path="/hero-tuner" element={<HeroTuner />} />
-              <Route path="/randomizer" element={<RandomizerMode navVisible={navVisible} setNavVisible={setNavVisible} />} />
-              <Route path="/env-factory" element={<EnvironmentFactoryPage />} />
-              <Route path="/scene-viewer" element={<SceneViewer />} />
-              <Route path="*" element={<Landing />} />
-            </Routes>
+            <React.Suspense fallback={null}>
+              <Routes>
+                <Route path="/" element={<Landing />} />
+                <Route path="/game" element={<GamePage navVisible={navVisible} setNavVisible={setNavVisible} />} />
+                <Route path="/modes" element={<GameMode />} />
+                <Route path="/characters" element={<CharacterViewer />} />
+                <Route path="/pathogen-demo" element={<PathogenDemo />} />
+                <Route path="/avatar-tuner" element={<AvatarTuner />} />
+                <Route path="/special-boss-viewer" element={<SpecialBossViewer />} />
+                <Route path="/hero-tuner" element={<HeroTuner />} />
+                <Route path="/randomizer" element={<RandomizerMode navVisible={navVisible} setNavVisible={setNavVisible} />} />
+                <Route path="/env-factory" element={<EnvironmentFactoryPage />} />
+                <Route path="/scene-viewer" element={<SceneViewer />} />
+                <Route path="*" element={<Landing />} />
+              </Routes>
+            </React.Suspense>
           </EnvironmentProvider>
           </SoundProvider>
           </EffectsProvider>
