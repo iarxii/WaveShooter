@@ -807,13 +807,13 @@ function Pickup({
       ) : type === "health" ? (
         <boxGeometry args={[0.5, 0.5, 0.5]} />
       ) : type === "armour" ? (
-        <boxGeometry args={[0.6, 0.4, 0.6]} />
+        <capsuleGeometry args={[0.28, 0.5, 6, 12]} />
       ) : type === "lasers" ? (
         <cylinderGeometry args={[0.18, 0.18, 0.9, 10]} />
       ) : type === "shield" ? (
         <sphereGeometry args={[0.45, 16, 12]} />
       ) : type === "pulsewave" ? (
-        <torusGeometry args={[0.45, 0.12, 8, 24]} />
+        <ringGeometry args={[0.40, 0.52, 32]} />
       ) : type === "invuln" ? (
         <capsuleGeometry args={[0.25, 0.6, 4, 8]} />
       ) : type === "bombs" ? (
@@ -845,9 +845,9 @@ function Pickup({
               type === "health"
                 ? 0x22c55e
                 : type === "armour"
-                ? 0x60a5fa
+                ? 0x3b82f6
                 : type === "lasers"
-                ? 0xff4444
+                ? 0xff1493
                 : type === "shield"
                 ? 0x66ccff
                 : type === "pulsewave"
@@ -856,7 +856,7 @@ function Pickup({
                 ? 0xfacc15
                 : type === "bombs"
                 ? 0x000000
-                : 0x60a5fa
+                : 0xa855f7 /* power (fallback) */
             }
             emissive={
               type === "power" && isDiamond
@@ -868,8 +868,12 @@ function Pickup({
                 : type === "bombs"
                 ? 0x000000
                 : type === "lasers"
-                ? 0x440000
-                : 0x000044
+                ? 0x660022
+                : type === "pulsewave"
+                ? 0x331400
+                : type === "armour"
+                ? 0x001d40
+                : 0x1d0033
             }
             emissiveIntensity={
               type === "power" && isDiamond
@@ -877,8 +881,10 @@ function Pickup({
                 : type === "invuln"
                 ? 0.9
                 : type === "lasers"
-                ? 1.2
-                : 0.4
+                ? 1.3
+                : type === "pulsewave"
+                ? 0.8
+                : 0.45
             }
         />
       )}
@@ -4063,12 +4069,40 @@ export default function App({ navVisible, setNavVisible } = {}) {
           const gateBase = 0.55 + 0.25 * scale;
           const gate = Math.max(0.1, Math.min(0.95, gateBase * pickupFactor));
           if (Math.random() < gate) {
+            // Expanded drop table includes armour, lasers, shield, and pulsewave
             const r2 = Math.random();
-            const pInv = 0.12 + 0.2 * scale;
-            const pBomb = 0.32 + 0.28 * scale;
-            if (r2 < pInv) spawnPickup("invuln");
-            else if (r2 < pBomb) spawnPickup("bombs");
-            else spawnPickup(Math.random() < 0.7 ? "power" : "health");
+            // Base weights that gently scale with wave difficulty
+            const wInv = 0.10 + 0.15 * scale;      // invulnerability
+            const wBomb = 0.18 + 0.20 * scale;     // bomb kit
+            const wArmor = 0.22 + 0.18 * scale;    // armour top-up
+            const wLasers = 0.08 + 0.12 * scale;   // laser array
+            const wShield = 0.07 + 0.10 * scale;   // shield bubble
+            const wPulse = 0.06 + 0.08 * scale;    // pulse wave
+            const wCommon = 1.0 - (wInv + wBomb + wArmor + wLasers + wShield + wPulse);
+            // Cumulative thresholds
+            const tInv = wInv;
+            const tBomb = tInv + wBomb;
+            const tArmor = tBomb + wArmor;
+            const tLasers = tArmor + wLasers;
+            const tShield = tLasers + wShield;
+            const tPulse = tShield + wPulse;
+
+            if (r2 < tInv) {
+              spawnPickup("invuln");
+            } else if (r2 < tBomb) {
+              spawnPickup("bombs");
+            } else if (r2 < tArmor) {
+              spawnPickup("armour");
+            } else if (r2 < tLasers) {
+              spawnPickup("lasers");
+            } else if (r2 < tShield) {
+              spawnPickup("shield");
+            } else if (r2 < tPulse) {
+              spawnPickup("pulsewave");
+            } else {
+              // common pool
+              spawnPickup(Math.random() < 0.7 ? "power" : "health");
+            }
           }
           return prev.filter((e) => e.id !== id);
         }
@@ -4345,16 +4379,21 @@ export default function App({ navVisible, setNavVisible } = {}) {
           const commonP = Math.max(0.3, Math.min(0.99, 0.9 * pickupFactor));
           if (Math.random() < commonP)
             spawnPickup(Math.random() < 0.3 ? "health" : "power");
-          // Bombs/invuln scale slightly with wave and pressure
+          // Special pickups scale slightly with wave and pressure
           const wv = wave || 0;
           const s = Math.min(0.4, Math.max(0, (wv - 8) * 0.02));
-          const pBomb = Math.max(
-            0.02,
-            Math.min(0.6, (0.18 + s) * pickupFactor)
-          );
-          const pInv = Math.max(0.01, Math.min(0.5, (0.12 + s) * pickupFactor));
+          const pBomb = Math.max(0.02, Math.min(0.45, (0.14 + s) * pickupFactor));
+          const pInv = Math.max(0.01, Math.min(0.35, (0.10 + s) * pickupFactor));
+          const pArmor = Math.max(0.03, Math.min(0.50, (0.16 + s) * pickupFactor));
+          const pLasers = Math.max(0.015, Math.min(0.30, (0.08 + s) * pickupFactor));
+          const pShield = Math.max(0.015, Math.min(0.28, (0.07 + s) * pickupFactor));
+          const pPulse = Math.max(0.01, Math.min(0.25, (0.06 + s) * pickupFactor));
           if (Math.random() < pBomb) spawnPickup("bombs");
           if (Math.random() < pInv) spawnPickup("invuln");
+          if (Math.random() < pArmor) spawnPickup("armour");
+          if (Math.random() < pLasers) spawnPickup("lasers");
+          if (Math.random() < pShield) spawnPickup("shield");
+          if (Math.random() < pPulse) spawnPickup("pulsewave");
           // occasional second ambient pickup
           const secondP = Math.max(0.1, Math.min(0.9, 0.5 * pickupFactor));
           if (Math.random() < secondP)
@@ -4398,6 +4437,14 @@ export default function App({ navVisible, setNavVisible } = {}) {
         ? { text: "1UP (+1 Life)", color: "#ff3366" }
         : pickup.type === "speedboost"
         ? { text: "Speed Boost (4s)", color: "#22c55e" }
+        : pickup.type === "armour"
+        ? { text: `Armour +${pickup.amount ?? 25} AP`, color: "#60a5fa" }
+        : pickup.type === "lasers"
+        ? { text: "Lasers (High Damage 5s)", color: "#ff4d4d" }
+        : pickup.type === "shield"
+        ? { text: "Shield Bubble (5s)", color: "#66ccff" }
+        : pickup.type === "pulsewave"
+        ? { text: "Pulse Wave (3x Bursts)", color: "#f97316" }
         : { text: "Pickup", color: "#ffffff" };
     setPickupFeed((prev) => {
       const next = [

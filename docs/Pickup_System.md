@@ -8,6 +8,13 @@ Overview
 - The pickup system is implemented in `src/App.jsx` (state + spawn/collect logic) and the visual/interaction is provided by the `Pickup` component inside the same file.
 - Pickups are intentionally lightweight and time-limited. A global `MAX_PICKUPS` cap prevents excessive concurrent pickups for performance reasons.
 
+Spawning
+
+- Pickups appear in two ways:
+  - On enemy death: a wave-scaled gate decides if a pickup drops; if it does, a weighted table rolls between special pickups (invuln, bombs, armour, lasers, shield, pulsewave) and the common pool (power/health).
+  - Ambient after each wave tick: 1–2 pickups are spawned using pressure- and wave-scaled probabilities, including the special pickups above.
+- These probabilities are tuned to keep the battlefield lively without overwhelming the player; see the `onEnemyDie` and the waves loop in `src/App.jsx` for exact weights.
+
 Data shape
 
 A pickup object (stored in the `pickups` array in `src/App.jsx`) looks like:
@@ -65,6 +72,17 @@ The game includes several pickup kinds. Each type below documents effect, durati
   - Effect: Emits three short bursts that launch nearby enemies into the air. Each launched enemy is accompanied by an "air-bomb" spawned at their location that will land and explode on contact (similar to the player's bombs).
   - Duration: ~5s (3 bursts spaced across the effect window)
   - Notes: The effect is implemented by scheduling three bursts; each burst applies immediate impulses then spawns bombs that behave like normal bombs so they will detonate and stun/damage enemies when they land.
+
+Visuals and readability
+
+- Each pickup has a unique mesh and color for quick recognition:
+  - armour: blue capsule
+  - lasers: hot pink cylinder
+  - shield: cyan sphere
+  - pulsewave: thin orange ring
+  - power: purple box (diamond variant glows when amount ≥ 90)
+  - health: green cube; life: heart mesh with 1UP label
+  - bombs: small black sphere; invuln: gold capsule
 
 Implementation notes
 
