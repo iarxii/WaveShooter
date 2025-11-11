@@ -1,8 +1,9 @@
 import React from 'react'
+import { assetUrl } from '../utils/assetPaths.ts'
 import { Link, useNavigate } from 'react-router-dom'
 
-const CAMPAIGN_IMG = new URL('../assets/character_imgs/Hero/Dr_Dokta/dokta_idle.jpg', import.meta.url).href
-const WAVE_IMG = new URL('../assets/character_imgs/enemy_avatar/Pathogen/sample_enemies.jpg', import.meta.url).href
+const CAMPAIGN_IMG = assetUrl('character_imgs/Hero/Dr_Dokta/dokta_idle.jpg')
+const WAVE_IMG = assetUrl('character_imgs/enemy_avatar/Pathogen/sample_enemies.jpg')
 
 export default function GameMode(){
   const nav = useNavigate()

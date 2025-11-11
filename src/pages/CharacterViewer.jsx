@@ -5,6 +5,7 @@ import { Environment, Lightformer, OrbitControls, useFBX, useGLTF } from '@react
 import { ENEMIES, HEROES } from '../data/roster.js'
 import { getEnemyImageUrl } from '../data/enemyImages.js'
 import { getHeroImageUrl } from '../data/heroImages.js'
+import { assetUrl } from '../utils/assetPaths.ts'
 
 const colorHex = {
   Red: '#ef4444', Orange: '#f97316', Blue: '#3b82f6', 'Dark Blue': '#1e3a8a',
@@ -14,8 +15,8 @@ const colorHex = {
 }
 
 // Pre-resolve asset URLs via Vite so bundler includes them
-const GLB_DOKTA = new URL('../assets/models/dr_dokta_glp_pbr/base_basic_pbr.glb', import.meta.url).href
-const GLB_GENERIC = new URL('../assets/models/textured_mesh.glb', import.meta.url).href
+const GLB_DOKTA = assetUrl('models/dr_dokta_glp_pbr/base_basic_pbr.glb')
+const GLB_GENERIC = assetUrl('models/textured_mesh.glb')
 
 const MODEL_MAP = {
   hero: {
@@ -28,7 +29,7 @@ const MODEL_MAP = {
 }
 
 // Placeholder image for enemies until dedicated avatars provided (bundled asset)
-const ENEMY_IMG_PLACEHOLDER = new URL('../assets/character_imgs/jpeg (2).jpg', import.meta.url).href
+const ENEMY_IMG_PLACEHOLDER = assetUrl('character_imgs/jpeg (2).jpg')
 
 function SelectCard({ title, subtitle, chip, selected, onClick, children }){
   return (

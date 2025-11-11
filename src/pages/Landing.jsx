@@ -3,16 +3,10 @@ import { Link } from "react-router-dom";
 import { useGame } from "../contexts/GameContext.jsx";
 import { HEROES } from "../data/roster.js";
 import { useHistoryLog } from "../contexts/HistoryContext.jsx";
+import { assetUrl } from "../utils/assetPaths.ts";
 // Key art background image
-const KEY_ART = new URL(
-  "../assets/character_imgs/Hero/heroes_painted_dynamic_pose.jpg",
-  import.meta.url
-).href;
-
-const LOGO = new URL(
-  "../assets/Healthcare_Heroes_3d_logo.png",
-  import.meta.url
-).href;
+const KEY_ART = assetUrl("character_imgs/Hero/heroes_painted_dynamic_pose.jpg");
+const LOGO = assetUrl("Healthcare_Heroes_3d_logo.png");
 
 function formatHMS(ms) {
   const totalSec = Math.max(0, Math.floor((ms || 0) / 1000));
