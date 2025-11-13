@@ -5,7 +5,22 @@ import { useFrame } from '@react-three/fiber'
 // Render the HUD onto an invisible plane that follows the player's x/z.
 // The plane itself is invisible (no color) but provides a stable world transform
 // so the HUD appears projected under the player's feet similar to invulnerability indicator.
-export default function PlayerRadialHUD({ playerPosRef, health = 100, armor = 500, maxHealth = 100, maxArmor = 500, size = 56, footYOffset = 0.02 }) {
+export default function PlayerRadialHUD({
+  playerPosRef,
+  health = 100,
+  armor = 100,
+  maxHealth = 100,
+  maxArmor = 100,
+  size = 56,
+  footYOffset = 0.02,
+  playerLabels = [],
+  labelSize = 18,
+  showPlaceholder = false,
+  enemiesCount = 0,
+  // render controls: allow rendering only radial or only labels
+  showRadial = true,
+  showLabels = true,
+}) {
   const meshRef = useRef()
 
   // Initialize plane position to player's current position so HUD is visible when stationary
@@ -37,7 +52,7 @@ export default function PlayerRadialHUD({ playerPosRef, health = 100, armor = 50
   })
 
   const healthRatio = Math.max(0, Math.min(1, health / (maxHealth || 100)))
-  const armorRatio = Math.max(0, Math.min(1, armor / (maxArmor || 500)))
+  const armorRatio = Math.max(0, Math.min(1, armor / (maxArmor || 100)))
 
   // Make the visible disk approximately 2x larger for better visibility
   const outer = size * 2
@@ -55,6 +70,31 @@ export default function PlayerRadialHUD({ playerPosRef, health = 100, armor = 50
     pointerEvents: 'none',
     transform: 'translate(-50%, -50%)',
   }
+
+  const labelsContainerStyle = {
+    position: 'absolute',
+    bottom: outer + 8 + 'px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    alignItems: 'center',
+    pointerEvents: 'none',
+    minWidth: '60px',
+  };
+
+  const labelStyleBase = {
+    fontSize: labelSize + 'px',
+    color: '#ffffff',
+    fontWeight: 700,
+    textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+    background: 'rgba(0,0,0,0.45)',
+    padding: '4px 8px',
+    borderRadius: '8px',
+    pointerEvents: 'none',
+    whiteSpace: 'nowrap',
+  };
 
   const armorStyle = {
     width: outer + 'px',
@@ -92,15 +132,37 @@ export default function PlayerRadialHUD({ playerPosRef, health = 100, armor = 50
       {/* Invisible material: no visible color, but still provides transform for Html */}
       <meshBasicMaterial transparent opacity={0} depthWrite={false} />
 
-  {/* Attach an HTML element that uses the plane's transform so it looks projected on the surface */}
-  {/* remove `occlude` so the HUD remains visible even when the player is stationary or occluded */}
-  <Html transform center>
-        <div style={containerStyle} aria-hidden>
-          <div style={armorStyle}>
-            <div style={healthStyle}>
-              <div style={holeStyle} />
+      {/* Attach an HTML element that uses the plane's transform so it looks projected on the surface */}
+      {/* remove `occlude` so the HUD remains visible even when the player is stationary or occluded */}
+      <Html transform center>
+        <div style={{ position: 'relative', width: outer + 'px', height: outer + 'px' }} aria-hidden>
+          {/* Labels above player (render only when requested) */}
+          {showLabels && (
+            <div style={labelsContainerStyle} aria-hidden>
+              {playerLabels && playerLabels.length > 0
+                ? playerLabels.map((lbl) => (
+                    <div key={lbl.id} style={labelStyleBase} aria-hidden>
+                      {lbl.text}
+                    </div>
+                  ))
+                : showPlaceholder && enemiesCount === 0 ? (
+                    <div style={labelStyleBase} aria-hidden>
+                      No enemies — pick up items!
+                    </div>
+                  ) : null}
             </div>
-          </div>
+          )}
+
+          {/* Radial visuals (render only when requested) */}
+          {showRadial && (
+            <div style={containerStyle}>
+              <div style={armorStyle}>
+                <div style={healthStyle}>
+                  <div style={holeStyle} />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </Html>
     </mesh>

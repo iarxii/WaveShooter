@@ -58,7 +58,7 @@ function ImageViewer({ src, alt = 'Enemy avatar' }){
           width:'100%',
           height:'100%',
           objectFit:'cover',
-          objectPosition:'center',
+          objectPosition:'top center',
           display:'block',
           transform: hover ? 'scale(1.06)' : 'scale(1)',
           transition: 'transform 240ms ease',
@@ -122,7 +122,7 @@ export default function CharacterViewer(){
                 onClick={()=>selectHero(h)}
               >
                 <div style={{display:'flex',gap:10,alignItems:'center',marginTop:8}}>
-                  <img src={getHeroImageUrl(h.name)} alt={`${h.name} portrait`} style={{width:48,height:48,objectFit:'cover',objectPosition:'center',borderRadius:6,flex:'0 0 auto'}} />
+                  <img src={getHeroImageUrl(h.name)} alt={`${h.name} portrait`} style={{width:48,height:48,objectFit:'cover',objectPosition:'top center',borderRadius:6,flex:'0 0 auto'}} />
                   <div style={{fontSize:12,opacity:0.9}}>
                     <div><strong>Ability:</strong> {h.ability} {h.cooldown ? `(CD ${h.cooldown}s)` : ''}</div>
                     {h.notes && <div style={{marginTop:6,opacity:0.85}}>{h.notes}</div>}

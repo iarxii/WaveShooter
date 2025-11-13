@@ -25,7 +25,7 @@ export default function NavBar({ hidden = false }) {
         <img src={LOGO} alt="Logo" style={{height:'100%',width:'auto',objectFit:'contain'}} />
       </div>
       <Link to="/" style={{color: isActive('/')?'#fff':'#ccc'}}>Home</Link>
-      <Link to="/game" style={{color: isActive('/game')?'#fff':'#ccc'}}>Game</Link>
+      <Link to="/modes" style={{color: isActive('/modes')?'#fff':'#ccc'}}>Game</Link>
       <Link to="/characters" style={{color: isActive('/characters')?'#fff':'#ccc'}}>Characters</Link>
 
       {/* Game Tools dropdown */}

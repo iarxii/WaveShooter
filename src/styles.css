@@ -450,31 +450,59 @@ input[type="range"] {
     position: absolute;
     right: 18px;
     bottom: 18px;
-    width: 120px;
-    height: 120px;
+    width: 150px;
+    height: 150px;
+    padding: 10px;
     pointer-events: auto;
     z-index: 300;
 }
 
+.dpad {
+    /* border: 2px solid var(--accent); */
+    border-radius: 12px;
+    padding: 8px;
+    background: rgba(0,0,0,0.12);
+    box-shadow: 0 8px 30px rgba(34,197,94,0.06);
+}
+
+
 .dpad-btn {
-    position: absolute;
-    width: 46px;
+    position: relative;
+    min-width: 46px;
     height: 46px;
     background: rgba(0,0,0,0.5);
     border: 1px solid rgba(255,255,255,0.12);
     border-radius: 10px;
     cursor: pointer;
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    font-size: 18px;
+}
+
+.dpad-btn[data-active="true"] {
+    background: linear-gradient(180deg, rgba(34,197,94,0.95), rgba(16,185,129,0.85));
+    border-color: rgba(255,255,255,0.9);
+    box-shadow: 0 8px 20px rgba(34,197,94,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
 .dpad-btn:active {
     background: rgba(0,0,0,0.8);
 }
 
-.dpad .up { left: 37px; top: 0; }
-.dpad .down { left: 37px; bottom: 0; }
-.dpad .left { left: 0; top: 37px; }
-.dpad .right { right: 0; top: 37px; }
+
+.dpad {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.dpad-row { width: 100%; display: flex; justify-content: center; }
+.dpad-row.mid-row { gap: 12px; }
+.dpad-icon { font-size: 18px; line-height: 1; color: var(--accent); pointer-events: none; }
 
 /* Global slim, high-contrast scrollbars */
 /* Firefox */

@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Stats, Text, AdaptiveDpr } from "@react-three/drei";
+import { OrbitControls, Stats, Text, AdaptiveDpr, Html } from "@react-three/drei";
 import { SceneEnvironment } from "./contexts/EnvironmentContext.tsx";
 import * as THREE from "three";
 import { useHistoryLog } from "./contexts/HistoryContext.jsx";
@@ -32,7 +32,7 @@ import * as perf from "./perf.ts";
 import FXOrbs from "./components/FXOrbs";
 import applyDamageToHero from "./utils/damage.js";
 import PlayerRadialHUD from "./components/PlayerRadialHUD.jsx";
-import { verifyRegisteredAssets } from './utils/assetPaths.ts'
+import { verifyRegisteredAssets } from "./utils/assetPaths.ts";
 
 // GAME CONSTANTS
 const PLAYER_SPEED = 24; // faster than minions to keep mobility advantage
@@ -119,8 +119,10 @@ const PORTAL_STAGGER_MS = 260; // ms between enemy drops per portal
 // Temporary feature flag to fully disable arena growth logic for performance
 const ARENA_GROWTH_DISABLED = true;
 const DROP_SPAWN_HEIGHT = 8; // y height enemies begin falling from
-// Feature flag: toggle player radial HUD rendering (disable while debugging)
-const SHOW_PLAYER_RADIAL_HUD = false
+// Feature flags: control radial HUD vs. text labels independently
+// NOTE: radial HUD can be toggled off if it causes visual issues; keep labels separate.
+const SHOW_PLAYER_RADIAL_HUD = false;
+const SHOW_PLAYER_LABELS = true;
 const DROP_SPEED = 10; // units/sec downward during spawn
 
 // Contact damage by enemy type
@@ -182,6 +184,111 @@ function getBudget(level) {
     LEVEL_CONFIG.budget.base +
     LEVEL_CONFIG.budget.perLevel * 10 +
     LEVEL_CONFIG.budget.over10 * (level - 10)
+  );
+}
+
+// Analogue stick for touch controls
+function AnalogStick({ onVectorChange }) {
+  const baseRef = useRef();
+  const knobRef = useRef();
+  const pointerIdRef = useRef(null);
+  const radius = 64; // px
+
+  const toVec = useCallback((clientX, clientY) => {
+    const r = baseRef.current.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const dx = clientX - cx;
+    const dy = clientY - cy;
+    // normalize to [-1,1]
+    const nx = Math.max(-1, Math.min(1, dx / radius));
+    const nz = Math.max(-1, Math.min(1, dy / radius));
+    return { x: nx, z: nz };
+  }, []);
+
+  useEffect(() => {
+    const onPointerDown = (e) => {
+      if (!baseRef.current) return;
+      // Only accept pointers that start inside base
+      const r = baseRef.current.getBoundingClientRect();
+      if (
+        e.clientX < r.left ||
+        e.clientX > r.right ||
+        e.clientY < r.top ||
+        e.clientY > r.bottom
+      )
+        return;
+      pointerIdRef.current = e.pointerId;
+      baseRef.current.setPointerCapture(pointerIdRef.current);
+      const v = toVec(e.clientX, e.clientY);
+      if (knobRef.current)
+        knobRef.current.style.transform = `translate(${v.x * radius}px, ${v.z * radius}px)`;
+      onVectorChange(v.x, v.z);
+      e.preventDefault();
+    };
+    const onPointerMove = (e) => {
+      if (pointerIdRef.current !== e.pointerId) return;
+      const v = toVec(e.clientX, e.clientY);
+      if (knobRef.current)
+        knobRef.current.style.transform = `translate(${v.x * radius}px, ${v.z * radius}px)`;
+      onVectorChange(v.x, v.z);
+    };
+    const onPointerUp = (e) => {
+      if (pointerIdRef.current !== e.pointerId) return;
+      try {
+        baseRef.current.releasePointerCapture(pointerIdRef.current);
+      } catch {}
+      pointerIdRef.current = null;
+      if (knobRef.current) knobRef.current.style.transform = `translate(0px, 0px)`;
+      onVectorChange(0, 0);
+    };
+    const el = baseRef.current;
+    if (el) {
+      el.addEventListener("pointerdown", onPointerDown);
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+      window.addEventListener("pointercancel", onPointerUp);
+    }
+    return () => {
+      if (el) el.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, [onVectorChange, toVec]);
+
+  const baseStyle = {
+    position: "fixed",
+    right: 18,
+    bottom: 18,
+    width: radius * 2 + "px",
+    height: radius * 2 + "px",
+    borderRadius: "50%",
+    background: "rgba(0,0,0,0.18)",
+    border: "2px solid var(--accent)",
+    boxShadow: "0 6px 26px rgba(34,197,94,0.12)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000,
+    touchAction: "none",
+  };
+  const knobStyle = {
+    width: 48,
+    height: 48,
+    borderRadius: "50%",
+    background: "rgba(255,255,255,0.12)",
+    border: "2px solid var(--accent)",
+    boxShadow: "0 6px 16px rgba(0,0,0,0.6)",
+    transform: "translate(0px, 0px)",
+    transition: "transform 60ms linear",
+    willChange: "transform",
+  };
+
+  return (
+    <div ref={baseRef} style={baseStyle} aria-hidden>
+      <div ref={knobRef} style={knobStyle} />
+    </div>
   );
 }
 function getActiveMax(level, perfMode) {
@@ -284,16 +391,58 @@ function randi(min, max) {
 
 // Curated harmonious palettes used to shuffle enemy colors by default
 const PALETTES = [
-  { base: '#B5764C', spike: '#B5764C', node: '#FFD24A', arc: '#FFE9A3', emissive: '#B0774F' },
-  { base: '#6AB7FF', spike: '#6AB7FF', node: '#FFE08A', arc: '#FFEBCD', emissive: '#5AA7EF' },
-  { base: '#FF7AB6', spike: '#FF7AB6', node: '#FFD1E8', arc: '#FFF0F6', emissive: '#F564A5' },
-  { base: '#8BD17C', spike: '#8BD17C', node: '#EAF8D5', arc: '#FFF2C1', emissive: '#76C166' },
-  { base: '#C9A6FF', spike: '#C9A6FF', node: '#FFE08A', arc: '#FFEBCD', emissive: '#B38BFA' },
-  { base: '#FFB86B', spike: '#FFB86B', node: '#FFF0C2', arc: '#FFE5A0', emissive: '#F2A65A' },
+  {
+    base: "#B5764C",
+    spike: "#B5764C",
+    node: "#FFD24A",
+    arc: "#FFE9A3",
+    emissive: "#B0774F",
+  },
+  {
+    base: "#6AB7FF",
+    spike: "#6AB7FF",
+    node: "#FFE08A",
+    arc: "#FFEBCD",
+    emissive: "#5AA7EF",
+  },
+  {
+    base: "#FF7AB6",
+    spike: "#FF7AB6",
+    node: "#FFD1E8",
+    arc: "#FFF0F6",
+    emissive: "#F564A5",
+  },
+  {
+    base: "#8BD17C",
+    spike: "#8BD17C",
+    node: "#EAF8D5",
+    arc: "#FFF2C1",
+    emissive: "#76C166",
+  },
+  {
+    base: "#C9A6FF",
+    spike: "#C9A6FF",
+    node: "#FFE08A",
+    arc: "#FFEBCD",
+    emissive: "#B38BFA",
+  },
+  {
+    base: "#FFB86B",
+    spike: "#FFB86B",
+    node: "#FFF0C2",
+    arc: "#FFE5A0",
+    emissive: "#F2A65A",
+  },
 ];
 function pickPalette() {
   const p = PALETTES[Math.floor(Math.random() * PALETTES.length)];
-  return { baseColor: p.base, spikeColor: p.spike, nodeColor: p.node, arcColor: p.arc, emissive: p.emissive };
+  return {
+    baseColor: p.base,
+    spikeColor: p.spike,
+    nodeColor: p.node,
+    arcColor: p.arc,
+    emissive: p.emissive,
+  };
 }
 
 // Build a randomized Character Factory spec using roster hints
@@ -457,13 +606,25 @@ function PickupPopup({ pickup, onComplete }) {
     pickup.type === "health"
       ? { name: "Health Pack", effect: "+25 Health", color: "#22c55e" }
       : pickup.type === "armour"
-      ? { name: "Armour Pack", effect: `+${pickup.amount ?? 25} AP`, color: "#60a5fa" }
+      ? {
+          name: "Armour Pack",
+          effect: `+${pickup.amount ?? 25} AP`,
+          color: "#60a5fa",
+        }
       : pickup.type === "lasers"
       ? { name: "Laser Array", effect: "High Damage (5s)", color: "#ff4d4d" }
       : pickup.type === "shield"
-      ? { name: "Shield Bubble", effect: "Keeps enemies away (5s)", color: "#66ccff" }
+      ? {
+          name: "Shield Bubble",
+          effect: "Keeps enemies away (5s)",
+          color: "#66ccff",
+        }
       : pickup.type === "pulsewave"
-      ? { name: "Pulse Wave", effect: "3 bursts launch enemies (5s)", color: "#f97316" }
+      ? {
+          name: "Pulse Wave",
+          effect: "3 bursts launch enemies (5s)",
+          color: "#f97316",
+        }
       : pickup.type === "power"
       ? {
           name: "Power Up",
@@ -671,6 +832,153 @@ function Bullet({ bullet, onExpire, isPaused, speed }) {
   return <mesh ref={ref} geometry={geom} material={mat} castShadow />;
 }
 
+// Laser beam visual & damage applicator
+function LaserBeam({
+  pos = [0, 0, 0],
+  dir = [0, 0, -1],
+  length = 28,
+  radius = 0.9,
+  dmgPerSecond = 36,
+  isPaused,
+  onDamage,
+}) {
+  const ref = useRef();
+  const dirVec = useMemo(
+    () => new THREE.Vector3(dir[0], dir[1], dir[2]).normalize(),
+    [dir]
+  );
+  const tmpPos = useRef(new THREE.Vector3(...pos));
+  // geometry/material
+  const geom = useMemo(
+    () => new THREE.CylinderGeometry(radius, radius, length, 8, 1, true),
+    [radius, length]
+  );
+  const mat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: 0xff2244,
+        emissive: 0xff2244,
+        transparent: true,
+        opacity: 0.85,
+        side: THREE.DoubleSide,
+      }),
+    []
+  );
+
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.position.set(
+        pos[0] + dirVec.x * (length / 2),
+        pos[1] + dirVec.y * (length / 2),
+        pos[2] + dirVec.z * (length / 2)
+      );
+      // align cylinder's Y axis to dirVec: cylinder default points up (Y)
+      const axis = new THREE.Vector3(0, 1, 0);
+      const q = new THREE.Quaternion().setFromUnitVectors(
+        axis,
+        dirVec.clone().normalize()
+      );
+      ref.current.quaternion.copy(q);
+    }
+  }, [pos, dirVec, length]);
+
+  useFrame((_, dt) => {
+    if (!ref.current || isPaused) return;
+    // update pos each frame (follows player)
+    ref.current.position.set(
+      pos[0] + dirVec.x * (length / 2),
+      pos[1] + dirVec.y * (length / 2),
+      pos[2] + dirVec.z * (length / 2)
+    );
+    // Damage application: iterate enemies within beam
+    if (window.gameEnemies && window.gameEnemies.length) {
+      const origin = new THREE.Vector3(pos[0], pos[1], pos[2]);
+      const d = dirVec;
+      for (const ge of window.gameEnemies) {
+        try {
+          if (!ge?.ref?.current) continue;
+          const ep = ge.ref.current.position.clone();
+          const rel = ep.clone().sub(origin);
+          const t = rel.dot(d);
+          if (t < 0 || t > length) continue;
+          // perpendicular distance squared
+          const proj = d.clone().multiplyScalar(t).add(origin);
+          const perpDist2 = proj.distanceToSquared(ep);
+          if (perpDist2 <= radius * radius) {
+            // apply damage scaled by dt
+            const dmg = dmgPerSecond * dt; // fractional units
+            onDamage && onDamage(ge.id, dmg);
+          }
+        } catch {}
+      }
+    }
+  });
+
+  return (
+    <mesh ref={ref} geometry={geom} material={mat} castShadow>
+      {/* leave as is */}
+    </mesh>
+  );
+}
+
+// Full-screen loading overlay shown while Suspense children are resolving
+function LoadingOverlay() {
+  // simple local state for animated dots
+  const [dots, setDots] = React.useState(0);
+  React.useEffect(() => {
+    const iid = setInterval(() => setDots((d) => (d + 1) % 4), 400);
+    return () => clearInterval(iid);
+  }, []);
+
+  const overlayStyle = {
+    position: 'fixed',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'auto',
+    zIndex: 9999,
+    background: 'linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.85) 100%)',
+    color: '#fff',
+    flexDirection: 'column',
+  };
+  const boxStyle = {
+    padding: '18px 24px',
+    borderRadius: 8,
+    textAlign: 'center',
+    background: 'rgba(0,0,0,0.35)',
+    boxShadow: '0 6px 30px rgba(0,0,0,0.6)',
+  };
+  const spinnerStyle = {
+    width: 56,
+    height: 56,
+    borderRadius: '50%',
+    border: '4px solid rgba(255,255,255,0.08)',
+    borderTopColor: '#ff4d4d',
+    margin: '0 auto 10px',
+  };
+  const [angle, setAngle] = React.useState(0);
+  // rotate spinner via JS to avoid injecting <style> tags inside Canvas tree
+  React.useEffect(() => {
+    const iid = setInterval(() => setAngle((a) => (a + 36) % 360), 80);
+    return () => clearInterval(iid);
+  }, []);
+  const spinnerTransform = { transform: `rotate(${angle}deg)` };
+
+  return (
+    <div style={overlayStyle} aria-live="polite" role="status">
+      <div style={boxStyle}>
+        <div style={{ ...spinnerStyle, ...spinnerTransform }} />
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Loading assets</div>
+        <div style={{ opacity: 0.9 }}>{'Please wait' + '.'.repeat(dots)}</div>
+      </div>
+    </div>
+  );
+}
+
 // Pickup is a small box that floats with collision detection
 function Pickup({
   pos,
@@ -813,7 +1121,7 @@ function Pickup({
       ) : type === "shield" ? (
         <sphereGeometry args={[0.45, 16, 12]} />
       ) : type === "pulsewave" ? (
-        <ringGeometry args={[0.40, 0.52, 32]} />
+        <ringGeometry args={[0.4, 0.52, 32]} />
       ) : type === "invuln" ? (
         <capsuleGeometry args={[0.25, 0.6, 4, 8]} />
       ) : type === "bombs" ? (
@@ -841,51 +1149,51 @@ function Pickup({
         <primitive object={heartMat} attach="material" />
       ) : (
         <meshStandardMaterial
-            color={
-              type === "health"
-                ? 0x22c55e
-                : type === "armour"
-                ? 0x3b82f6
-                : type === "lasers"
-                ? 0xff1493
-                : type === "shield"
-                ? 0x66ccff
-                : type === "pulsewave"
-                ? 0xf97316
-                : type === "invuln"
-                ? 0xfacc15
-                : type === "bombs"
-                ? 0x000000
-                : 0xa855f7 /* power (fallback) */
-            }
-            emissive={
-              type === "power" && isDiamond
-                ? 0x224466
-                : type === "health"
-                ? 0x001100
-                : type === "invuln"
-                ? 0x443300
-                : type === "bombs"
-                ? 0x000000
-                : type === "lasers"
-                ? 0x660022
-                : type === "pulsewave"
-                ? 0x331400
-                : type === "armour"
-                ? 0x001d40
-                : 0x1d0033
-            }
-            emissiveIntensity={
-              type === "power" && isDiamond
-                ? 1.5
-                : type === "invuln"
-                ? 0.9
-                : type === "lasers"
-                ? 1.3
-                : type === "pulsewave"
-                ? 0.8
-                : 0.45
-            }
+          color={
+            type === "health"
+              ? 0x22c55e
+              : type === "armour"
+              ? 0x3b82f6
+              : type === "lasers"
+              ? 0xff1493
+              : type === "shield"
+              ? 0x66ccff
+              : type === "pulsewave"
+              ? 0xf97316
+              : type === "invuln"
+              ? 0xfacc15
+              : type === "bombs"
+              ? 0x000000
+              : 0xa855f7 /* power (fallback) */
+          }
+          emissive={
+            type === "power" && isDiamond
+              ? 0x224466
+              : type === "health"
+              ? 0x001100
+              : type === "invuln"
+              ? 0x443300
+              : type === "bombs"
+              ? 0x000000
+              : type === "lasers"
+              ? 0x660022
+              : type === "pulsewave"
+              ? 0x331400
+              : type === "armour"
+              ? 0x001d40
+              : 0x1d0033
+          }
+          emissiveIntensity={
+            type === "power" && isDiamond
+              ? 1.5
+              : type === "invuln"
+              ? 0.9
+              : type === "lasers"
+              ? 1.3
+              : type === "pulsewave"
+              ? 0.8
+              : 0.45
+          }
         />
       )}
     </mesh>
@@ -2068,10 +2376,12 @@ export default function App({ navVisible, setNavVisible } = {}) {
   // Dev-only: verify registered assets (via assetUrl/publicAsset) are reachable to catch 404s early
   useEffect(() => {
     if (import.meta?.env?.DEV) {
-      const t = setTimeout(() => { verifyRegisteredAssets().catch(() => {}) }, 1500)
-      return () => clearTimeout(t)
+      const t = setTimeout(() => {
+        verifyRegisteredAssets().catch(() => {});
+      }, 1500);
+      return () => clearTimeout(t);
     }
-  }, [])
+  }, []);
   // Global visual asset scale & camera view settings (persisted)
   const [assetScale, setAssetScale] = useState(() => {
     try {
@@ -2211,9 +2521,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
   });
   const [heroQuality, setHeroQuality] = useState(() => {
     try {
-      return localStorage.getItem("heroQuality") || "high";
+      return localStorage.getItem("heroQuality") || "medium";
     } catch {}
-    return "high";
+    return "medium";
   });
   useEffect(() => {
     try {
@@ -2253,42 +2563,48 @@ export default function App({ navVisible, setNavVisible } = {}) {
   });
   const [debugFxOrbCount, setDebugFxOrbCount] = useState(() => {
     const v = parseInt(localStorage.getItem("dbgFxOrbCount"), 10);
-    return isFinite(v) ? v : 14;
+    return isFinite(v) ? v : 8;
   });
   // FX Orb debug controls (persisted)
   const [debugFxOrbRadius, setDebugFxOrbRadius] = useState(() => {
     const v = parseFloat(localStorage.getItem("dbgFxOrbRadius"));
     // Closer to player than previous default (1.8)
-    return isFinite(v) ? v : 1.2;
+    return isFinite(v) ? v : 0.6;
   });
   const [debugFxOrbSizeMul, setDebugFxOrbSizeMul] = useState(() => {
     const v = parseFloat(localStorage.getItem("dbgFxOrbSizeMul"));
     // Make orbs bigger by default (1.0 = previous base)
-    return isFinite(v) ? v : 1.6;
+    return isFinite(v) ? v : 1.2;
   });
   const [debugFxOrbLerp, setDebugFxOrbLerp] = useState(() => {
     const v = parseFloat(localStorage.getItem("dbgFxOrbLerp"));
     // Lerp alpha for smoother follow; 0 = snap disabled, 1 = snap immediately
-    return isFinite(v) ? v : 0.5;
+    return isFinite(v) ? v : 1.0;
   });
   // Tentacle animation debug (global window shim for shader uniforms)
   const [tentacleSpeed, setTentacleSpeed] = useState(() => {
-    const v = parseFloat(localStorage.getItem('dbgTentacleSpeed')); return isFinite(v)? v : 1.2;
+    const v = parseFloat(localStorage.getItem("dbgTentacleSpeed"));
+    return isFinite(v) ? v : 1.2;
   });
   const [tentacleStrength, setTentacleStrength] = useState(() => {
-    const v = parseFloat(localStorage.getItem('dbgTentacleStrength')); return isFinite(v)? v : 1.0;
+    const v = parseFloat(localStorage.getItem("dbgTentacleStrength"));
+    return isFinite(v) ? v : 1.0;
   });
   const [tentacleAmpX, setTentacleAmpX] = useState(() => {
-    const v = parseFloat(localStorage.getItem('dbgTentacleAmpX')); return isFinite(v)? v : 1.0;
+    const v = parseFloat(localStorage.getItem("dbgTentacleAmpX"));
+    return isFinite(v) ? v : 1.0;
   });
   const [tentacleAmpZ, setTentacleAmpZ] = useState(() => {
-    const v = parseFloat(localStorage.getItem('dbgTentacleAmpZ')); return isFinite(v)? v : 1.0;
+    const v = parseFloat(localStorage.getItem("dbgTentacleAmpZ"));
+    return isFinite(v) ? v : 1.0;
   });
   const [tentacleYWobble, setTentacleYWobble] = useState(() => {
-    const v = parseFloat(localStorage.getItem('dbgTentacleYWobble')); return isFinite(v)? v : 0.05;
+    const v = parseFloat(localStorage.getItem("dbgTentacleYWobble"));
+    return isFinite(v) ? v : 0.05;
   });
   const [tentacleBendPow, setTentacleBendPow] = useState(() => {
-    const v = parseFloat(localStorage.getItem('dbgTentacleBendPow')); return isFinite(v)? v : 2.0;
+    const v = parseFloat(localStorage.getItem("dbgTentacleBendPow"));
+    return isFinite(v) ? v : 2.0;
   });
   useEffect(() => {
     localStorage.setItem("dbgBulletSpeed", String(debugBulletSpeed));
@@ -2309,16 +2625,28 @@ export default function App({ navVisible, setNavVisible } = {}) {
     localStorage.setItem("dbgFxOrbLerp", String(debugFxOrbLerp));
   }, [debugFxOrbLerp]);
   // Persist tentacle debug values
-  useEffect(()=>{ localStorage.setItem('dbgTentacleSpeed', String(tentacleSpeed)); },[tentacleSpeed]);
-  useEffect(()=>{ localStorage.setItem('dbgTentacleStrength', String(tentacleStrength)); },[tentacleStrength]);
-  useEffect(()=>{ localStorage.setItem('dbgTentacleAmpX', String(tentacleAmpX)); },[tentacleAmpX]);
-  useEffect(()=>{ localStorage.setItem('dbgTentacleAmpZ', String(tentacleAmpZ)); },[tentacleAmpZ]);
-  useEffect(()=>{ localStorage.setItem('dbgTentacleYWobble', String(tentacleYWobble)); },[tentacleYWobble]);
-  useEffect(()=>{ localStorage.setItem('dbgTentacleBendPow', String(tentacleBendPow)); },[tentacleBendPow]);
+  useEffect(() => {
+    localStorage.setItem("dbgTentacleSpeed", String(tentacleSpeed));
+  }, [tentacleSpeed]);
+  useEffect(() => {
+    localStorage.setItem("dbgTentacleStrength", String(tentacleStrength));
+  }, [tentacleStrength]);
+  useEffect(() => {
+    localStorage.setItem("dbgTentacleAmpX", String(tentacleAmpX));
+  }, [tentacleAmpX]);
+  useEffect(() => {
+    localStorage.setItem("dbgTentacleAmpZ", String(tentacleAmpZ));
+  }, [tentacleAmpZ]);
+  useEffect(() => {
+    localStorage.setItem("dbgTentacleYWobble", String(tentacleYWobble));
+  }, [tentacleYWobble]);
+  useEffect(() => {
+    localStorage.setItem("dbgTentacleBendPow", String(tentacleBendPow));
+  }, [tentacleBendPow]);
 
   // Bridge to shader (window.__tentacleFX consumed in Pathogen)
-  useEffect(()=>{
-    if (typeof window !== 'undefined') {
+  useEffect(() => {
+    if (typeof window !== "undefined") {
       window.__tentacleFX = {
         speed: tentacleSpeed,
         strength: tentacleStrength,
@@ -2328,7 +2656,14 @@ export default function App({ navVisible, setNavVisible } = {}) {
         bendPow: tentacleBendPow,
       };
     }
-  }, [tentacleSpeed, tentacleStrength, tentacleAmpX, tentacleAmpZ, tentacleYWobble, tentacleBendPow]);
+  }, [
+    tentacleSpeed,
+    tentacleStrength,
+    tentacleAmpX,
+    tentacleAmpZ,
+    tentacleYWobble,
+    tentacleBendPow,
+  ]);
   const [wave, setWave] = useState(0);
   const [score, setScore] = useState(0);
   // Track score in a ref for baseline calculations without re-creating callbacks
@@ -2339,7 +2674,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const [bestScore, setBestScore] = useState(0);
   const [bestWave, setBestWave] = useState(0);
   const [health, setHealth] = useState(100);
-  const [armor, setArmor] = useState(500);
+  const [armor, setArmor] = useState(100);
   const healthRef = useRef(health);
   useEffect(() => {
     healthRef.current = health;
@@ -2403,7 +2738,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const [bouncerTelegraphs, setBouncerTelegraphs] = useState([]);
   const [bouncers, setBouncers] = useState([]);
   const [controlScheme, setControlScheme] = useState("dpad"); // 'wasd' | 'dpad' (default to D-Buttons)
-  const [performanceMode, setPerformanceMode] = useState(false);
+  const [performanceMode, setPerformanceMode] = useState(true);
   const [playerResetToken, setPlayerResetToken] = useState(0);
   const [playerBaseSpeed, setPlayerBaseSpeed] = useState(PLAYER_SPEED);
   const [enemySpeedScale, setEnemySpeedScale] = useState(1);
@@ -2413,13 +2748,143 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const [armorEvents, setArmorEvents] = useState([]);
   const [powerEffect, setPowerEffect] = useState({ active: false, amount: 0 });
   const powerRemainingRef = useRef(0); // ms remaining for effect
+  // Player label notifications (above player)
+  const [playerLabelEvents, setPlayerLabelEvents] = useState([]); // { id, text, start }
+  const [playerLabelSize, setPlayerLabelSize] = useState(() => {
+    try {
+      const v = parseInt(localStorage.getItem("playerLabelSize"), 10);
+      return Number.isFinite(v) && v > 0 ? v : 18;
+    } catch {
+      return 18;
+    }
+  });
+  const [showPlayerLabelPlaceholder, setShowPlayerLabelPlaceholder] = useState(() => {
+    try {
+      return localStorage.getItem("showPlayerLabelPlaceholder") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("playerLabelSize", String(playerLabelSize));
+    } catch {}
+  }, [playerLabelSize]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "showPlayerLabelPlaceholder",
+        showPlayerLabelPlaceholder ? "1" : "0"
+      );
+    } catch {}
+  }, [showPlayerLabelPlaceholder]);
+
+  const pushPlayerLabel = useCallback((text, lifetimeMs = 2200) => {
+    const id = Date.now() + Math.random();
+    const evt = { id, text, start: performance.now() };
+    setPlayerLabelEvents((p) => [...p, evt]);
+    // auto-remove after lifetime
+    setTimeout(() => {
+      setPlayerLabelEvents((p) => p.filter((x) => x.id !== id));
+    }, lifetimeMs);
+    return id;
+  }, []);
   // New pickup effects: lasers, shield bubble, pulse wave
   const [lasersEffect, setLasersEffect] = useState({ active: false });
   const lasersRemainingRef = useRef(0);
   const lasersActiveRef = useRef(false);
+  // Last known aim direction for laser beam visuals
+  const lastLaserAimRef = useRef(new THREE.Vector3(0, 0, -1));
   useEffect(() => {
     lasersActiveRef.current = !!lasersEffect.active;
   }, [lasersEffect.active]);
+
+  // Active laser beam state (single beam from player while firing)
+  const [laserBeam, setLaserBeam] = useState(null); // { pos: [x,y,z], dir: [x,y,z], id }
+  const laserExpireTimerRef = useRef(null);
+
+  // Apply continuous damage from laser to an enemy (fractional accumulation like bullets)
+  const applyLaserDamage = useCallback((enemyId, dmgUnits) => {
+    // dmgUnits: fractional damage units to add (can be >1 per call)
+    setEnemies((prev) => {
+      let diedId = null;
+      const updated = prev.map((e) => {
+        if (e.id !== enemyId) return e;
+        // Respect enzyme shield / resilience similar to bullets
+        const ge =
+          (window.gameEnemies || []).find((g) => g.id === enemyId) || {};
+        if (e.isRoster && ge.enzymeShieldActive) return e;
+        const now = performance.now();
+        if (
+          e.isRoster &&
+          e.rosterName &&
+          e.rosterName.includes("A. baumannii XDR")
+        ) {
+          if (ge.resilienceInvulnUntil && now < ge.resilienceInvulnUntil)
+            return e;
+        }
+
+        // Laser scales similarly to bullets but is a stronger source
+        let scale = e.bulletDamageScale || 1;
+        const add = dmgUnits * scale;
+        const store = (e._dmgStore || 0) + add;
+        let acc = store;
+        let takeHp = 0;
+        while (acc >= 1 && e.health - takeHp > 0) {
+          acc -= 1;
+          takeHp += 1;
+        }
+        const newHealth = (e.health ?? 1) - takeHp;
+        const newStore = acc;
+        const out = { ...e, health: newHealth, _dmgStore: newStore };
+        if (takeHp > 0) {
+          // some roster traits react to damage
+          if (
+            e.isRoster &&
+            e.rosterName &&
+            e.rosterName.includes("E. coli CRE")
+          ) {
+            const geLocal = (window.gameEnemies || []).find(
+              (g) => g.id === enemyId
+            );
+            if (geLocal) geLocal.mutSpeedUntil = performance.now() + 4000;
+          }
+          if (
+            e.isRoster &&
+            e.rosterName &&
+            e.rosterName.includes("A. baumannii XDR")
+          ) {
+            const geLocal = (window.gameEnemies || []).find(
+              (g) => g.id === enemyId
+            );
+            if (geLocal)
+              geLocal.resilienceInvulnUntil = performance.now() + 1500;
+          }
+        }
+        if (newHealth <= 0) {
+          diedId = e.id;
+        }
+        return out;
+      });
+      // If someone died, run onEnemyDie side-effects (call later-safe)
+      if (diedId != null) {
+        try {
+          if (typeof onEnemyDie === "function") {
+            // call in next tick to avoid ordering issues
+            setTimeout(() => {
+              try {
+                onEnemyDie(diedId, false);
+              } catch {}
+            }, 0);
+          }
+        } catch {}
+        // filter them out from array (onEnemyDie will update state further too)
+        return updated.filter((x) => x.id !== diedId);
+      }
+      return updated;
+    });
+  }, []);
 
   const [shieldEffect, setShieldEffect] = useState({ active: false });
   const shieldRemainingRef = useRef(0);
@@ -2489,6 +2954,23 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const [corrosionEffect, setCorrosionEffect] = useState({ active: false });
   const corrosionRemainingRef = useRef(0);
   const corrosionTickTimerRef = useRef(0);
+
+  // Push player label notifications when effects activate
+  useEffect(() => {
+    if (boostEffect.active) pushPlayerLabel("BOOST!");
+  }, [boostEffect.active, pushPlayerLabel]);
+  useEffect(() => {
+    if (debuffEffect.active) pushPlayerLabel("SLOWED");
+  }, [debuffEffect.active, pushPlayerLabel]);
+  useEffect(() => {
+    if (corrosionEffect.active) pushPlayerLabel("CORROSION");
+  }, [corrosionEffect.active, pushPlayerLabel]);
+  useEffect(() => {
+    if (invulnEffect.active) pushPlayerLabel("INVULNERABLE!");
+  }, [invulnEffect.active, pushPlayerLabel]);
+  useEffect(() => {
+    if (powerEffect.active) pushPlayerLabel(`POWER +${powerEffect.amount || 0}`);
+  }, [powerEffect.active, powerEffect.amount, pushPlayerLabel]);
   // Carcinogenic Field: reduces healing effectiveness temporarily
   const [regenDebuff, setRegenDebuff] = useState({ active: false });
   const regenDebuffRemainingRef = useRef(0);
@@ -2725,7 +3207,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
       const amount = Math.max(1, Math.ceil((dmg || 1) * scale));
 
       // Use the latest snapshot via refs to compute deterministic result
-      const currentState = { health: healthRef.current || 0, armor: armorRef.current || 0 };
+      const currentState = {
+        health: healthRef.current || 0,
+        armor: armorRef.current || 0,
+      };
       const res = applyDamageToHero(currentState, { amount, source: "enemy" });
 
       // Emit events for UI floaters (preserve ordering: armor then hp)
@@ -2736,11 +3221,25 @@ export default function App({ navVisible, setNavVisible } = {}) {
             ...evts,
             { id: idEvt, amount: ev.delta, start: performance.now() },
           ]);
+          // Player label for armor change (e.g., -10 AP)
+          try {
+            const txt = `${ev.delta < 0 ? "-" : "+"}${Math.abs(
+              ev.delta
+            )} AP`;
+            pushPlayerLabel(txt);
+          } catch {}
         } else if (ev.type === "hp") {
           setHpEvents((evts) => [
             ...evts,
             { id: idEvt, amount: ev.delta, start: performance.now() },
           ]);
+          // Player label for HP change (e.g., -12 HP)
+          try {
+            const txt = `${ev.delta < 0 ? "-" : "+"}${Math.abs(
+              ev.delta
+            )} HP`;
+            pushPlayerLabel(txt);
+          } catch {}
         }
       }
 
@@ -2773,7 +3272,15 @@ export default function App({ navVisible, setNavVisible } = {}) {
   useEffect(() => {
     try {
       const cs = localStorage.getItem("controlScheme");
-      if (cs === "wasd" || cs === "dpad") setControlScheme(cs);
+      if (cs === "wasd" || cs === "dpad" || cs === "touch") {
+        setControlScheme(cs);
+      } else {
+        // Auto-detect touch-capable devices when no persisted choice
+        const isTouch =
+          (typeof window !== "undefined" && "ontouchstart" in window) ||
+          (navigator && navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
+        setControlScheme(isTouch ? "touch" : "dpad");
+      }
       // shapeRunner persisted flags no longer used
       const hc = localStorage.getItem("highContrast");
       if (hc != null) setHighContrast(hc === "1" || hc === "true");
@@ -3200,7 +3707,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
       const handle = setTimeout(() => {
         if (isPausedRef.current) return;
         // If spawning is globally disabled or we're testing hazards-only, skip enemy spawn
-        if (disableEnemySpawnsRef.current || spawnOnlyHazardsRef.current) return;
+        if (disableEnemySpawnsRef.current || spawnOnlyHazardsRef.current)
+          return;
         const jitter = 1.2;
         const spawnPos = [
           pos[0] + (Math.random() - 0.5) * jitter,
@@ -3823,6 +4331,33 @@ export default function App({ navVisible, setNavVisible } = {}) {
       const py = playerPosition.y + 0.5;
       const pz = playerPosition.z;
 
+      // If lasers pickup is active, create/update a continuous laser beam instead of bullets
+      if (lasersActiveRef.current) {
+        try {
+          // forward dir on XZ
+          const fx = direction[0];
+          const fz = direction[2];
+          const dirVec = new THREE.Vector3(fx, 0, fz).normalize();
+          lastLaserAimRef.current.copy(dirVec);
+          const id = Date.now() + Math.random();
+          setLaserBeam({
+            id,
+            pos: [px, py, pz],
+            dir: [dirVec.x, dirVec.y, dirVec.z],
+          });
+          // reset expire timer so beam persists while firing; clears shortly after firing stops
+          if (laserExpireTimerRef.current) {
+            clearTimeout(laserExpireTimerRef.current);
+            laserExpireTimerRef.current = null;
+          }
+          laserExpireTimerRef.current = setTimeout(() => {
+            setLaserBeam(null);
+            laserExpireTimerRef.current = null;
+          }, 180);
+        } catch {}
+        return;
+      }
+
       // While shape runner is active (stun mode), emit 4 forward streams
       if (stunMode) {
         const fx = direction[0];
@@ -3947,7 +4482,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
         const amount = randi(10, 50);
         setPickups((p) => {
           if (p.length >= MAX_PICKUPS) return p;
-          return [...p, { id, pos, type: "armour", amount, lifetimeMaxSec: 20 }];
+          return [
+            ...p,
+            { id, pos, type: "armour", amount, lifetimeMaxSec: 20 },
+          ];
         });
         return;
       } else if (type === "lasers") {
@@ -4072,13 +4610,14 @@ export default function App({ navVisible, setNavVisible } = {}) {
             // Expanded drop table includes armour, lasers, shield, and pulsewave
             const r2 = Math.random();
             // Base weights that gently scale with wave difficulty
-            const wInv = 0.10 + 0.15 * scale;      // invulnerability
-            const wBomb = 0.18 + 0.20 * scale;     // bomb kit
-            const wArmor = 0.22 + 0.18 * scale;    // armour top-up
-            const wLasers = 0.08 + 0.12 * scale;   // laser array
-            const wShield = 0.07 + 0.10 * scale;   // shield bubble
-            const wPulse = 0.06 + 0.08 * scale;    // pulse wave
-            const wCommon = 1.0 - (wInv + wBomb + wArmor + wLasers + wShield + wPulse);
+            const wInv = 0.1 + 0.15 * scale; // invulnerability
+            const wBomb = 0.18 + 0.2 * scale; // bomb kit
+            const wArmor = 0.22 + 0.18 * scale; // armour top-up
+            const wLasers = 0.08 + 0.12 * scale; // laser array
+            const wShield = 0.07 + 0.1 * scale; // shield bubble
+            const wPulse = 0.06 + 0.08 * scale; // pulse wave
+            const wCommon =
+              1.0 - (wInv + wBomb + wArmor + wLasers + wShield + wPulse);
             // Cumulative thresholds
             const tInv = wInv;
             const tBomb = tInv + wBomb;
@@ -4243,9 +4782,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
               }
 
               // Compute scaled bullet damage and fraction accumulator
-        let dmgUnits = PLAYER_BULLET_DAMAGE;
-        // Lasers pickup: high damage bullets
-        if (lasersActiveRef.current) dmgUnits = Math.max(PLAYER_BULLET_DAMAGE * 4, 8);
+              let dmgUnits = PLAYER_BULLET_DAMAGE;
+              // Lasers pickup: high damage bullets
+              if (lasersActiveRef.current)
+                dmgUnits = Math.max(PLAYER_BULLET_DAMAGE * 4, 8);
               let scale = e.bulletDamageScale || 1;
               // Enterobacter ESBL: Adaptive Shield — extra defense near allies
               if (
@@ -4382,12 +4922,27 @@ export default function App({ navVisible, setNavVisible } = {}) {
           // Special pickups scale slightly with wave and pressure
           const wv = wave || 0;
           const s = Math.min(0.4, Math.max(0, (wv - 8) * 0.02));
-          const pBomb = Math.max(0.02, Math.min(0.45, (0.14 + s) * pickupFactor));
-          const pInv = Math.max(0.01, Math.min(0.35, (0.10 + s) * pickupFactor));
-          const pArmor = Math.max(0.03, Math.min(0.50, (0.16 + s) * pickupFactor));
-          const pLasers = Math.max(0.015, Math.min(0.30, (0.08 + s) * pickupFactor));
-          const pShield = Math.max(0.015, Math.min(0.28, (0.07 + s) * pickupFactor));
-          const pPulse = Math.max(0.01, Math.min(0.25, (0.06 + s) * pickupFactor));
+          const pBomb = Math.max(
+            0.02,
+            Math.min(0.45, (0.14 + s) * pickupFactor)
+          );
+          const pInv = Math.max(0.01, Math.min(0.35, (0.1 + s) * pickupFactor));
+          const pArmor = Math.max(
+            0.03,
+            Math.min(0.5, (0.16 + s) * pickupFactor)
+          );
+          const pLasers = Math.max(
+            0.015,
+            Math.min(0.3, (0.08 + s) * pickupFactor)
+          );
+          const pShield = Math.max(
+            0.015,
+            Math.min(0.28, (0.07 + s) * pickupFactor)
+          );
+          const pPulse = Math.max(
+            0.01,
+            Math.min(0.25, (0.06 + s) * pickupFactor)
+          );
           if (Math.random() < pBomb) spawnPickup("bombs");
           if (Math.random() < pInv) spawnPickup("invuln");
           if (Math.random() < pArmor) spawnPickup("armour");
@@ -4488,6 +5043,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
           { id: idEvt, amount: +eff, start: performance.now() },
         ]);
         try {
+          pushPlayerLabel(`+${eff} HP`);
+        } catch {}
+        try {
           play("health-pickup");
         } catch {}
       } else {
@@ -4509,6 +5067,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
           invulnActiveRef.current = true;
           setInvulnEffect({ active: true, shape });
           try {
+            pushPlayerLabel("INVULNERABLE!");
+          } catch {}
+          try {
             play("invuln-on");
           } catch {}
           // Clear any active slow debuff immediately; if one existed, trigger a blue shimmer cue
@@ -4524,35 +5085,68 @@ export default function App({ navVisible, setNavVisible } = {}) {
           bombEffectTimeRef.current = BOMB_ABILITY_DURATION_MS;
           bombSpawnTimerRef.current = 0;
           setBombEffect({ active: true });
+          try {
+            pushPlayerLabel("BOMB KIT");
+          } catch {}
         } else if (pickup.type === "armour") {
           // Armour topup: randomized AP between 10-50
-          const amt = Math.max(10, Math.min(50, Math.floor(pickup.amount || (10 + Math.floor(Math.random() * 41)))));
+          const amt = Math.max(
+            10,
+            Math.min(
+              50,
+              Math.floor(pickup.amount || 10 + Math.floor(Math.random() * 41))
+            )
+          );
           setArmor((a) => {
             const next = a + amt;
             const idEvt = Date.now() + Math.random();
-            setArmorEvents((evts) => [...evts, { id: idEvt, amount: +amt, start: performance.now() }]);
+            setArmorEvents((evts) => [
+              ...evts,
+              { id: idEvt, amount: +amt, start: performance.now() },
+            ]);
+            try {
+              pushPlayerLabel(`+${amt} AP`);
+            } catch {}
             return next;
           });
-          try { play("powerup"); } catch {}
+          try {
+            play("powerup");
+          } catch {}
         } else if (pickup.type === "lasers") {
           // Laser array: high damage bullets that also affect cone boss; 5s
           lasersRemainingRef.current = 5000;
           setLasersEffect({ active: true });
-          try { play("powerup"); } catch {}
+          try {
+            pushPlayerLabel("LASER ARRAY");
+          } catch {}
+          try {
+            play("powerup");
+          } catch {}
         } else if (pickup.type === "shield") {
           // Shield bubble: keep enemies at distance for 5s
           shieldRemainingRef.current = 5000;
           setShieldEffect({ active: true });
-          try { play("invuln-on"); } catch {}
+          try {
+            pushPlayerLabel("SHIELD");
+          } catch {}
+          try {
+            play("invuln-on");
+          } catch {}
         } else if (pickup.type === "pulsewave") {
           // Pulse Wave: 3 bursts over ~5s that launch enemies and spawn air-bombs on them
           setPulseWaveEffect({ active: true });
-          try { play("powerup"); } catch {}
+          try {
+            pushPlayerLabel("PULSE WAVE");
+          } catch {}
+          try {
+            play("powerup");
+          } catch {}
           // schedule 3 bursts (0ms, ~1700ms, ~3400ms)
           const scheduleBurst = (delayMs, idToken) => {
             setTimeout(() => {
               if (isPausedRef.current) return; // skip if paused (best-effort)
-              const R = 6.0; // short radius
+              // PulseWave: large blast radius pushing enemies away and spawning air-bombs
+              const R = 16.0; // large radius
               const now = performance.now();
               const p = playerPosRef.current;
               if (!window.gameEnemies) return;
@@ -4569,10 +5163,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
                     const d = Math.sqrt(Math.max(d2, 1e-6));
                     const nx = dx / d;
                     const nz = dz / d;
-                    // immediate outward impulse
-                    ge.impulse?.(nx, nz, 32);
+                    // immediate outward impulse (strong)
+                    ge.impulse?.(nx, nz, 48);
                     // spawn an air-bomb at enemy location that will land & explode like player bombs
-                    const speed = 3 + Math.random() * 3;
+                    const speed = 6 + Math.random() * 6;
                     const idb = Date.now() + Math.random();
                     setBombs((prev) => [
                       ...prev,
@@ -4598,6 +5192,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
           setTimeout(() => setPulseWaveEffect({ active: false }), 5200);
         } else if (pickup.type === "life") {
           setLives((l) => Math.min(l + 1, 5));
+          try {
+            pushPlayerLabel("1UP");
+          } catch {}
           try {
             play("life-pickup");
           } catch {}
@@ -4646,7 +5243,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
     const tick = () => {
       if (cancelled) return;
       if (!isPausedRef.current) {
-        lasersRemainingRef.current = Math.max(0, lasersRemainingRef.current - 100);
+        lasersRemainingRef.current = Math.max(
+          0,
+          lasersRemainingRef.current - 100
+        );
         if (lasersRemainingRef.current <= 0) {
           setLasersEffect({ active: false });
           return;
@@ -4661,6 +5261,13 @@ export default function App({ navVisible, setNavVisible } = {}) {
     };
   }, [lasersEffect.active]);
 
+  // Clear beam when lasers effect ends
+  useEffect(() => {
+    if (!lasersEffect.active) {
+      setLaserBeam(null);
+    }
+  }, [lasersEffect.active]);
+
   // Shield bubble timer + keep-away loop (pause-aware, 5s)
   useEffect(() => {
     if (!shieldEffect.active) return;
@@ -4669,7 +5276,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
     const tick = () => {
       if (cancelled) return;
       if (!isPausedRef.current) {
-        shieldRemainingRef.current = Math.max(0, shieldRemainingRef.current - 150);
+        shieldRemainingRef.current = Math.max(
+          0,
+          shieldRemainingRef.current - 150
+        );
         // Apply periodic impulse to nearby enemies to keep them away
         try {
           if (window.gameEnemies) {
@@ -5159,7 +5769,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
             clearInterval(interval);
             setRespawnCountdown(0);
             setHealth(100);
-            setArmor(500);
+            setArmor(100);
             setPlayerResetToken((t) => t + 1);
             setIsPaused(false);
             try {
@@ -5260,9 +5870,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
     clearPortalTimers();
     clearSpeedBoostTimers();
     clearBouncerTimers();
-    // Restore player state
-    setHealth(100);
-    setArmor(500);
+  // Restore player state
+  setHealth(100);
+  setArmor(100);
     setLives(1);
     setPlayerResetToken((t) => t + 1);
     // Unpause and clear game-over flag
@@ -5352,7 +5962,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
         camera={{ position: [0, 35, 30], fov: 50 }}
         onPointerMove={handlePointerMove}
       >
-        <React.Suspense fallback={null}>
+  <React.Suspense fallback={<Html fullscreen><LoadingOverlay /></Html>}>
           {/* Dynamically reduce pixel ratio on slow frames */}
           <AdaptiveDpr pixelated />
           {/* HDRI-based lighting, fog, and exposure control */}
@@ -5386,6 +5996,20 @@ export default function App({ navVisible, setNavVisible } = {}) {
             speedBoosts.map((sb) => (
               <SpeedBoostPlane key={sb.id} pos={sb.pos} isPaused={isPaused} />
             ))}
+
+          {/* Active laser beam (player) */}
+          {!isPaused && laserBeam && (
+            <LaserBeam
+              key={laserBeam.id}
+              pos={laserBeam.pos}
+              dir={laserBeam.dir}
+              isPaused={isPaused}
+              dmgPerSecond={48}
+              radius={0.9}
+              length={28}
+              onDamage={applyLaserDamage}
+            />
+          )}
 
           {/* Bouncer telegraphs and launched bouncers */}
           {!isPaused &&
@@ -5599,8 +6223,33 @@ export default function App({ navVisible, setNavVisible } = {}) {
           {/* World-space FX Orbs follow player via anchor ref */}
           <PlayerFXAnchor ref={fxAnchorRef} playerPosRef={playerPosRef} />
           {/* Player radial armour+health HUD (world-space HTML) */}
+          {/* Radial HUD and text labels are rendered separately so the radial can be disabled
+              while keeping the accessibility text labels active. */}
           {SHOW_PLAYER_RADIAL_HUD && (
-            <PlayerRadialHUD playerPosRef={playerPosRef} health={health} armor={armor} maxHealth={100} maxArmor={500} />
+            <PlayerRadialHUD
+              playerPosRef={playerPosRef}
+              health={health}
+              armor={armor}
+              maxHealth={100}
+              maxArmor={500}
+              // render only the radial visuals when the flag is enabled
+              showRadial={true}
+              showLabels={false}
+            />
+          )}
+
+          {SHOW_PLAYER_LABELS && (
+            <PlayerRadialHUD
+              playerPosRef={playerPosRef}
+              // minimal data required for labels
+              playerLabels={playerLabelEvents}
+              labelSize={playerLabelSize}
+              showPlaceholder={showPlayerLabelPlaceholder}
+              enemiesCount={enemies.length}
+              // render only labels in this instance
+              showRadial={false}
+              showLabels={true}
+            />
           )}
           {!isPaused && heroQuality !== "low" && debugFxOrbCount > 0 && (
             <FXOrbs
@@ -5608,7 +6257,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
                 id: "player_fx_global",
                 height: 1.7 * (heroQuality === "low" ? 2 : 3) * assetScale,
                 fxRing: true,
-                fxRingRadius: debugFxOrbRadius * (heroQuality === "low" ? 2 : 3) * assetScale,
+                fxRingRadius:
+                  debugFxOrbRadius *
+                  (heroQuality === "low" ? 2 : 3) *
+                  assetScale,
                 fxRingIntensity: 0.65,
                 fxCount: debugFxOrbCount,
                 fxMode: "wave",
@@ -6113,11 +6765,19 @@ export default function App({ navVisible, setNavVisible } = {}) {
           }}
         />
       )}
+      {controlScheme === "touch" && (
+        <AnalogStick
+          onVectorChange={(x, z) => {
+            dpadVecRef.current.x = x;
+            dpadVecRef.current.z = z;
+          }}
+        />
+      )}
 
       {/* Left Panel: Player and Boss info always visible; Accessibility under Debug toggle */}
       {(() => {
-        const HEALTH_MAX = 100;
-        const ARMOR_MAX = 500;
+  const HEALTH_MAX = 100;
+  const ARMOR_MAX = 100;
         const dashTotalMs = 10000;
         const heroDef = HEROES.find((h) => h.name === selectedHero);
 
@@ -6145,47 +6805,31 @@ export default function App({ navVisible, setNavVisible } = {}) {
               overflowY: "auto",
             }}
           >
-            {/* game controls */}
-            <CollapsiblePanel
-              id="advanced-controls"
-              title="Game Controls"
-              defaultOpen={false}
-            >
-              <div className="small">
-                Wave: <strong>{wave}</strong>
-              </div>
-              <div className="small">
-                Score: <strong>{score}</strong>
-              </div>
-              <div className="small">
-                Best: <strong>{bestScore}</strong> / <strong>{bestWave}</strong>
-              </div>
-              <div className="small">
-                Lives: <strong>{lives}</strong>
-              </div>
-              <div className="small">
-                Health: <strong>{health}</strong>
-              </div>
-              <div style={{ height: 8 }} />
-              <button className="button" onClick={restartGame}>
-                Restart
-              </button>
-              <div style={{ height: 6 }} />
-              <button className="button" onClick={() => setAutoFire((a) => !a)}>
-                Auto-Fire: {autoFire ? "On" : "Off"} (F)
-              </button>
-
-              <div style={{ height: 10 }} />
-            </CollapsiblePanel>
-
-            {/* Player properties: always visible */}
-            <CollapsiblePanel
-              id="player-props"
-              title="Player"
-              defaultOpen={true}
+            {/* Player Statistics - fixed to bottom of viewport */}
+            <div
+              id="fixed-player-stats"
+              style={{
+                position: "fixed",
+                bottom: 40,
+                left: "50%",
+                transform: "translateX(-50%)",
+                display: "flex",
+                gap: 12,
+                height: "auto",
+                minWidth: 300,
+                maxWidth: "80vw",
+                padding: 10,
+                background: "rgba(0,0,0,0.25)",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.1)",
+              }}
             >
               <div className="small" style={{ marginBottom: 6 }}>
                 Hero: <strong>{selectedHero}</strong>
+                 {/* Lives */}
+                <div className="small" style={{ marginBottom: 8 }}>
+                  Lives: <strong>{lives}</strong>
+                </div>
               </div>
               {/* Health */}
               <div
@@ -6195,6 +6839,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   borderRadius: 8,
                   border: "1px solid rgba(255,255,255,0.08)",
                   marginBottom: 8,
+                  width: 100,
                 }}
               >
                 <div
@@ -6231,6 +6876,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   borderRadius: 8,
                   border: "1px solid rgba(255,255,255,0.08)",
                   marginBottom: 8,
+                  width: 100,
                 }}
               >
                 <div
@@ -6259,10 +6905,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   {Math.max(0, Math.floor(armor))} / {ARMOR_MAX}
                 </div>
               </div>
-              {/* Lives */}
-              <div className="small" style={{ marginBottom: 8 }}>
-                Lives: <strong>{lives}</strong>
-              </div>
+             
               {/* Dash */}
               <div
                 style={{
@@ -6271,6 +6914,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   borderRadius: 8,
                   border: "1px solid rgba(255,255,255,0.08)",
                   marginBottom: 8,
+                  width: 100,
                 }}
               >
                 <div
@@ -6330,42 +6974,249 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   {abilityName}
                 </div>
               </div>
-              <div
-                className="abilities-panel small"
-                style={{ marginBottom: 8 }}
-              >
-                <div className="ability">
-                  <div className="label">
-                    Dash <span className="hint">[3]</span>
-                  </div>
-                  <div className="cooldown">
-                    {(() => {
-                      const pct = Math.max(
-                        0,
-                        Math.min(1, 1 - dashCooldownMs / 10000)
-                      );
-                      return (
-                        <>
-                          <div
-                            className="fill"
-                            style={{ width: `${Math.round(pct * 100)}%` }}
-                          />
-                          <div className="cd-text">
-                            {dashCooldownMs > 0
-                              ? `${(dashCooldownMs / 1000).toFixed(1)}s`
-                              : "Ready"}
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </CollapsiblePanel>
+            </div>
 
             {/* Debug header and Accessibility controls (toggle) */}
             {showDebugUI && (
               <>
+                {/* game controls */}
+                <CollapsiblePanel
+                  id="advanced-controls"
+                  title="Game Controls"
+                  defaultOpen={false}
+                >
+                  <div className="small">
+                    Wave: <strong>{wave}</strong>
+                  </div>
+                  <div className="small">
+                    Score: <strong>{score}</strong>
+                  </div>
+                  <div className="small">
+                    Best: <strong>{bestScore}</strong> /{" "}
+                    <strong>{bestWave}</strong>
+                  </div>
+                  <div className="small">
+                    Lives: <strong>{lives}</strong>
+                  </div>
+                  <div className="small">
+                    Health: <strong>{health}</strong>
+                  </div>
+                  <div style={{ height: 8 }} />
+                  <button className="button" onClick={restartGame}>
+                    Restart
+                  </button>
+                  <div style={{ height: 6 }} />
+                  <button
+                    className="button"
+                    onClick={() => setAutoFire((a) => !a)}
+                  >
+                    Auto-Fire: {autoFire ? "On" : "Off"} (F)
+                  </button>
+
+                  <div style={{ height: 10 }} />
+                </CollapsiblePanel>
+
+                {/* Player properties: always visible */}
+                <CollapsiblePanel
+                  id="player-props"
+                  title="Player"
+                  defaultOpen={true}
+                >
+                  <div className="small" style={{ marginBottom: 6 }}>
+                    Hero: <strong>{selectedHero}</strong>
+                  </div>
+                  {/* Health */}
+                  <div
+                    style={{
+                      background: "rgba(0,0,0,0.55)",
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#e5e7eb",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Health
+                    </div>
+                    <div
+                      style={{
+                        height: 10,
+                        background: "rgba(255,255,255,0.08)",
+                        borderRadius: 6,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${(healthRatio * 100).toFixed(1)}%`,
+                          height: "100%",
+                          background: "linear-gradient(90deg,#22c55e,#16a34a)",
+                          boxShadow: "0 0 8px rgba(34,197,94,0.5) inset",
+                        }}
+                      />
+                    </div>
+                    <div
+                      style={{ fontSize: 11, color: "#cbd5e1", marginTop: 4 }}
+                    >
+                      {Math.max(0, Math.floor(health))} / {HEALTH_MAX}
+                    </div>
+                  </div>
+                  {/* Armor */}
+                  <div
+                    style={{
+                      background: "rgba(0,0,0,0.55)",
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#e5e7eb",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Armor
+                    </div>
+                    <div
+                      style={{
+                        height: 10,
+                        background: "rgba(255,255,255,0.08)",
+                        borderRadius: 6,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${(armorRatio * 100).toFixed(1)}%`,
+                          height: "100%",
+                          background: "linear-gradient(90deg,#60a5fa,#3b82f6)",
+                          boxShadow: "0 0 8px rgba(96,165,250,0.45) inset",
+                        }}
+                      />
+                    </div>
+                    <div
+                      style={{ fontSize: 11, color: "#cbd5e1", marginTop: 4 }}
+                    >
+                      {Math.max(0, Math.floor(armor))} / {ARMOR_MAX}
+                    </div>
+                  </div>
+                  {/* Lives */}
+                  <div className="small" style={{ marginBottom: 8 }}>
+                    Lives: <strong>{lives}</strong>
+                  </div>
+                  {/* Dash */}
+                  <div
+                    style={{
+                      background: "rgba(0,0,0,0.55)",
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: 4,
+                      }}
+                    >
+                      <div style={{ fontSize: 12, color: "#e5e7eb" }}>Dash</div>
+                      <div style={{ fontSize: 11, color: "#cbd5e1" }}>
+                        {Math.round(dashRatio * 100)}%
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        height: 8,
+                        background: "rgba(255,255,255,0.08)",
+                        borderRadius: 6,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${(dashRatio * 100).toFixed(1)}%`,
+                          height: "100%",
+                          background: "linear-gradient(90deg,#f59e0b,#f97316)",
+                          boxShadow: "0 0 8px rgba(245,158,11,0.45) inset",
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {/* Ability */}
+                  <div
+                    style={{
+                      background: "rgba(0,0,0,0.55)",
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div style={{ fontSize: 12, color: "#e5e7eb" }}>
+                        Ability
+                      </div>
+                      <div style={{ fontSize: 11, color: "#cbd5e1" }}>
+                        CD: {abilityCooldown}s
+                      </div>
+                    </div>
+                    <div
+                      style={{ fontSize: 13, color: "#f1f5f9", marginTop: 2 }}
+                    >
+                      {abilityName}
+                    </div>
+                  </div>
+                  <div
+                    className="abilities-panel small"
+                    style={{ marginBottom: 8 }}
+                  >
+                    <div className="ability">
+                      <div className="label">
+                        Dash <span className="hint">[3]</span>
+                      </div>
+                      <div className="cooldown">
+                        {(() => {
+                          const pct = Math.max(
+                            0,
+                            Math.min(1, 1 - dashCooldownMs / 10000)
+                          );
+                          return (
+                            <>
+                              <div
+                                className="fill"
+                                style={{ width: `${Math.round(pct * 100)}%` }}
+                              />
+                              <div className="cd-text">
+                                {dashCooldownMs > 0
+                                  ? `${(dashCooldownMs / 1000).toFixed(1)}s`
+                                  : "Ready"}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                </CollapsiblePanel>
+
                 <div
                   style={{
                     display: "flex",
@@ -6498,152 +7349,382 @@ export default function App({ navVisible, setNavVisible } = {}) {
                         </select>
                       </label>
 
-                          {/* add FX Orb controls here */}
+                      {/* add FX Orb controls here */}
                       {/* FX Orb Accessibility / Debug Controls */}
-                      <div style={{
-                        background: 'rgba(0,0,0,0.55)',
-                        padding: '8px 10px',
-                        borderRadius: 8,
-                        border: '1px solid rgba(255,255,255,0.08)'
-                      }}>
-                        <div style={{ fontSize:12, color:'#e5e7eb', marginBottom:6 }}>FX Orbs</div>
-                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11 }}>
-                          <span style={{ flex:1 }}>Count</span>
+                      <div
+                        style={{
+                          background: "rgba(0,0,0,0.55)",
+                          padding: "8px 10px",
+                          borderRadius: 8,
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#e5e7eb",
+                            marginBottom: 6,
+                          }}
+                        >
+                          FX Orbs
+                        </div>
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            fontSize: 11,
+                          }}
+                        >
+                          <span style={{ flex: 1 }}>Count</span>
                           <input
                             type="range"
                             min={0}
                             max={40}
                             step={1}
                             value={debugFxOrbCount}
-                            onChange={(e)=> setDebugFxOrbCount(parseInt(e.target.value,10))}
-                            style={{ flex:3 }}
+                            onChange={(e) =>
+                              setDebugFxOrbCount(parseInt(e.target.value, 10))
+                            }
+                            style={{ flex: 3 }}
                             aria-label="FX Orb Count"
                           />
-                          <span style={{ width:36, textAlign:'right' }}>{debugFxOrbCount}</span>
+                          <span style={{ width: 36, textAlign: "right" }}>
+                            {debugFxOrbCount}
+                          </span>
                         </label>
-                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
-                          <span style={{ flex:1 }}>Ring Radius</span>
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            fontSize: 11,
+                            marginTop: 6,
+                          }}
+                        >
+                          <span style={{ flex: 1 }}>Ring Radius</span>
                           <input
                             type="range"
                             min={0.4}
                             max={3.0}
                             step={0.05}
                             value={debugFxOrbRadius}
-                            onChange={(e)=> setDebugFxOrbRadius(parseFloat(e.target.value))}
-                            style={{ flex:3 }}
+                            onChange={(e) =>
+                              setDebugFxOrbRadius(parseFloat(e.target.value))
+                            }
+                            style={{ flex: 3 }}
                             aria-label="FX Orb Ring Radius"
                           />
-                          <span style={{ width:48, textAlign:'right' }}>{debugFxOrbRadius.toFixed(2)}</span>
+                          <span style={{ width: 48, textAlign: "right" }}>
+                            {debugFxOrbRadius.toFixed(2)}
+                          </span>
                         </label>
-                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
-                          <span style={{ flex:1 }}>Size</span>
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            fontSize: 11,
+                            marginTop: 6,
+                          }}
+                        >
+                          <span style={{ flex: 1 }}>Size</span>
                           <input
                             type="range"
                             min={0.5}
                             max={3.0}
                             step={0.05}
                             value={debugFxOrbSizeMul}
-                            onChange={(e)=> setDebugFxOrbSizeMul(parseFloat(e.target.value))}
-                            style={{ flex:3 }}
+                            onChange={(e) =>
+                              setDebugFxOrbSizeMul(parseFloat(e.target.value))
+                            }
+                            style={{ flex: 3 }}
                             aria-label="FX Orb Size Multiplier"
                           />
-                          <span style={{ width:48, textAlign:'right' }}>{debugFxOrbSizeMul.toFixed(2)}x</span>
+                          <span style={{ width: 48, textAlign: "right" }}>
+                            {debugFxOrbSizeMul.toFixed(2)}x
+                          </span>
                         </label>
-                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
-                          <span style={{ flex:1 }}>Follow Smooth</span>
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            fontSize: 11,
+                            marginTop: 6,
+                          }}
+                        >
+                          <span style={{ flex: 1 }}>Follow Smooth</span>
                           <input
                             type="range"
                             min={0}
                             max={0.95}
                             step={0.01}
                             value={debugFxOrbLerp}
-                            onChange={(e)=> setDebugFxOrbLerp(parseFloat(e.target.value))}
-                            style={{ flex:3 }}
+                            onChange={(e) =>
+                              setDebugFxOrbLerp(parseFloat(e.target.value))
+                            }
+                            style={{ flex: 3 }}
                             aria-label="FX Orb Follow Lerp"
                           />
-                          <span style={{ width:48, textAlign:'right' }}>{(debugFxOrbLerp*100).toFixed(0)}%</span>
+                          <span style={{ width: 48, textAlign: "right" }}>
+                            {(debugFxOrbLerp * 100).toFixed(0)}%
+                          </span>
                         </label>
-                        <div style={{ fontSize:10, opacity:0.75, marginTop:6 }}>
-                          Lower radius pulls ring closer. Increase size for accessibility. Follow Smooth (%) controls lerp aggressiveness (0 = snap, 95% = very damped).
+                        <div
+                          style={{ fontSize: 10, opacity: 0.75, marginTop: 6 }}
+                        >
+                          Lower radius pulls ring closer. Increase size for
+                          accessibility. Follow Smooth (%) controls lerp
+                          aggressiveness (0 = snap, 95% = very damped).
                         </div>
                       </div>
 
                       {/* Tentacle Animation Controls */}
-                      <div style={{
-                        background: 'rgba(0,0,0,0.55)',
-                        padding: '8px 10px',
-                        borderRadius: 8,
-                        border: '1px solid rgba(255,255,255,0.08)'
-                      }}>
-                        <div style={{ fontSize:12, color:'#e5e7eb', marginBottom:6 }}>Tentacle Animation</div>
-                        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:6 }}>
-                          <button className="button" style={{ padding:'4px 6px' }}
-                            onClick={()=>{ setTentacleStrength(0.6); setTentacleSpeed(0.8); setTentacleAmpX(0.6); setTentacleAmpZ(0.6); setTentacleYWobble(0.02); setTentacleBendPow(2.2); }}>
+                      <div
+                        style={{
+                          background: "rgba(0,0,0,0.55)",
+                          padding: "8px 10px",
+                          borderRadius: 8,
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#e5e7eb",
+                            marginBottom: 6,
+                          }}
+                        >
+                          Tentacle Animation
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 6,
+                            flexWrap: "wrap",
+                            marginBottom: 6,
+                          }}
+                        >
+                          <button
+                            className="button"
+                            style={{ padding: "4px 6px" }}
+                            onClick={() => {
+                              setTentacleStrength(0.6);
+                              setTentacleSpeed(0.8);
+                              setTentacleAmpX(0.6);
+                              setTentacleAmpZ(0.6);
+                              setTentacleYWobble(0.02);
+                              setTentacleBendPow(2.2);
+                            }}
+                          >
                             Calm
                           </button>
-                          <button className="button" style={{ padding:'4px 6px' }}
-                            onClick={()=>{ setTentacleStrength(1.0); setTentacleSpeed(1.2); setTentacleAmpX(1.0); setTentacleAmpZ(1.0); setTentacleYWobble(0.06); setTentacleBendPow(2.0); }}>
+                          <button
+                            className="button"
+                            style={{ padding: "4px 6px" }}
+                            onClick={() => {
+                              setTentacleStrength(1.0);
+                              setTentacleSpeed(1.2);
+                              setTentacleAmpX(1.0);
+                              setTentacleAmpZ(1.0);
+                              setTentacleYWobble(0.06);
+                              setTentacleBendPow(2.0);
+                            }}
+                          >
                             Pulsing
                           </button>
-                          <button className="button" style={{ padding:'4px 6px' }}
-                            onClick={()=>{ setTentacleStrength(1.6); setTentacleSpeed(2.0); setTentacleAmpX(1.3); setTentacleAmpZ(1.3); setTentacleYWobble(0.12); setTentacleBendPow(1.6); }}>
+                          <button
+                            className="button"
+                            style={{ padding: "4px 6px" }}
+                            onClick={() => {
+                              setTentacleStrength(1.6);
+                              setTentacleSpeed(2.0);
+                              setTentacleAmpX(1.3);
+                              setTentacleAmpZ(1.3);
+                              setTentacleYWobble(0.12);
+                              setTentacleBendPow(1.6);
+                            }}
+                          >
                             Chaotic
                           </button>
-                          <button className="button" style={{ padding:'4px 6px' }}
-                            onClick={()=>{ setTentacleStrength(1.0); setTentacleSpeed(1.2); setTentacleAmpX(1.0); setTentacleAmpZ(1.0); setTentacleYWobble(0.05); setTentacleBendPow(2.0); }}>
+                          <button
+                            className="button"
+                            style={{ padding: "4px 6px" }}
+                            onClick={() => {
+                              setTentacleStrength(1.0);
+                              setTentacleSpeed(1.2);
+                              setTentacleAmpX(1.0);
+                              setTentacleAmpZ(1.0);
+                              setTentacleYWobble(0.05);
+                              setTentacleBendPow(2.0);
+                            }}
+                          >
                             Reset
                           </button>
                         </div>
-                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11 }}>
-                          <span style={{ flex:1 }}>Strength</span>
-                          <input type="range" min={0} max={2.0} step={0.01}
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            fontSize: 11,
+                          }}
+                        >
+                          <span style={{ flex: 1 }}>Strength</span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={2.0}
+                            step={0.01}
                             value={tentacleStrength}
-                            onChange={(e)=> setTentacleStrength(parseFloat(e.target.value))}
-                            style={{ flex:3 }} aria-label="Tentacle Strength" />
-                          <span style={{ width:48, textAlign:'right' }}>{tentacleStrength.toFixed(2)}</span>
+                            onChange={(e) =>
+                              setTentacleStrength(parseFloat(e.target.value))
+                            }
+                            style={{ flex: 3 }}
+                            aria-label="Tentacle Strength"
+                          />
+                          <span style={{ width: 48, textAlign: "right" }}>
+                            {tentacleStrength.toFixed(2)}
+                          </span>
                         </label>
-                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
-                          <span style={{ flex:1 }}>Speed</span>
-                          <input type="range" min={0.2} max={3.0} step={0.01}
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            fontSize: 11,
+                            marginTop: 6,
+                          }}
+                        >
+                          <span style={{ flex: 1 }}>Speed</span>
+                          <input
+                            type="range"
+                            min={0.2}
+                            max={3.0}
+                            step={0.01}
                             value={tentacleSpeed}
-                            onChange={(e)=> setTentacleSpeed(parseFloat(e.target.value))}
-                            style={{ flex:3 }} aria-label="Tentacle Speed" />
-                          <span style={{ width:48, textAlign:'right' }}>{tentacleSpeed.toFixed(2)}x</span>
+                            onChange={(e) =>
+                              setTentacleSpeed(parseFloat(e.target.value))
+                            }
+                            style={{ flex: 3 }}
+                            aria-label="Tentacle Speed"
+                          />
+                          <span style={{ width: 48, textAlign: "right" }}>
+                            {tentacleSpeed.toFixed(2)}x
+                          </span>
                         </label>
-                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
-                          <span style={{ flex:1 }}>Tip Emphasis</span>
-                          <input type="range" min={1.0} max={3.0} step={0.05}
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            fontSize: 11,
+                            marginTop: 6,
+                          }}
+                        >
+                          <span style={{ flex: 1 }}>Tip Emphasis</span>
+                          <input
+                            type="range"
+                            min={1.0}
+                            max={3.0}
+                            step={0.05}
                             value={tentacleBendPow}
-                            onChange={(e)=> setTentacleBendPow(parseFloat(e.target.value))}
-                            style={{ flex:3 }} aria-label="Tentacle Bend Exponent" />
-                          <span style={{ width:48, textAlign:'right' }}>{tentacleBendPow.toFixed(2)}</span>
+                            onChange={(e) =>
+                              setTentacleBendPow(parseFloat(e.target.value))
+                            }
+                            style={{ flex: 3 }}
+                            aria-label="Tentacle Bend Exponent"
+                          />
+                          <span style={{ width: 48, textAlign: "right" }}>
+                            {tentacleBendPow.toFixed(2)}
+                          </span>
                         </label>
-                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
-                          <span style={{ flex:1 }}>Axis X</span>
-                          <input type="range" min={0} max={2.0} step={0.01}
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            fontSize: 11,
+                            marginTop: 6,
+                          }}
+                        >
+                          <span style={{ flex: 1 }}>Axis X</span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={2.0}
+                            step={0.01}
                             value={tentacleAmpX}
-                            onChange={(e)=> setTentacleAmpX(parseFloat(e.target.value))}
-                            style={{ flex:3 }} aria-label="Tentacle X Amplitude" />
-                          <span style={{ width:48, textAlign:'right' }}>{tentacleAmpX.toFixed(2)}</span>
+                            onChange={(e) =>
+                              setTentacleAmpX(parseFloat(e.target.value))
+                            }
+                            style={{ flex: 3 }}
+                            aria-label="Tentacle X Amplitude"
+                          />
+                          <span style={{ width: 48, textAlign: "right" }}>
+                            {tentacleAmpX.toFixed(2)}
+                          </span>
                         </label>
-                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
-                          <span style={{ flex:1 }}>Axis Z</span>
-                          <input type="range" min={0} max={2.0} step={0.01}
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            fontSize: 11,
+                            marginTop: 6,
+                          }}
+                        >
+                          <span style={{ flex: 1 }}>Axis Z</span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={2.0}
+                            step={0.01}
                             value={tentacleAmpZ}
-                            onChange={(e)=> setTentacleAmpZ(parseFloat(e.target.value))}
-                            style={{ flex:3 }} aria-label="Tentacle Z Amplitude" />
-                          <span style={{ width:48, textAlign:'right' }}>{tentacleAmpZ.toFixed(2)}</span>
+                            onChange={(e) =>
+                              setTentacleAmpZ(parseFloat(e.target.value))
+                            }
+                            style={{ flex: 3 }}
+                            aria-label="Tentacle Z Amplitude"
+                          />
+                          <span style={{ width: 48, textAlign: "right" }}>
+                            {tentacleAmpZ.toFixed(2)}
+                          </span>
                         </label>
-                        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, marginTop:6 }}>
-                          <span style={{ flex:1 }}>Vertical Wobble</span>
-                          <input type="range" min={0.0} max={0.25} step={0.005}
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            fontSize: 11,
+                            marginTop: 6,
+                          }}
+                        >
+                          <span style={{ flex: 1 }}>Vertical Wobble</span>
+                          <input
+                            type="range"
+                            min={0.0}
+                            max={0.25}
+                            step={0.005}
                             value={tentacleYWobble}
-                            onChange={(e)=> setTentacleYWobble(parseFloat(e.target.value))}
-                            style={{ flex:3 }} aria-label="Tentacle Vertical Wobble" />
-                          <span style={{ width:48, textAlign:'right' }}>{tentacleYWobble.toFixed(3)}</span>
+                            onChange={(e) =>
+                              setTentacleYWobble(parseFloat(e.target.value))
+                            }
+                            style={{ flex: 3 }}
+                            aria-label="Tentacle Vertical Wobble"
+                          />
+                          <span style={{ width: 48, textAlign: "right" }}>
+                            {tentacleYWobble.toFixed(3)}
+                          </span>
                         </label>
-                        <div style={{ fontSize:10, opacity:0.75, marginTop:6 }}>
-                          Affects spikeStyle "tentacle" only. Strength multiplies overall bend; Tip Emphasis pushes motion towards the tip; Axis X/Z shape sideways sway; Vertical Wobble adds gentle lengthwise flutter.
+                        <div
+                          style={{ fontSize: 10, opacity: 0.75, marginTop: 6 }}
+                        >
+                          Affects spikeStyle "tentacle" only. Strength
+                          multiplies overall bend; Tip Emphasis pushes motion
+                          towards the tip; Axis X/Z shape sideways sway;
+                          Vertical Wobble adds gentle lengthwise flutter.
                         </div>
                       </div>
 
@@ -6734,8 +7815,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
                         <input
                           type="checkbox"
                           checked={spawnOnlyHazards}
-                          onChange={(e) => setSpawnOnlyHazards(e.target.checked)}
-                        />{' '}
+                          onChange={(e) =>
+                            setSpawnOnlyHazards(e.target.checked)
+                          }
+                        />{" "}
                         Spawn Only Hazards (debug)
                       </label>
 
@@ -6761,6 +7844,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                       >
                         <option value="wasd">WASD Control</option>
                         <option value="dpad">D-Buttons Control</option>
+                        <option value="touch">Touch (Analogue)</option>
                       </select>
                       <div style={{ height: 6 }} />
                       {/* Shape runner repurposed into a pickup-driven invulnerability effect (no manual toggle) */}
@@ -7260,10 +8344,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   >
                     Restart (Fresh)
                   </button>
-                  <button
-                    className="button"
-                    onClick={() => navigate("/")}
-                  >
+                  <button className="button" onClick={() => navigate("/")}>
                     Quit to Home
                   </button>
                   <button
@@ -7363,7 +8444,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
       {/* Feeds & overlays */}
       {/* Top-right stack: HUD + pickup feed (collapsible) */}
       {/* Debug UI toggle */}
-      <div style={{ position: "fixed", top: 50, right: '12px', zIndex: 1000 }}>
+      <div style={{ position: "fixed", top: 50, right: "12px", zIndex: 1000 }}>
         <label
           style={{
             background: "rgba(0,0,0,0.5)",
@@ -7385,7 +8466,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
       </div>
 
       {showDebugUI && (
-        <div className="hud-stack" style={{top:80}}>
+        <div className="hud-stack" style={{ top: 80 }}>
           <CollapsiblePanel id="debug-hud" title="Debug HUD" defaultOpen={true}>
             <div className="hud small">
               <div>Enemies: {enemies.length}</div>
@@ -7434,6 +8515,22 @@ export default function App({ navVisible, setNavVisible } = {}) {
                     }
                     style={{ width: "100%" }}
                   />
+                </label>
+                <label style={{ display: "block", fontSize: 11, marginTop: 8 }}>
+                  Player Label Size {playerLabelSize}px
+                  <input
+                    type="range"
+                    min={12}
+                    max={36}
+                    step={1}
+                    value={playerLabelSize}
+                    onChange={(e) => setPlayerLabelSize(parseInt(e.target.value, 10))}
+                    style={{ width: "100%" }}
+                  />
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, marginTop: 6 }}>
+                  <input type="checkbox" checked={showPlayerLabelPlaceholder} onChange={(e) => setShowPlayerLabelPlaceholder(e.target.checked)} />
+                  <span>Show label placeholder when no enemies</span>
                 </label>
               </div>
               <div>Status: {isPaused ? "PAUSED" : "PLAYING"}</div>
@@ -7541,6 +8638,14 @@ export default function App({ navVisible, setNavVisible } = {}) {
 // D-Buttons component (mouse + touch). Emits a normalized (x, z) vector via callback.
 function DPad({ onVectorChange }) {
   const active = useRef({ up: false, down: false, left: false, right: false });
+  // mirror ref into state so UI updates when keys change
+  const [activeState, setActiveState] = useState({
+    up: false,
+    down: false,
+    left: false,
+    right: false,
+  });
+
   const update = useCallback(() => {
     const x = (active.current.right ? 1 : 0) - (active.current.left ? 1 : 0);
     const z = (active.current.down ? 1 : 0) - (active.current.up ? 1 : 0);
@@ -7550,6 +8655,8 @@ function DPad({ onVectorChange }) {
 
   const set = (key, val) => {
     active.current[key] = val;
+    // update visible state (shallow copy)
+    setActiveState({ ...active.current });
     update();
   };
 
@@ -7569,24 +8676,80 @@ function DPad({ onVectorChange }) {
     onTouchCancel: () => set(key, false),
   });
 
+  // Keyboard listeners: light up DPad when arrow keys or WASD are pressed
+  useEffect(() => {
+    const map = {
+      ArrowUp: "up",
+      ArrowLeft: "left",
+      ArrowDown: "down",
+      ArrowRight: "right",
+      KeyW: "up",
+      KeyA: "left",
+      KeyS: "down",
+      KeyD: "right",
+    };
+    const onKeyDown = (e) => {
+      const k = map[e.code];
+      if (k) {
+        e.preventDefault();
+        set(k, true);
+      }
+    };
+    const onKeyUp = (e) => {
+      const k = map[e.code];
+      if (k) {
+        e.preventDefault();
+        set(k, false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, []);
+
   return (
-    <div className="dpad">
-      <button className="dpad-btn up" {...bind("up")} aria-label="Move up" />
-      <button
-        className="dpad-btn left"
-        {...bind("left")}
-        aria-label="Move left"
-      />
-      <button
-        className="dpad-btn right"
-        {...bind("right")}
-        aria-label="Move right"
-      />
-      <button
-        className="dpad-btn down"
-        {...bind("down")}
-        aria-label="Move down"
-      />
+    <div className="dpad" aria-hidden>
+      <div className="dpad-row up-row">
+        <button
+          className="dpad-btn up"
+          {...bind("up")}
+          aria-label="Move up"
+          data-active={activeState.up}
+        >
+          <span className="dpad-icon">▲</span>
+        </button>
+      </div>
+      <div className="dpad-row mid-row">
+        <button
+          className="dpad-btn left"
+          {...bind("left")}
+          aria-label="Move left"
+          data-active={activeState.left}
+        >
+          <span className="dpad-icon">◀</span>
+        </button>
+        <button
+          className="dpad-btn right"
+          {...bind("right")}
+          aria-label="Move right"
+          data-active={activeState.right}
+        >
+          <span className="dpad-icon">▶</span>
+        </button>
+      </div>
+      <div className="dpad-row down-row">
+        <button
+          className="dpad-btn down"
+          {...bind("down")}
+          aria-label="Move down"
+          data-active={activeState.down}
+        >
+          <span className="dpad-icon">▼</span>
+        </button>
+      </div>
     </div>
   );
 }
