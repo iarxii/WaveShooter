@@ -5,7 +5,7 @@ import { Text } from '@react-three/drei'
 import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
 import { KNOCKBACK_DECAY, SPEED_SCALE } from '../game/constants.js'
 
-export default function ClusterBoss({ id, pos, playerPosRef, onDie, health, isPaused, visualScale=1, spec = null, useSpec = false }) {
+function ClusterBoss({ id, pos, playerPosRef, onDie, health, isPaused, visualScale=1, spec = null, useSpec = false }) {
   const ref = useRef()
   const stunTimer = useRef(0)
   const knockback = useRef(new THREE.Vector3())
@@ -67,3 +67,5 @@ export default function ClusterBoss({ id, pos, playerPosRef, onDie, health, isPa
     </group>
   )
 }
+
+export default React.memo(ClusterBoss)

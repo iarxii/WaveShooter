@@ -2991,6 +2991,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
     const v = parseFloat(localStorage.getItem("topDownSpeedMul") || "");
     return Number.isFinite(v) && v > 0 ? v : 1.8;
   });
+  const camSpeedMul = useMemo(() => (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1), [cameraMode, topDownSpeedMul]);
   const cameraSpeedMulRef = useRef(1);
   useEffect(() => {
     localStorage.setItem("topDownSpeedMul", String(topDownSpeedMul));
@@ -3139,6 +3140,30 @@ export default function App({ navVisible, setNavVisible } = {}) {
         opacity: 0.5,
       }),
     []
+  );
+  const droneAssets = useMemo(
+    () => ({
+      bodyGeom: droneBodyGeom,
+      tipGeom: droneTipGeom,
+      trailGeom: droneTrailGeom,
+      bodyMat: droneBodyMat,
+      tipMat: droneTipMat,
+    }),
+    [droneBodyGeom, droneTipGeom, droneTrailGeom, droneBodyMat, droneTipMat]
+  );
+  const heroPrimaryColor = useMemo(
+    () => parseInt(heroColorFor(selectedHero).replace("#", "0x")),
+    [selectedHero]
+  );
+  const autoFollowSpec = useMemo(
+    () => ({
+      active: invulnEffect.active && (autoFollowHeld || autoFollowHeld2),
+      radius: SHAPE_PATH_RADIUS,
+      center: [0, 0, 0],
+      shape: invulnEffect.shape || "circle",
+      dirSign: autoFollowHeld2 ? -1 : 1,
+    }),
+    [invulnEffect.active, invulnEffect.shape, autoFollowHeld, autoFollowHeld2]
   );
   const isPausedRef = useRef(isPaused);
   useEffect(() => {
@@ -6036,8 +6061,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
             fireRateMs={debugFireRateMs}
             resetToken={playerResetToken}
             basePlayerSpeed={
-              playerBaseSpeed *
-              (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
+                playerBaseSpeed * camSpeedMul
             }
             autoAimEnabled={cameraMode === "follow" || cameraMode === "topdown"}
             controlScheme={controlScheme}
@@ -6049,9 +6073,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
             bouncers={bouncers}
             boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
             invulnActive={invulnEffect.active || invulnTest}
-            primaryColor={parseInt(
-              heroColorFor(selectedHero).replace("#", "0x")
-            )}
+            primaryColor={heroPrimaryColor}
             heroName={selectedHero}
             heroRenderMode={heroRenderMode}
             heroQuality={heroQuality}
@@ -6060,14 +6082,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
             powerAmount={powerEffect.amount}
             shieldStackToken={lifeShieldToken}
             fxOrbCount={debugFxOrbCount}
-            autoFollow={{
-              active:
-                invulnEffect.active && (autoFollowHeld || autoFollowHeld2),
-              radius: SHAPE_PATH_RADIUS,
-              center: [0, 0, 0],
-              shape: invulnEffect.shape || "circle",
-              dirSign: autoFollowHeld2 ? -1 : 1, // 1=CCW (key 1), -1=CW (key 2)
-            }}
+            autoFollow={autoFollowSpec}
             arcTriggerToken={arcTriggerToken}
             dashTriggerToken={dashTriggerToken}
             onDashStart={() => {
@@ -6291,10 +6306,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   health={e.health}
                   isPaused={isPaused}
                   spawnHeight={e.spawnHeight}
-                  speedScale={
-                    enemySpeedScale *
-                    (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
-                  }
+                  speedScale={enemySpeedScale * camSpeedMul}
                   visualScale={assetScale}
                 />
               ) : e.isCone ? (
@@ -6307,10 +6319,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   health={e.health}
                   isPaused={isPaused}
                   spawnHeight={e.spawnHeight}
-                  speedScale={
-                    enemySpeedScale *
-                    (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
-                  }
+                  speedScale={enemySpeedScale * camSpeedMul}
                   visualScale={assetScale}
                 />
               ) : e.isPipe ? (
@@ -6375,19 +6384,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   onDie={onEnemyDie}
                   isPaused={isPaused}
                   boundaryJumpActiveRef={boundaryJumpActiveRef}
-                  assets={{
-                    bodyGeom: droneBodyGeom,
-                    tipGeom: droneTipGeom,
-                    trailGeom: droneTrailGeom,
-                    bodyMat: droneBodyMat,
-                    tipMat: droneTipMat,
-                  }}
+                  assets={droneAssets}
                   trailBaseMat={droneTrailBaseMat}
                   boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
-                  speedScale={
-                    enemySpeedScale *
-                    (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
-                  }
+                  speedScale={enemySpeedScale * camSpeedMul}
                   visualScale={assetScale}
                 />
               ) : e.isRoster ? (
@@ -6406,10 +6406,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   spawnHeight={e.spawnHeight}
                   label={e.rosterName}
                   stunImmune={!!e.stunImmune}
-                  speedScale={
-                    enemySpeedScale *
-                    (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
-                  }
+                  speedScale={enemySpeedScale * camSpeedMul}
                   moveSpeed={e.moveSpeed || 10}
                   shape={e.rosterShape || "Circle"}
                   factorySpec={e.factorySpec || null}
@@ -6436,10 +6433,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   health={e.health}
                   isPaused={isPaused}
                   spawnHeight={e.spawnHeight}
-                  speedScale={
-                    enemySpeedScale *
-                    (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
-                  }
+                  speedScale={enemySpeedScale * camSpeedMul}
                   visualScale={assetScale}
                 />
               )

@@ -5,7 +5,7 @@ import { Text } from '@react-three/drei'
 import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
 import { KNOCKBACK_DECAY, SPEED_SCALE, CONTACT_DAMAGE, DROP_SPEED } from '../game/constants.js'
 
-export default function ConeBoss({ id, pos, playerPosRef, onDamagePlayer, health, isPaused, spawnHeight, speedScale = 1, visualScale = 1, spec = null, useSpec = false }) {
+function ConeBoss({ id, pos, playerPosRef, onDamagePlayer, health, isPaused, spawnHeight, speedScale = 1, visualScale = 1, spec = null, useSpec = false }) {
   const ref = useRef()
   const idleTimer = useRef(10) // seconds between jumps
   const airVelY = useRef(0)
@@ -209,3 +209,5 @@ export default function ConeBoss({ id, pos, playerPosRef, onDamagePlayer, health
     </group>
   )
 }
+
+export default React.memo(ConeBoss)

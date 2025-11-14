@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { KNOCKBACK_DECAY, SPEED_SCALE, BOUNDARY_LIMIT } from '../game/constants.js'
-export default function FlyingDrone({ id, pos, playerPosRef, onDie, isPaused, boundaryJumpActiveRef, assets, trailBaseMat, boundaryLimit = BOUNDARY_LIMIT, speedScale = 1, visualScale=1 }) {
+function FlyingDrone({ id, pos, playerPosRef, onDie, isPaused, boundaryJumpActiveRef, assets, trailBaseMat, boundaryLimit = BOUNDARY_LIMIT, speedScale = 1, visualScale=1 }) {
   const ref = useRef()
   const stateRef = useRef({ mode: 'orbit', t: 0, dir: new THREE.Vector3(1, 0, 0), diveTarget: new THREE.Vector3(), diveSpeed: 16 })
   const speed = 10
@@ -156,3 +156,5 @@ export default function FlyingDrone({ id, pos, playerPosRef, onDie, isPaused, bo
     </group>
   )
 }
+
+export default React.memo(FlyingDrone)

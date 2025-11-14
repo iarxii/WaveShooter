@@ -15,7 +15,7 @@ import {
   SPEED_SCALE,
 } from '../game/constants.js'
 
-export default function Minion({
+function Minion({
   id,
   pos,
   playerPosRef,
@@ -201,4 +201,6 @@ export default function Minion({
     </group>
   )
 }
+
+export default React.memo(Minion)
 

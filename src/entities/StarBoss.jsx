@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
 
 // Simple StarBoss entity: bobbing + slow rotation; uses PathogenFromSpec for visuals.
-export default function StarBoss({ spec, position = [0, 0, 0] }){
+function StarBoss({ spec, position = [0, 0, 0] }){
   const ref = useRef()
   useFrame((st, dt) => {
     if (!ref.current) return
@@ -16,3 +16,5 @@ export default function StarBoss({ spec, position = [0, 0, 0] }){
     </group>
   )
 }
+
+export default React.memo(StarBoss)

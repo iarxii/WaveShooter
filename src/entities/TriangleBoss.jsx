@@ -14,7 +14,7 @@ import {
   SPEED_SCALE,
 } from '../game/constants.js'
 
-export default function TriangleBoss({
+function TriangleBoss({
   id,
   pos,
   playerPosRef,
@@ -166,3 +166,5 @@ export default function TriangleBoss({
     </group>
   )
 }
+
+export default React.memo(TriangleBoss)

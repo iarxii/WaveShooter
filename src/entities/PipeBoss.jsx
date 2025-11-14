@@ -5,7 +5,7 @@ import { Text } from '@react-three/drei'
 import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
 import { KNOCKBACK_DECAY, SPEED_SCALE } from '../game/constants.js'
 
-export default function PipeBoss({ id, pos, playerPosRef, onDie, health, isPaused, onLaunchDrones, visualScale=1, spec = null, useSpec = false }) {
+function PipeBoss({ id, pos, playerPosRef, onDie, health, isPaused, onLaunchDrones, visualScale=1, spec = null, useSpec = false }) {
   const ref = useRef()
   const riseTimer = useRef(0)
   const launchCooldown = useRef(0)
@@ -71,3 +71,5 @@ export default function PipeBoss({ id, pos, playerPosRef, onDie, health, isPause
     </group>
   )
 }
+
+export default React.memo(PipeBoss)

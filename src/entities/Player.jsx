@@ -18,7 +18,7 @@ import FXOrbs from "../components/FXOrbs";
 import { HeroAnimTester } from "../heroes/factory/HeroAnimTester";
 import { liteSwordShieldMap } from "../heroes/factory/animMaps/liteSwordShieldMap";
 
-export default function Player({
+function Player({
   position,
   setPositionRef,
   onShoot,
@@ -1108,6 +1108,8 @@ export default function Player({
     </group>
   );
 }
+
+export default React.memo(Player)
 
 // Simple OrbitingFX removed; replaced with FXOrbs
 

@@ -6,7 +6,7 @@ import { Text } from '@react-three/drei'
 import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
 
 // Generic roster enemy: minion-like chaser with health, stun/knockback support
-export default function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth=3, color=0xff0055, speedScale=1, spawnHeight, label=null, stunImmune=false, shape='Circle', moveSpeed=10, onHazard, factorySpec=null, visualScale=1 }) {
+function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth=3, color=0xff0055, speedScale=1, spawnHeight, label=null, stunImmune=false, shape='Circle', moveSpeed=10, onHazard, factorySpec=null, visualScale=1 }) {
   const ref = useRef()
   const { triggerEffect } = useEffects()
   const baseSpeed = moveSpeed
@@ -381,3 +381,5 @@ export default function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, he
     </group>
   )
 }
+
+export default React.memo(RosterEnemy)
