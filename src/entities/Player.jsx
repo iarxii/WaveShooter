@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF, useFBX } from "@react-three/drei";
@@ -316,9 +316,12 @@ function Player({
           const BL = boundaryLimit ?? BOUNDARY_LIMIT;
           const totalLen = 2 * BL;
           const desired = Math.max(4, LAUNCH_TARGET_FRACTION * totalLen);
+          // Jump direction: prefer movement input; fall back to aim direction
+          const moveDirVec = getMoveDir();
+          const launchDir = moveDirVec ? moveDirVec.clone() : aimDirRef.current.clone();
           const target = new THREE.Vector3()
             .copy(ref.current.position)
-            .addScaledVector(aimDirRef.current, desired);
+            .addScaledVector(launchDir, desired);
           const margin = 1.0;
           target.x = Math.max(Math.min(target.x, BL - margin), -BL + margin);
           target.z = Math.max(Math.min(target.z, BL - margin), -BL + margin);
@@ -356,6 +359,27 @@ function Player({
     };
   }, [setPositionRef, onShoot, isPaused]);
 
+  // Helper: compute current movement direction (normalized Vector3) from moveInputRef or keyboard keys
+  const getMoveDir = useCallback(() => {
+    const k = keysRef.current;
+    const keyMx = (k.d ? 1 : 0) - (k.a ? 1 : 0) + (k.right ? 1 : 0) - (k.left ? 1 : 0);
+    const keyMz = (k.s ? 1 : 0) - (k.w ? 1 : 0) + (k.down ? 1 : 0) - (k.up ? 1 : 0);
+    const extMx = moveInputRef ? moveInputRef.current.x : 0;
+    const extMz = moveInputRef ? moveInputRef.current.z : 0;
+    let mx = 0,
+      mz = 0;
+    if (Math.abs(extMx) > 0.001 || Math.abs(extMz) > 0.001) {
+      mx = extMx;
+      mz = extMz;
+    } else {
+      mx = keyMx;
+      mz = keyMz;
+    }
+    const len = Math.hypot(mx, mz);
+    if (len < 0.001) return null;
+    return new THREE.Vector3(mx / len, 0, mz / len);
+  }, [moveInputRef]);
+
   // Key jump (Ctrl/Enter)
   useEffect(() => {
     if (isPaused) return;
@@ -388,9 +412,11 @@ function Player({
           const BL = boundaryLimit ?? BOUNDARY_LIMIT;
           const totalLen = 2 * BL;
           const desired = Math.max(4, LAUNCH_TARGET_FRACTION * totalLen);
+          const moveDirVec = getMoveDir();
+          const launchDir = moveDirVec ? moveDirVec.clone() : aimDirRef.current.clone();
           const target = new THREE.Vector3()
             .copy(ref.current.position)
-            .addScaledVector(aimDirRef.current, desired);
+            .addScaledVector(launchDir, desired);
           const margin = 1.0;
           target.x = Math.max(Math.min(target.x, BL - margin), -BL + margin);
           target.z = Math.max(Math.min(target.z, BL - margin), -BL + margin);
@@ -427,9 +453,11 @@ function Player({
       const BL = boundaryLimit ?? BOUNDARY_LIMIT;
       const totalLen = 2 * BL;
       const desired = Math.max(4, LAUNCH_TARGET_FRACTION * totalLen);
+      const moveDirVec = getMoveDir();
+      const launchDir = moveDirVec ? moveDirVec.clone() : aimDirRef.current.clone();
       const target = new THREE.Vector3()
         .copy(ref.current.position)
-        .addScaledVector(aimDirRef.current, desired);
+        .addScaledVector(launchDir, desired);
       const margin = 1.0;
       target.x = Math.max(Math.min(target.x, BL - margin), -BL + margin);
       target.z = Math.max(Math.min(target.z, BL - margin), -BL + margin);
@@ -500,7 +528,7 @@ function Player({
         aimDirRef.current.copy(tmpDir.current).normalize();
         const targetYaw = Math.atan2(tmpDir.current.x, tmpDir.current.z) + Math.PI;
         const diff = ((targetYaw - lastYaw.current + Math.PI) % (Math.PI * 2)) - Math.PI;
-        lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-10 * dt));
+        lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-30 * dt));
         ref.current.rotation.y = lastYaw.current;
         if (rayRef.current) {
           const dist = Math.min(tmpDir.current.length(), 18);
@@ -522,7 +550,7 @@ function Player({
           Math.atan2(tmpDir.current.x, tmpDir.current.z) + Math.PI;
         const diff =
           ((targetYaw - lastYaw.current + Math.PI) % (Math.PI * 2)) - Math.PI;
-        lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-10 * dt));
+        lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-30 * dt));
         ref.current.rotation.y = lastYaw.current;
       }
     } else if (autoAimEnabled) {
@@ -577,7 +605,7 @@ function Player({
             Math.atan2(tmpDir.current.x, tmpDir.current.z) + Math.PI;
           const diff =
             ((targetYaw - lastYaw.current + Math.PI) % (Math.PI * 2)) - Math.PI;
-          lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-10 * dt));
+          lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-30 * dt));
           ref.current.rotation.y = lastYaw.current;
           if (rayRef.current) {
             const dist = Math.min(tmpDir.current.length(), MID_RANGE);
@@ -598,7 +626,7 @@ function Player({
             const diff =
               ((targetYaw - lastYaw.current + Math.PI) % (Math.PI * 2)) -
               Math.PI;
-            lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-10 * dt));
+            lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-30 * dt));
             ref.current.rotation.y = lastYaw.current;
             const dist = tmpDir.current.length();
             if (rayRef.current) {
@@ -620,7 +648,7 @@ function Player({
             Math.atan2(tmpDir.current.x, tmpDir.current.z) + Math.PI;
           const diff =
             ((targetYaw - lastYaw.current + Math.PI) % (Math.PI * 2)) - Math.PI;
-          lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-10 * dt));
+          lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-30 * dt));
           ref.current.rotation.y = lastYaw.current;
           const dist = tmpDir.current.length();
           if (rayRef.current) {
@@ -994,15 +1022,36 @@ function Player({
   // Dash trigger
   useEffect(() => {
     if (!ref.current) return;
-    const dir = aimDirRef.current.clone();
-    if (dir.lengthSq() < 1e-4) dir.set(0, 0, -1);
-    // Dash should move backward relative to aim direction
-    const dashDir = dir.normalize().multiplyScalar(-1);
+    // Prefer dashing in movement direction when available; otherwise dash backward relative to aim
+    const moveDirVec = getMoveDir();
+    let dashDir;
+    if (moveDirVec) {
+      dashDir = moveDirVec.clone().normalize();
+    } else {
+      const dir = aimDirRef.current.clone();
+      if (dir.lengthSq() < 1e-4) dir.set(0, 0, -1);
+      dashDir = dir.normalize().multiplyScalar(-1);
+    }
     const distance = 0.4 * (boundaryLimit ?? BOUNDARY_LIMIT);
     const speed = distance / dashDuration;
     dashVel.current.set(dashDir.x * speed, 0, dashDir.z * speed);
     dashing.current = true;
     dashTime.current = 0;
+    // Choose dash animation based on movement direction (left/right/forward). Reuse same anim file for now.
+    let anim = "dashForward";
+    if (moveDirVec) {
+      const mx = moveDirVec.x;
+      const mz = moveDirVec.z;
+      if (Math.abs(mx) > Math.abs(mz)) {
+        anim = mx > 0 ? "dashRight" : "dashLeft";
+      } else {
+        anim = mz < 0 ? "dashForward" : "dashForward";
+      }
+    } else {
+      anim = "dashForward";
+    }
+    doktaActionRef.current = anim;
+    setDoktaAction(anim);
     onDashStart &&
       onDashStart({
         dir: [dashDir.x, dashDir.z],

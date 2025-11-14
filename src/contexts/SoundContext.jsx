@@ -19,6 +19,14 @@ const sfxUiSelect = assetUrl('sounds/mixkit-player-select-notification-2037.mp3'
 const sfxUiHover = assetUrl('sounds/mixkit-arcade-player-select-2036.wav')
 // Gameplay event SFX
 const sfxEnemyDestroy = assetUrl('sounds/mixkit-quick-knife-slice-cutting-2152.mp3')
+// New mappings requested
+const sfxLaserShot = assetUrl('sounds/attacks/Laser 1.wav')
+const sfxDebuff = assetUrl('sounds/attacks/817520__metris__stage-failed.wav')
+const sfxEnemyDestroyedNew = assetUrl('sounds/attacks/683180__neartheatmoshphere__iceball.wav')
+const sfxLaserCharge = assetUrl('sounds/attacks/338067__gregorquendel__laser-charge.mp3')
+const sfxLaserExpl = assetUrl('sounds/attacks/678901__skrecky__cinematic-synth-explosion-magic.wav')
+const sfxBulletNormal = assetUrl('sounds/attacks/080884_bullet-hit-39872.mp3')
+const sfxMusicNew = assetUrl('sounds/music/802140__kontraamusic__magical-hiphop-instrumental.mp3')
 const sfxHitT1 = assetUrl('sounds/attacks/hit-tree-01-266310.mp3')
 const sfxHitT2 = assetUrl('sounds/attacks/Widget_Flight.mp3')
 const sfxHitT3 = assetUrl('sounds/attacks/Faerie_Chime.mp3')
@@ -57,12 +65,28 @@ export function SoundProvider({ children }) {
     const v = localStorage.getItem('soundEnabled')
     return v == null ? true : v === '1'
   })
+  // Separate toggles for SFX and Music (new)
+  const [sfxEnabled, setSfxEnabled] = useState(() => {
+    const v = localStorage.getItem('sfxEnabled')
+    if (v != null) return v === '1'
+    // fallback to legacy global enabled
+    return enabled
+  })
+  const [musicEnabled, setMusicEnabled] = useState(() => {
+    const v = localStorage.getItem('musicEnabled')
+    if (v != null) return v === '1'
+    return enabled
+  })
   const volumeRef = useRef(volume)
   const musicVolumeRef = useRef(musicVolume)
   const enabledRef = useRef(enabled)
+  const sfxEnabledRef = useRef(sfxEnabled)
+  const musicEnabledRef = useRef(musicEnabled)
   useEffect(() => { volumeRef.current = volume; try { localStorage.setItem('sfxVolume', String(volume)) } catch { /* ignore quota */ } }, [volume])
   useEffect(() => { musicVolumeRef.current = musicVolume; try { localStorage.setItem('musicVolume', String(musicVolume)) } catch { /* ignore quota */ } }, [musicVolume])
   useEffect(() => { enabledRef.current = enabled; try { localStorage.setItem('soundEnabled', enabled ? '1' : '0') } catch { /* ignore quota */ } }, [enabled])
+  useEffect(() => { sfxEnabledRef.current = sfxEnabled; try { localStorage.setItem('sfxEnabled', sfxEnabled ? '1' : '0') } catch { } }, [sfxEnabled])
+  useEffect(() => { musicEnabledRef.current = musicEnabled; try { localStorage.setItem('musicEnabled', musicEnabled ? '1' : '0') } catch { } }, [musicEnabled])
 
   // Build pools once
   const pools = useMemo(() => ({
@@ -80,7 +104,15 @@ export function SoundProvider({ children }) {
     'ui-select': createAudioPool(sfxUiSelect, 3),
     'ui-hover': createAudioPool(sfxUiHover, 3),
     // New event pools
-    'enemy-destroy': createAudioPool(sfxEnemyDestroy, 6),
+    // 'enemy-destroy': createAudioPool(sfxEnemyDestroy, 6),
+    // New event pools / overrides
+    'laser-shot': createAudioPool(sfxLaserShot, 12),
+    'debuff': createAudioPool(sfxDebuff, 4),
+    'bullet-normal': createAudioPool(sfxBulletNormal, 10),
+    // Override enemy-destroy with requested clip
+    'enemy-destroy': createAudioPool(sfxEnemyDestroyedNew, 6),
+    'laser-charge': createAudioPool(sfxLaserCharge, 2),
+    'laser-expl': createAudioPool(sfxLaserExpl, 2),
     'hit-t1': createAudioPool(sfxHitT1, 6),
     'hit-t2': createAudioPool(sfxHitT2, 6),
     'hit-t3': createAudioPool(sfxHitT3, 6),
@@ -95,19 +127,74 @@ export function SoundProvider({ children }) {
   const setVolume = useCallback((v) => setVolumeState(Math.max(0, Math.min(1, v))), [])
   const setMusicVolume = useCallback((v) => setMusicVolumeState(Math.max(0, Math.min(1, v))), [])
   const toggleEnabled = useCallback(() => setEnabled(e => !e), [])
+  const toggleSfxEnabled = useCallback(() => setSfxEnabled(v => !v), [])
+  const toggleMusicEnabled = useCallback(() => setMusicEnabled(v => !v), [])
 
   const play = useCallback((id, opts = {}) => {
-  if (!enabledRef.current) return
+  if (!sfxEnabledRef.current) return
   const p = pools[id]
     if (!p) return
     const a = p.get()
     try {
       a.currentTime = 0
     } catch { /* ignore if not seekable yet */ }
-    a.volume = Math.max(0, Math.min(1, (opts.volume ?? 1) * volumeRef.current * (enabledRef.current ? 1 : 0)))
+    a.volume = Math.max(0, Math.min(1, (opts.volume ?? 1) * volumeRef.current * (sfxEnabledRef.current ? 1 : 0)))
     if (opts.rate && a.playbackRate !== undefined) a.playbackRate = opts.rate
     // In case user's interaction wasn't yet made, play() may reject; ignore
     a.play()?.catch?.(() => {})
+  }, [pools])
+
+  // Play two clips in sequence, each for a given duration (ms).
+  const playSequence = useCallback((firstId, firstMs = 5000, secondId, secondMs = 5000) => {
+    if (!sfxEnabledRef.current) return
+    const start = performance.now()
+    let timeoutId = null
+    const cancels = []
+
+    // helper to loop one clip until time window exhausted
+    const loopClip = (pid, windowMs, onDone) => {
+      const p = pools[pid]
+      if (!p) { onDone && onDone(); return () => {} }
+      let localCancelled = false
+      const playOnce = () => {
+        if (localCancelled) return
+        const a = p.get()
+        try { a.currentTime = 0 } catch {}
+        a.volume = Math.max(0, Math.min(1, volumeRef.current))
+        a.play().catch(() => {})
+        const onEnded = () => {
+          if (localCancelled) return
+          if (performance.now() - start < windowMs) {
+            playOnce()
+          } else {
+            onDone && onDone()
+          }
+        }
+        try {
+          a.removeEventListener('ended', onEnded)
+          a.addEventListener('ended', onEnded)
+        } catch {
+          setTimeout(onEnded, windowMs)
+        }
+      }
+      playOnce()
+      const cancel = () => { localCancelled = true }
+      cancels.push(cancel)
+      return cancel
+    }
+
+    // start first, then schedule second after firstMs
+    const cancelFirst = loopClip(firstId, firstMs, () => {})
+    timeoutId = setTimeout(() => {
+      cancelFirst && cancelFirst()
+      loopClip(secondId, secondMs, () => {})
+    }, firstMs)
+
+    // return a cancel handle that cancels any running loops and the timeout
+    return () => {
+      cancels.forEach(c => c())
+      if (timeoutId) clearTimeout(timeoutId)
+    }
   }, [pools])
 
   // MUSIC: two-deck player with scene playlists and soft fade switches
@@ -133,6 +220,8 @@ export function SoundProvider({ children }) {
       assetUrl('sounds/music/mixkit-infected-vibes-157.mp3'),
       assetUrl('sounds/music/mixkit-games-music-706.mp3'),
       assetUrl('sounds/music/mixkit-our-nights-627.mp3'),
+      // Added per request
+      sfxMusicNew,
     ],
     characters: [
       assetUrl('sounds/music/mixkit-this-is-seeb-haus-631.mp3'),
@@ -316,11 +405,13 @@ export function SoundProvider({ children }) {
 
   const value = useMemo(() => ({
     // sfx
-    play, volume, setVolume,
+    play, playSequence, volume, setVolume,
     // music
     musicVolume, setMusicVolume, setMusicScene,
     // global
     enabled, toggleEnabled,
+    // new controls
+    sfxEnabled, toggleSfxEnabled, musicEnabled, toggleMusicEnabled,
   }), [play, volume, setVolume, musicVolume, setMusicVolume, setMusicScene, enabled, toggleEnabled])
   return (
     <SoundContext.Provider value={value}>
@@ -403,5 +494,32 @@ export function GlobalSoundToggle() {
     <button onClick={toggleEnabled} style={{ marginLeft: 8 }} aria-label="Toggle sound">
       {enabled ? 'Sound: On' : 'Sound: Off'}
     </button>
+  )
+}
+
+// Sound dropdown UI: controls for SFX and Music toggles and volumes
+export function SoundDropdown() {
+  const {
+    play, volume, setVolume, musicVolume, setMusicVolume,
+    sfxEnabled, toggleSfxEnabled, musicEnabled, toggleMusicEnabled
+  } = useSound()
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ position: 'relative', marginLeft: 12 }}>
+      <button className="button" onClick={() => setOpen(o => !o)} aria-haspopup="true">Sound ▾</button>
+      {open && (
+        <div style={{ position: 'absolute', right: 0, top: '40px', background: 'rgba(6,6,6,0.95)', padding: 12, borderRadius: 8, boxShadow: '0 8px 30px rgba(0,0,0,0.6)', zIndex: 2000, minWidth: 220 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{ color: '#fff', fontSize: 13 }}><input type="checkbox" checked={sfxEnabled} onChange={toggleSfxEnabled} /> SFX</label>
+            <input type="range" min={0} max={1} step={0.01} value={volume} onChange={(e)=> setVolume(parseFloat(e.target.value)||0)} style={{ flex: 1 }} />
+          </div>
+          <div style={{ height: 8 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{ color: '#fff', fontSize: 13 }}><input type="checkbox" checked={musicEnabled} onChange={toggleMusicEnabled} /> Music</label>
+            <input type="range" min={0} max={1} step={0.01} value={musicVolume} onChange={(e)=> setMusicVolume(parseFloat(e.target.value)||0)} style={{ flex: 1 }} />
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

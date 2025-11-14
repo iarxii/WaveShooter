@@ -2,6 +2,8 @@
     --bg: #0b1020;
     --ui: #005540;
     --accent: #22c55e;
+    /* Harder (deeper) accent green for stronger highlights */
+    --accent-hard: #16a34a;
     --danger: #ef4444
 }
 
@@ -9,7 +11,8 @@ html,
 body,
 #root {
     height: 100%;
-    width: 100%;
+    width: 100vw;
+    overflow-x: hidden;
     margin: 0;
     padding: 0;
     background: var(--bg);
@@ -129,16 +132,26 @@ body,
 .abilities-panel .cooldown .cd-text { margin-top: 4px; font-size: 11px; opacity: 0.9; }
 
 .button {
-    background: #111;
+    /* Green accent button with slight 3D appearance */
+    background: linear-gradient(180deg, var(--accent-hard), var(--accent));
     color: #fff;
     padding: 6px 10px;
     border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    cursor: pointer
+    border: 1px solid var(--accent);
+    cursor: pointer;
+    box-shadow: 0 6px 0 rgba(0,0,0,0.18), 0 10px 22px rgba(16,185,129,0.06);
+    transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.35);
+    font-weight: 600;
 }
 .button:hover {
-    background: #1b1f29;
-    box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 0 12px rgba(34,197,94,0.35);
+    transform: translateY(-2px);
+    filter: brightness(1.06);
+    box-shadow: 0 12px 28px rgba(16,185,129,0.14), 0 2px 0 rgba(0,0,0,0.12) inset;
+}
+.button:active {
+    transform: translateY(0);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.22);
 }
 
 /* Dropdown (navbar) */
@@ -318,13 +331,14 @@ input[type="range"] {
 
 .pause-content h2 {
     margin: 0 0 1rem 0;
-    color: var(--accent);
+    color: var(--bg);
     font-size: 2rem;
 }
 
 .pause-content p {
     margin: 0;
-    color: rgba(255, 255, 255, 0.8);
+    /* color: rgba(255, 255, 255, 0.8); */
+    color: var(--bg);
 }
 
 /* Pickup popups */
@@ -482,10 +496,38 @@ input[type="range"] {
     font-size: 18px;
 }
 
-.dpad-btn[data-active="true"] {
+.dpad-btn[data-active="true"],
+.accent {
+    /* Accent gradient + glow used across UI for highlighted buttons and elements */
     background: linear-gradient(180deg, rgba(34,197,94,0.95), rgba(16,185,129,0.85));
     border-color: rgba(255,255,255,0.9);
     box-shadow: 0 8px 20px rgba(34,197,94,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+/* Harder green variant (opt-in): use when you want stronger/darker green accents */
+.accent--hard {
+    background: linear-gradient(180deg, rgba(22,163,74,0.95), rgba(16,147,74,0.85));
+    border-color: rgba(255,255,255,0.92);
+    box-shadow: 0 10px 24px rgba(22,163,74,0.32), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+.rounded-4 {
+    border-radius: 4px;
+}
+.rounded-8 {
+    border-radius: 8px;
+}
+.rounded-12 {
+    border-radius: 12px;
+}
+.rounded-16 {
+    border-radius: 16px;
+}
+.rounded-20 {
+    border-radius: 20px;
+}
+.rounded-24 {
+    border-radius: 24px;
 }
 
 .dpad-btn:active {

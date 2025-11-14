@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { SfxVolumeControl, GlobalSoundToggle } from '../contexts/SoundContext.jsx'
+import { SoundDropdown } from '../contexts/SoundContext.jsx'
 import { useEnvironment } from '../contexts/EnvironmentContext.tsx'
 import { ENV_OPTIONS_ORDERED } from '../environments/environments'
 
@@ -62,8 +62,7 @@ export default function NavBar({ hidden = false }) {
       </div>
 
       <div style={{marginLeft:'auto', display:'flex', alignItems:'center'}}>
-        <SfxVolumeControl />
-        <GlobalSoundToggle />
+        <SoundDropdown />
       </div>
     </div>
   )

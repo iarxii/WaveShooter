@@ -116,6 +116,8 @@ const PORTALS_PER_WAVE_MAX = 4;
 const PORTAL_RADIUS_MIN = 12;
 const PORTAL_RADIUS_MAX = 20;
 const PORTAL_STAGGER_MS = 260; // ms between enemy drops per portal
+// Rare small portals behind the player appear starting at this wave
+const BEHIND_SPAWN_MIN_WAVE = 8;
 // Temporary feature flag to fully disable arena growth logic for performance
 const ARENA_GROWTH_DISABLED = true;
 const DROP_SPAWN_HEIGHT = 8; // y height enemies begin falling from
@@ -849,10 +851,12 @@ function LaserBeam({
     [dir]
   );
   const tmpPos = useRef(new THREE.Vector3(...pos));
-  // geometry/material
-  const geom = useMemo(
-    () => new THREE.CylinderGeometry(radius, radius, length, 8, 1, true),
-    [radius, length]
+  // Use an expanded visual length and multiple thin beam instances for a laser-array look
+  const effectiveLength = Math.round(length * 1.6);
+  const thinRadius = Math.max(0.08, radius * 0.18);
+  const geomThin = useMemo(
+    () => new THREE.CylinderGeometry(thinRadius, thinRadius, effectiveLength, 8, 1, true),
+    [thinRadius, effectiveLength]
   );
   const mat = useMemo(
     () =>
@@ -860,37 +864,53 @@ function LaserBeam({
         color: 0xff2244,
         emissive: 0xff2244,
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.9,
         side: THREE.DoubleSide,
       }),
     []
   );
+  // refs for the 4 beam meshes
+  const beamRefs = [useRef(), useRef(), useRef(), useRef()];
 
   useEffect(() => {
-    if (ref.current) {
-      ref.current.position.set(
-        pos[0] + dirVec.x * (length / 2),
-        pos[1] + dirVec.y * (length / 2),
-        pos[2] + dirVec.z * (length / 2)
+    // position each thin beam with a slight lateral offset along rightVec
+    const rightVec = new THREE.Vector3(dirVec.z, 0, -dirVec.x).normalize();
+    for (let i = 0; i < beamRefs.length; i++) {
+      const b = beamRefs[i].current;
+      if (!b) continue;
+      const offset = (i - 1.5) * (thinRadius * 6.0);
+      const center = new THREE.Vector3(
+        pos[0] + dirVec.x * (effectiveLength / 2) + rightVec.x * offset,
+        pos[1] + dirVec.y * (effectiveLength / 2),
+        pos[2] + dirVec.z * (effectiveLength / 2) + rightVec.z * offset
       );
-      // align cylinder's Y axis to dirVec: cylinder default points up (Y)
+      b.position.copy(center);
       const axis = new THREE.Vector3(0, 1, 0);
-      const q = new THREE.Quaternion().setFromUnitVectors(
-        axis,
-        dirVec.clone().normalize()
-      );
-      ref.current.quaternion.copy(q);
+      const q = new THREE.Quaternion().setFromUnitVectors(axis, dirVec.clone().normalize());
+      b.quaternion.copy(q);
     }
   }, [pos, dirVec, length]);
 
   useFrame((_, dt) => {
-    if (!ref.current || isPaused) return;
-    // update pos each frame (follows player)
-    ref.current.position.set(
-      pos[0] + dirVec.x * (length / 2),
-      pos[1] + dirVec.y * (length / 2),
-      pos[2] + dirVec.z * (length / 2)
-    );
+    if (isPaused) return;
+    // update positions for each thin beam
+    const rightVec = new THREE.Vector3(dirVec.z, 0, -dirVec.x).normalize();
+    for (let i = 0; i < beamRefs.length; i++) {
+      const b = beamRefs[i].current;
+      if (!b) continue;
+      const offset = (i - 1.5) * (thinRadius * 6.0);
+      // jitter/pulse effect
+      const t = performance.now() * (0.006 + i * 0.002);
+      const jitter = 0.06 * Math.sin(t * 12 + i * 1.2);
+      const center = new THREE.Vector3(
+        pos[0] + dirVec.x * (effectiveLength / 2) + rightVec.x * (offset + jitter),
+        pos[1] + dirVec.y * (effectiveLength / 2),
+        pos[2] + dirVec.z * (effectiveLength / 2) + rightVec.z * (offset + jitter)
+      );
+      b.position.copy(center);
+      const s = 1 + 0.05 * Math.sin(performance.now() * 0.015 + i);
+      b.scale.set(s, s, s);
+    }
     // Damage application: iterate enemies within beam
     if (window.gameEnemies && window.gameEnemies.length) {
       const origin = new THREE.Vector3(pos[0], pos[1], pos[2]);
@@ -901,11 +921,12 @@ function LaserBeam({
           const ep = ge.ref.current.position.clone();
           const rel = ep.clone().sub(origin);
           const t = rel.dot(d);
-          if (t < 0 || t > length) continue;
+          if (t < 0 || t > effectiveLength) continue;
           // perpendicular distance squared
           const proj = d.clone().multiplyScalar(t).add(origin);
           const perpDist2 = proj.distanceToSquared(ep);
-          if (perpDist2 <= radius * radius) {
+          // use a slightly larger hit radius so the multi-beam visually matches damage
+          if (perpDist2 <= (radius * 1.0) * (radius * 1.0)) {
             // apply damage scaled by dt
             const dmg = dmgPerSecond * dt; // fractional units
             onDamage && onDamage(ge.id, dmg);
@@ -916,9 +937,11 @@ function LaserBeam({
   });
 
   return (
-    <mesh ref={ref} geometry={geom} material={mat} castShadow>
-      {/* leave as is */}
-    </mesh>
+    <group>
+      {[0, 1, 2, 3].map((i) => (
+        <mesh key={i} ref={beamRefs[i]} geometry={geomThin} material={mat} castShadow />
+      ))}
+    </group>
   );
 }
 
@@ -1404,6 +1427,47 @@ function ShimmerPulse({
   return <mesh ref={ref} geometry={geom} material={mat} />;
 }
 
+// Black -> Orange strobing aura used for Bomb Kit (attention-grabbing)
+function BombStrobe({ playerPosRef, isPaused, radius = 1.6 }) {
+  const ref = useRef();
+  const mat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: 0x000000,
+        emissive: 0x000000,
+        transparent: true,
+        opacity: 0.95,
+        side: THREE.DoubleSide,
+      }),
+    []
+  );
+  const geom = useMemo(() => new THREE.SphereGeometry(radius, 20, 20), [radius]);
+  useFrame(() => {
+    if (!ref.current) return;
+    const p = playerPosRef.current;
+    ref.current.position.set(p.x, 0.5, p.z);
+    if (isPaused) return;
+    const t = performance.now() * 0.006; // speed multiplier
+    // fast strobe between black and orange
+    const freq = 8.0; // strobes per second approx
+    const mix = 0.5 * (1 + Math.sign(Math.sin(t * freq)) * 1); // hard on/off feel
+    // softened via sine for smoother transition
+    const smooth = 0.5 * (1 + Math.sin(t * freq * 1.0));
+    const blend = mix * 0.9 + smooth * 0.1;
+    // orange color
+    const or = 1.0;
+    const og = 0.4;
+    const ob = 0.0;
+    mat.emissive.setRGB(or * blend, og * blend, ob * blend);
+    // opacity pulse a bit
+    mat.opacity = 0.35 + 0.5 * blend;
+    // scale pulse
+    const s = 1 + 0.08 * Math.sin(t * freq * 2);
+    ref.current.scale.set(s, s, s);
+  });
+  return <mesh ref={ref} geometry={geom} material={mat} />;
+}
+
 // Player (simple rectangle box) with WASD movement and mouse aiming
 function Player({
   position,
@@ -1838,7 +1902,7 @@ function Player({
           Math.atan2(tmpDir.current.x, tmpDir.current.z) + Math.PI;
         const diff =
           ((targetYaw - lastYaw.current + Math.PI) % (Math.PI * 2)) - Math.PI;
-        lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-10 * dt));
+        lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-30 * dt));
         ref.current.rotation.y = lastYaw.current;
       }
     } else if (autoAimEnabled) {
@@ -1906,7 +1970,7 @@ function Player({
             Math.atan2(tmpDir.current.x, tmpDir.current.z) + Math.PI;
           const diff =
             ((targetYaw - lastYaw.current + Math.PI) % (Math.PI * 2)) - Math.PI;
-          lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-10 * dt));
+          lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-30 * dt));
           ref.current.rotation.y = lastYaw.current;
           // widen beam based on target distance
           if (rayRef.current) {
@@ -1929,7 +1993,7 @@ function Player({
             const diff =
               ((targetYaw - lastYaw.current + Math.PI) % (Math.PI * 2)) -
               Math.PI;
-            lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-10 * dt));
+            lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-30 * dt));
             ref.current.rotation.y = lastYaw.current;
             const dist = tmpDir.current.length();
             if (rayRef.current) {
@@ -1956,7 +2020,7 @@ function Player({
           // Exponential damping for smooth rotation
           const diff =
             ((targetYaw - lastYaw.current + Math.PI) % (Math.PI * 2)) - Math.PI;
-          lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-10 * dt));
+          lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-30 * dt));
           ref.current.rotation.y = lastYaw.current;
 
           // Dynamic width based on aim distance (clamped)
@@ -2370,7 +2434,7 @@ function Player({
 // Cone boss extracted to src/entities/ConeBoss.jsx
 
 export default function App({ navVisible, setNavVisible } = {}) {
-  const { play } = useSound();
+  const { play, playSequence } = useSound();
   const { addRun } = useHistoryLog();
   const { selectedHero, setSelectedHero } = useGame();
   const navigate = useNavigate();
@@ -2795,6 +2859,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const [lasersEffect, setLasersEffect] = useState({ active: false });
   const lasersRemainingRef = useRef(0);
   const lasersActiveRef = useRef(false);
+  const [healthEffect, setHealthEffect] = useState({ active: false });
   // Last known aim direction for laser beam visuals
   const lastLaserAimRef = useRef(new THREE.Vector3(0, 0, -1));
   useEffect(() => {
@@ -4158,10 +4223,30 @@ export default function App({ navVisible, setNavVisible } = {}) {
         Math.floor(basicsToSpawn * (spawnPressureMulRef.current || 1))
       );
 
-      // Distribute basics across portals
+      // Distribute basics across portals with a 3:1:1 style bias for higher waves
+      // We reserve a small fraction for flank and rare behind-player spawns so CPU load is controlled.
+      let flankReserved = 0;
+      let backReserved = 0;
+      // Only enable behind-player / flank reservation at higher waves
+      if (level >= BEHIND_SPAWN_MIN_WAVE && basicsToSpawn >= 3 && Math.random() < 0.9) {
+        // split into 3:1:1 ratio across a total of 5 units
+        const units = 5;
+        // base per-unit (at least 1 unit)
+        const perUnit = Math.max(1, Math.floor(basicsToSpawn / units));
+        const mainUnits = 3 * perUnit;
+        const flankUnits = 1 * perUnit;
+        const backUnits = 1 * perUnit;
+        flankReserved = Math.min(2, flankUnits);
+        backReserved = Math.min(2, backUnits);
+        // subtract reserved slots from fundamentals
+        const reserved = flankReserved + backReserved;
+        basicsToSpawn = Math.max(0, basicsToSpawn - reserved);
+      }
+
+      // distribute remaining basics to wave portals
       const perPortal = Math.max(1, Math.floor(basicsToSpawn / portalsCount));
 
-      // Evenly spaced directions with slight jitter
+      // Evenly spaced directions with slight jitter for main portals
       for (let i = 0; i < portalsCount; i++) {
         const angle =
           baseAngle +
@@ -4198,7 +4283,6 @@ export default function App({ navVisible, setNavVisible } = {}) {
             level >= LEVEL_CONFIG.unlocks.bossMinion &&
             bossSlotsRem > 0
           ) {
-            // 50/50 bossMinion vs cluster if cluster unlocked and boss slot available
             const clusterOK = level >= LEVEL_CONFIG.unlocks.cluster;
             if (clusterOK && Math.random() < 0.5) {
               kind = "cluster";
@@ -4232,7 +4316,6 @@ export default function App({ navVisible, setNavVisible } = {}) {
             const ecolor = colorHex(picked.color);
             const eid = enemyId.current++;
             const spawnPos = [p[0], 0.5, p[2]];
-            // Compute move speed in world units (minion range ≈ 6..12 u/s)
             const sp = Math.max(
               2.0,
               Math.min(3.2, picked?.stats?.speed || 2.5)
@@ -4255,7 +4338,6 @@ export default function App({ navVisible, setNavVisible } = {}) {
                 health: Math.max(1, picked?.stats?.health || 2),
                 maxHealth: Math.max(1, picked?.stats?.health || 2),
                 spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2,
-                // When in factory mode, attach a randomized Character Factory spec to drive visuals
                 factorySpec:
                   enemyRenderModeRef.current === "factory"
                     ? (() => {
@@ -4265,9 +4347,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
                           ecolor,
                           typeof assetScale !== "undefined" ? assetScale : 1
                         );
-                        // Randomize spin & roll further at spawn time for added variety
-                        const spinMul = 0.5 + Math.random() * 1.5; // 0.5x .. 2.0x
-                        const rollAdd = Math.random() * 0.6 - 0.3; // -0.3 .. +0.3
+                        const spinMul = 0.5 + Math.random() * 1.5;
+                        const rollAdd = Math.random() * 0.6 - 0.3;
                         const spin = Math.min(
                           0.8,
                           Math.max(0.06, base.spin * spinMul)
@@ -4279,7 +4360,6 @@ export default function App({ navVisible, setNavVisible } = {}) {
                         return { ...base, spin, roll };
                       })()
                     : null,
-                // traits (minimal initial wiring)
                 stunImmune: /CRE/.test(picked.name),
                 cloneOnHalf: picked.name.includes("E. coli ESBL"),
                 bulletDamageScale: picked.name.includes("MRSA")
@@ -4297,6 +4377,44 @@ export default function App({ navVisible, setNavVisible } = {}) {
               kind,
             });
           }
+        }
+      }
+
+      // If we reserved flank/back slots, schedule small portals for them.
+      if (flankReserved > 0) {
+        // Place flank portal(s) roughly to the side(s) of the player center
+        const sides = Math.max(1, flankReserved);
+        for (let si = 0; si < sides; si++) {
+          const sideAngle = baseAngle + (Math.random() < 0.5 ? 1 : -1) * (Math.PI / 2 + (Math.random() - 0.5) * 0.3);
+          const radius = PORTAL_RADIUS_MIN + Math.random() * (PORTAL_RADIUS_MAX - PORTAL_RADIUS_MIN);
+          const px = center.x + Math.cos(sideAngle) * radius;
+          const pz = center.z + Math.sin(sideAngle) * radius;
+          const p = [px, 0.5, pz];
+          const extraDelay = 2000 + Math.random() * 1000;
+          openPortalAt(p, PORTAL_LIFETIME + extraDelay);
+          // spawn 1 per reserved slot
+          scheduleEnemyBatchAt(p, 1, { waveNumber: nextWave, extraDelayMs: extraDelay });
+        }
+      }
+
+      if (backReserved > 0) {
+        // Place a small portal behind the player (prefer opposite of movement direction when available)
+        try {
+          const m = moveInputRef ? moveInputRef.current : { x: 0, z: -1 };
+          const mvLen = Math.hypot(m.x || 0, m.z || 0);
+          let backAngle = Math.random() * Math.PI * 2;
+          if (mvLen > 0.15) backAngle = Math.atan2(m.z, m.x) + Math.PI; // opposite movement
+          const radius = (PORTAL_RADIUS_MIN + PORTAL_RADIUS_MAX) * 0.5 * (0.6 + Math.random() * 0.6);
+          const px = center.x + Math.cos(backAngle) * radius;
+          const pz = center.z + Math.sin(backAngle) * radius;
+          const p = [px, 0.5, pz];
+          const extraDelay = 1600 + Math.random() * 1200;
+          // open small behind portal and spawn 1-2 minions
+          openPortalAt(p, PORTAL_LIFETIME + extraDelay);
+          const count = Math.min(backReserved, 2);
+          scheduleEnemyBatchAt(p, count, { waveNumber: nextWave, extraDelayMs: extraDelay });
+        } catch {
+          /* ignore */
         }
       }
 
@@ -4398,6 +4516,14 @@ export default function App({ navVisible, setNavVisible } = {}) {
         const ahead = 0.9;
         const side = 0.6;
         const offsetsDeg = [-12, -4, 4, 12];
+        // Play single shot sound for this fire action
+        try {
+          if (!lasersActiveRef.current) {
+            const shotId = powerEffect.active ? 'laser-shot' : 'bullet-normal';
+            play && play(shotId, { volume: 0.6 });
+          }
+        } catch {}
+
         for (let i = 0; i < offsetsDeg.length; i++) {
           const deg = offsetsDeg[i];
           const rad = (deg * Math.PI) / 180;
@@ -4436,35 +4562,64 @@ export default function App({ navVisible, setNavVisible } = {}) {
 
         const ahead = 0.85;
         const side = 0.45;
-        const offsetsDeg = powerEffect.active
-          ? [-12, -6, 0, 6, 12]
-          : [-8, 0, 8];
-        for (let i = 0; i < offsetsDeg.length; i++) {
-          const deg = offsetsDeg[i];
-          const rad = (deg * Math.PI) / 180;
-          const cos = Math.cos(rad);
-          const sin = Math.sin(rad);
-          const dx = fx * cos - fz * sin;
-          const dz = fx * sin + fz * cos;
-          const sx =
-            offsetsDeg.length === 3
-              ? i === 0
+        // Diamond-power (high-tier power) => radial burst around player
+        if (powerEffect.active && powerEffect.amount >= 90) {
+          const count = 12; // radial bullets
+          // Play single radial-shot sound for this fire action
+          try {
+            if (!lasersActiveRef.current) {
+              const shotId = powerEffect.active ? 'laser-shot' : 'bullet-normal';
+              play && play(shotId, { volume: 0.6 });
+            }
+          } catch {}
+
+          for (let k = 0; k < count; k++) {
+            const ang = (k / count) * Math.PI * 2;
+            const dx = Math.cos(ang);
+            const dz = Math.sin(ang);
+            const ex = px + dx * 0.8;
+            const ez = pz + dz * 0.8;
+            bulletPool.current.getBullet([ex, py, ez], [dx, 0, dz], style);
+          }
+        } else {
+          const offsetsDeg = powerEffect.active
+            ? [-12, -6, 0, 6, 12]
+            : [-8, 0, 8];
+          // Play single shot sound for this fire action
+          try {
+            if (!lasersActiveRef.current) {
+              const shotId = powerEffect.active ? 'laser-shot' : 'bullet-normal';
+              play && play(shotId, { volume: 0.6 });
+            }
+          } catch {}
+
+          for (let i = 0; i < offsetsDeg.length; i++) {
+            const deg = offsetsDeg[i];
+            const rad = (deg * Math.PI) / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            const dx = fx * cos - fz * sin;
+            const dz = fx * sin + fz * cos;
+            const sx =
+              offsetsDeg.length === 3
+                ? i === 0
+                  ? -side
+                  : i === 2
+                  ? side
+                  : 0
+                : i === 0
                 ? -side
-                : i === 2
+                : i === 1
+                ? -side * 0.5
+                : i === 3
+                ? side * 0.5
+                : i === 4
                 ? side
-                : 0
-              : i === 0
-              ? -side
-              : i === 1
-              ? -side * 0.5
-              : i === 3
-              ? side * 0.5
-              : i === 4
-              ? side
-              : 0;
-          const ex = px + fx * ahead + rx * sx;
-          const ez = pz + fz * ahead + rz * sx;
-          bulletPool.current.getBullet([ex, py, ez], [dx, 0, dz], style);
+                : 0;
+            const ex = px + fx * ahead + rx * sx;
+            const ez = pz + fz * ahead + rz * sx;
+            bulletPool.current.getBullet([ex, py, ez], [dx, 0, dz], style);
+          }
         }
         setBullets(bulletPool.current.getActiveBullets());
         return;
@@ -5074,6 +5229,13 @@ export default function App({ navVisible, setNavVisible } = {}) {
         try {
           play("health-pickup");
         } catch {}
+        // brief green health aura
+        try {
+          setHealthEffect({ active: true });
+          setTimeout(() => setHealthEffect({ active: false }), 2000);
+          // small shimmer to highlight
+          setShimmers((s) => [...s, { id: Date.now() + Math.random() }]);
+        } catch {}
       } else {
         if (pickup.type === "power") {
           // power-up: add score by amount and enable bullet effect for duration
@@ -5139,14 +5301,15 @@ export default function App({ navVisible, setNavVisible } = {}) {
             play("powerup");
           } catch {}
         } else if (pickup.type === "lasers") {
-          // Laser array: high damage bullets that also affect cone boss; 5s
-          lasersRemainingRef.current = 5000;
+          // Laser array: high damage bullets that also affect cone boss; 10s
+          lasersRemainingRef.current = 10000;
           setLasersEffect({ active: true });
           try {
             pushPlayerLabel("LASER ARRAY");
           } catch {}
           try {
-            play("powerup");
+            // Play the requested 5s charge then 5s explosion sequence
+            playSequence && playSequence('laser-charge', 5000, 'laser-expl', 5000)
           } catch {}
         } else if (pickup.type === "shield") {
           // Shield bubble: keep enemies at distance for 5s
@@ -5206,6 +5369,32 @@ export default function App({ navVisible, setNavVisible } = {}) {
                         hits: {},
                       },
                     ]);
+                    try {
+                      // Visual AOE cue at player location for this burst
+                      setAoes((prev) => {
+                        const next = [
+                          ...prev,
+                          {
+                            id: Date.now() + Math.random(),
+                            pos: [p.x, 0.06, p.z],
+                            start: performance.now(),
+                            radius: R * 0.9,
+                          },
+                        ];
+                        return next.length > 12 ? next.slice(next.length - 12) : next;
+                      });
+                      // one-shot shimmer on player
+                      setShimmers((s) => [
+                        ...s,
+                        { id: Date.now() + Math.random() },
+                      ]);
+                      triggerEffect &&
+                        triggerEffect("pulseWave", {
+                          position: [p.x, 0.2, p.z],
+                          power: 1.0,
+                        });
+                      play && play("pulsewave");
+                    } catch {}
                   }
                 } catch {}
               });
@@ -5217,15 +5406,34 @@ export default function App({ navVisible, setNavVisible } = {}) {
           // clear active flag after 5s
           setTimeout(() => setPulseWaveEffect({ active: false }), 5200);
         } else if (pickup.type === "life") {
-          setLives((l) => Math.min(l + 1, 5));
-          try {
-            pushPlayerLabel("1UP");
-          } catch {}
-          try {
-            play("life-pickup");
-          } catch {}
-          // Trigger a shield-stack FX window
-          setLifeShieldToken((t) => t + 1);
+          // If player already at max lives, restore to full health instead of wasting the 1UP
+          const MAX_LIVES = 5;
+          setLives((l) => {
+            if (l >= MAX_LIVES) {
+              try {
+                // restore 100% health when at max lives
+                setHealth(100);
+              } catch {}
+              try {
+                pushPlayerLabel("Max Lives — Full Heal");
+              } catch {}
+              try {
+                play("life-pickup");
+              } catch {}
+              // still grant the shield token effect to provide some immediate feedback
+              setLifeShieldToken((t) => t + 1);
+              return l; // do not increase lives beyond cap
+            }
+            // otherwise grant an extra life as normal
+            try {
+              pushPlayerLabel("1UP");
+            } catch {}
+            try {
+              play("life-pickup");
+            } catch {}
+            setLifeShieldToken((t) => t + 1);
+            return Math.min(l + 1, MAX_LIVES);
+          });
         }
       }
     },
@@ -5667,7 +5875,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
                 debuffRemainingRef.current || 0,
                 500
               );
-              setDebuffEffect({ active: true });
+                setDebuffEffect({ active: true });
+                try { play && play('debuff') } catch {}
             }
             // Damage tick based on tickMs and track last tick per hazard
             if (!h._lastTickAt) h._lastTickAt = now;
@@ -6194,6 +6403,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
               // Start debuff visualization timer
               debuffRemainingRef.current = SPEED_DEBUFF_DURATION_MS;
               setDebuffEffect({ active: true });
+              try { play && play('debuff') } catch {}
             }}
             onBoost={() => {
               const popupId = Date.now();
@@ -6238,6 +6448,20 @@ export default function App({ navVisible, setNavVisible } = {}) {
               radius={1.6}
               baseOpacity={0.22}
             />
+          )}
+          {/* Health pickup aura (green) */}
+          {!isPaused && healthEffect.active && (
+            <ShieldBubble
+              playerPosRef={playerPosRef}
+              isPaused={isPaused}
+              color={0x22c55e}
+              radius={1.6}
+              baseOpacity={0.18}
+            />
+          )}
+          {/* Bomb kit strobing aura (black -> orange) */}
+          {!isPaused && bombEffect.active && (
+            <BombStrobe playerPosRef={playerPosRef} isPaused={isPaused} radius={1.8} />
           )}
 
           {/* World-space FX Orbs follow player via anchor ref */}
@@ -6821,13 +7045,14 @@ export default function App({ navVisible, setNavVisible } = {}) {
               id="fixed-player-stats"
               style={{
                 position: "fixed",
-                bottom: 40,
-                left: "50%",
-                transform: "translateX(-50%)",
-                display: "flex",
+                top: 80,
+                right: 10,
+                // left: "50%",
+                // transform: "translateX(-50%)",
+                display: "grid",
                 gap: 12,
                 height: "auto",
-                minWidth: 300,
+                // minWidth: 300,
                 maxWidth: "80vw",
                 padding: 10,
                 background: "rgba(0,0,0,0.25)",
@@ -8230,7 +8455,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
       {/* Overlay: start screen */}
       {!isStarted && (
         <div className="pause-overlay">
-          <div className="pause-content">
+          <div className="pause-content accent">
             <h2>Healthcare Heroes: Harzard Wave Battle</h2>
             <p>
               Best — Score: <strong>{bestScore}</strong> • Wave:{" "}
