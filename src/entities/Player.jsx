@@ -27,6 +27,7 @@ function Player({
   controlScheme = "dpad",
   moveInputRef,
   moveSourceRef,
+  aimInputRef,
   onSlam,
   highContrast = false,
   portals = [],
@@ -488,7 +489,26 @@ function Player({
     }
 
     // Aim handling
-    if (autoFollow && autoFollow.active) {
+    // If an external aim stick is provided (right-stick on touch), prefer that for free-aim
+    if (
+      aimInputRef &&
+      controlScheme === "touch" &&
+      (Math.abs(aimInputRef.current.x) > 0.001 || Math.abs(aimInputRef.current.z) > 0.001)
+    ) {
+      tmpDir.current.set(aimInputRef.current.x, 0, aimInputRef.current.z);
+      if (tmpDir.current.lengthSq() > 1e-6) {
+        aimDirRef.current.copy(tmpDir.current).normalize();
+        const targetYaw = Math.atan2(tmpDir.current.x, tmpDir.current.z) + Math.PI;
+        const diff = ((targetYaw - lastYaw.current + Math.PI) % (Math.PI * 2)) - Math.PI;
+        lastYaw.current = lastYaw.current + diff * (1 - Math.exp(-10 * dt));
+        ref.current.rotation.y = lastYaw.current;
+        if (rayRef.current) {
+          const dist = Math.min(tmpDir.current.length(), 18);
+          const width = baseRayThickness + Math.min(dist / 12, 1) * 0.14;
+          rayRef.current.scale.x = width;
+        }
+      }
+    } else if (autoFollow && autoFollow.active) {
       const cx = autoFollow.center?.[0] ?? 0;
       const cz = autoFollow.center?.[2] ?? 0;
       tmpDir.current.set(

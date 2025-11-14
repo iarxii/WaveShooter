@@ -188,7 +188,7 @@ function getBudget(level) {
 }
 
 // Analogue stick for touch controls
-function AnalogStick({ onVectorChange }) {
+function AnalogStick({ onVectorChange, side = "left" }) {
   const baseRef = useRef();
   const knobRef = useRef();
   const pointerIdRef = useRef(null);
@@ -259,8 +259,9 @@ function AnalogStick({ onVectorChange }) {
 
   const baseStyle = {
     position: "fixed",
-    right: 18,
     bottom: 18,
+    // left or right stick positioning
+    ...(side === "left" ? { left: 18 } : { right: 18 }),
     width: radius * 2 + "px",
     height: radius * 2 + "px",
     borderRadius: "50%",
@@ -5966,6 +5967,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // Right-stick aim input (normalized x/z). Updated directly by right AnalogStick when touch controls active.
+  const aimInputRef = useRef({ x: 0, z: 0 });
+
   const handlePointerMove = useCallback((e) => {
     const x = e.clientX;
     const y = e.clientY;
@@ -6067,6 +6071,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
             controlScheme={controlScheme}
             moveInputRef={moveInputRef}
             moveSourceRef={moveSourceRef}
+            aimInputRef={aimInputRef}
             highContrast={highContrast}
             portals={portals}
             speedBoosts={speedBoosts}
@@ -6760,12 +6765,24 @@ export default function App({ navVisible, setNavVisible } = {}) {
         />
       )}
       {controlScheme === "touch" && (
-        <AnalogStick
-          onVectorChange={(x, z) => {
-            dpadVecRef.current.x = x;
-            dpadVecRef.current.z = z;
-          }}
-        />
+        <>
+          <AnalogStick
+            side="left"
+            onVectorChange={(x, z) => {
+              dpadVecRef.current.x = x;
+              dpadVecRef.current.z = z;
+              // mark immediate source so Player speed scaling knows it's from dpad
+              moveSourceRef.current = "dpad";
+            }}
+          />
+          <AnalogStick
+            side="right"
+            onVectorChange={(x, z) => {
+              aimInputRef.current.x = x;
+              aimInputRef.current.z = z;
+            }}
+          />
+        </>
       )}
 
       {/* Left Panel: Player and Boss info always visible; Accessibility under Debug toggle */}
