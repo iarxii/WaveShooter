@@ -401,6 +401,22 @@ input[type="range"] {
 .panel.collapsed .panel-content { display: none; }
 .panel .chev { font-size: 12px; opacity: 0.9; }
 
+/* When a panel is fixed, render it as an overlay anchored to the viewport */
+.panel.fixed {
+    position: fixed;
+    right: 16px;
+    top: 16px;
+    z-index: 9999;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+}
+
+/* Fixed panels should still allow width constraints but not overflow the viewport */
+.panel.fixed { max-width: 420px; }
+
+/* Accessibility debug overlay variants */
+.access-overlay.fixed { position: fixed; right: 16px; bottom: 16px; }
+.access-overlay.inline { position: relative; right: auto; bottom: auto; margin-top: 8px; }
+
 .pickup-popup.visible {
     opacity: 1;
 }

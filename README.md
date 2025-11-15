@@ -91,6 +91,9 @@ Open the printed local URL in your browser.
  - Shape runner follow (during Invulnerability): hold 1 = CCW • hold 2 = CW
  - Dash: press 3 to perform a fast dash (~0.25s) covering roughly 20% of the arena. 10s cooldown. Grants brief invulnerability during the dash and pushes nearby enemies away.
 
+### Controller (Xbox One / PS4)
+Left Stick / D-Pad to move, Right Stick to aim, hold RT/R2 to auto-fire, A/Cross to dash (cooldown applies), Start/Options to pause/resume. See `docs/Controller_Support.md` for full mapping and extension notes.
+
 ### Accessibility
 - Control scheme toggle:
 	- D-Buttons Control (on-screen directional pad; default)

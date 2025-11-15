@@ -1,5 +1,6 @@
 // src/pages/HeroTuner.tsx
 import React, { useMemo, useState } from 'react'
+import { getAccessibility, onAccessibilityChange, updateAccessibility } from '../utils/accessibility'
 import * as THREE from 'three'
 import { Canvas, useFrame } from '@react-three/fiber'
 import PerfCollector from '../components/PerfCollector'
@@ -284,6 +285,132 @@ export default function HeroTuner() {
         return () => { try { animUrls.forEach(u => { if (u.startsWith('blob:')) URL.revokeObjectURL(u) }) } catch { } }
     }, [animUrls])
 
+    // Controller wiring: local non-hook poller to avoid hook nesting/order issues
+    // Accessibility settings are read via getAccessibility/onAccessibilityChange
+    // Movement and aim refs updated by the poller
+    const moveRef = React.useRef<{ x: number, z: number }>({ x: 0, z: 0 })
+    const aimRef = React.useRef<{ x: number, z: number }>({ x: 0, z: 0 })
+    // External action for HeroAnimTester (string is fine; component narrows to its union type)
+    const [externalAction, setExternalAction] = useState<string>('idle')
+    // Timed/held action flags updated by gamepad callbacks
+    const actionStateRef = React.useRef<{ dashUntil: number, heavyUntil: number, jumpUntil: number, specialUntil: number, chargeHold: boolean, poseUntil: number }>({ dashUntil: 0, heavyUntil: 0, jumpUntil: 0, specialUntil: 0, chargeHold: false, poseUntil: 0 })
+    // Accessibility settings (shared)
+    const accRef = React.useRef(getAccessibility())
+    const [accState, setAccState] = useState(() => getAccessibility())
+    React.useEffect(() => {
+        const unsub = onAccessibilityChange((s) => { accRef.current = s; setAccState(s) })
+        return () => { unsub?.() }
+    }, [])
+    // Install a polling loop only when using the controller source
+    React.useEffect(() => {
+        if (source !== 'controller') return
+        const now = () => (typeof performance !== 'undefined' && (performance as any).now) ? (performance as any).now() : Date.now()
+        const deadzone = 0.2
+        const applyDeadzone = (v: number) => {
+            const a = Math.abs(v)
+            if (a < deadzone) return 0
+            const n = (a - deadzone) / (1 - deadzone)
+            return Math.sign(v) * Math.min(1, Math.max(0, n))
+        }
+        const prevButtons = new Map<number, boolean>()
+        let raf = 0
+        const poll = () => {
+            const pads = (navigator as any)?.getGamepads?.() as any[] | undefined
+            const gp = pads ? (Array.from(pads).find((g: any) => g && g.connected)) : undefined
+            if (gp) {
+                const ax = gp.axes || []
+                const a0 = Number(ax[0] || 0)
+                const a1 = Number(ax[1] || 0)
+                const a2 = Number(ax[2] || 0)
+                const a3 = Number(ax[3] || 0)
+            // Left stick movement base mapping: up on stick = -z forward
+            let mx = applyDeadzone(a0)
+            let mz = applyDeadzone(a1)
+                const accVals = accRef.current
+                const effInvertMoveX = !!accVals?.invertMoveX !== !!accVals?.flipControllerY
+                const effInvertMoveY = !!accVals?.invertMoveY !== !!accVals?.flipControllerY
+                if (effInvertMoveX) mx = -mx
+                if (effInvertMoveY) mz = -mz
+            moveRef.current.x = mx
+            moveRef.current.z = mz
+                // Right stick aim with accessibility inversion
+                let axr = applyDeadzone(a2)
+                let azr = applyDeadzone(a3)
+                const accVals2 = accRef.current
+                const effInvertAimX = !!accVals2?.invertAimX !== !!accVals2?.flipControllerY
+                const effInvertAimY = !!accVals2?.invertAimY !== !!accVals2?.flipControllerY
+                if (effInvertAimX) axr = -axr
+                if (effInvertAimY) azr = -azr
+                aimRef.current.x = axr
+                aimRef.current.z = azr
+                const buttons = gp.buttons || []
+                const isPressed = (i: number, threshold = 0.5) => {
+                    const b = buttons[i]
+                    if (!b) return false
+                    return !!b.pressed || Number(b.value || 0) > threshold
+                }
+                const edge = (i: number, threshold = 0.5) => {
+                    const cur = isPressed(i, threshold)
+                    const prev = prevButtons.get(i) || false
+                    prevButtons.set(i, cur)
+                    return cur && !prev
+                }
+                const lb = isPressed(4)
+                const rb = isPressed(5)
+                // Special when both bumpers pressed (edge on combo)
+                const lbPrev = prevButtons.get(4) || false
+                const rbPrev = prevButtons.get(5) || false
+                if (lb && rb && !(lbPrev && rbPrev)) {
+                    actionStateRef.current.specialUntil = now() + 800
+                } else {
+                    if (edge(4) || edge(5)) actionStateRef.current.poseUntil = now() + 2000
+                }
+                if (edge(0) || edge(1)) actionStateRef.current.dashUntil = now() + 600 // A or B
+                if (edge(2)) actionStateRef.current.jumpUntil = now() + 500 // X
+                if (edge(3)) actionStateRef.current.heavyUntil = now() + 700 // Y
+                // LT hold -> charge
+                actionStateRef.current.chargeHold = isPressed(6, 0.25)
+            }
+            raf = requestAnimationFrame(poll)
+        }
+        raf = requestAnimationFrame(poll)
+        return () => { try { cancelAnimationFrame(raf) } catch { } }
+    }, [source])
+    // Resolve current externalAction each frame based on gamepad-updated refs
+    React.useEffect(() => {
+        if (source !== 'controller') return
+        let raf = 0
+        const tick = () => {
+            const now = (typeof performance !== 'undefined' && (performance as any).now) ? (performance as any).now() : Date.now()
+            const st = actionStateRef.current
+            const dash = now < st.dashUntil
+            const special = now < st.specialUntil
+            const jump = now < st.jumpUntil
+            const heavy = now < st.heavyUntil
+            const charge = !!st.chargeHold
+            const pose = now < st.poseUntil
+            let next: string = 'idle'
+            if (dash) next = 'dashBackward'
+            else if (special) next = 'attackSpecial'
+            else if (charge) next = 'attackCharge'
+            else if (jump) next = 'jump'
+            else if (heavy) next = 'attackHeavy'
+            else if (pose) next = 'shapePose'
+            else {
+                const { x, z } = moveRef.current || { x: 0, z: 0 }
+                const mag = Math.hypot(x || 0, z || 0)
+                if (mag > 0.25) {
+                    if (Math.abs(x) > Math.abs(z)) next = x < 0 ? 'strafeLeft' : 'strafeRight'
+                    else next = z > 0 ? 'runForward' : 'runBackward'
+                }
+            }
+            setExternalAction(prev => (prev === next ? prev : next))
+            raf = requestAnimationFrame(tick)
+        }
+        raf = requestAnimationFrame(tick)
+        return () => { try { cancelAnimationFrame(raf) } catch { } }
+    }, [source])
+
     // Start with a handy default if none loaded yet
     const ensureSpec = useMemo<HeroSpec>(() => spec ?? {
         id: 'hero_demo',
@@ -418,6 +545,24 @@ export default function HeroTuner() {
                                 <option value="pose">3. Pose Viewer (GLB/FBX static)</option>
                                 <option value="procedural">4. Procedural</option>
                             </select>
+                            <div style={{ marginTop: 10, padding: '8px 8px', border: '1px solid #2b3b55', borderRadius: 4 }}>
+                                <strong>Accessibility</strong>
+                                <div style={{ marginTop: 6 }}>
+                                    <label style={{ display: 'block', marginTop: 4 }}>
+                                        <input type="checkbox" checked={accState.invertMoveX} onChange={(e) => updateAccessibility({ invertMoveX: e.currentTarget.checked })} /> Invert Move X (left/right)
+                                    </label>
+                                    <label style={{ display: 'block', marginTop: 4 }}>
+                                        <input type="checkbox" checked={accState.invertMoveY} onChange={(e) => updateAccessibility({ invertMoveY: e.currentTarget.checked })} /> Invert Move Y (forward/back)
+                                    </label>
+                                    <label style={{ display: 'block', marginTop: 4 }}>
+                                        <input type="checkbox" checked={accState.invertAimX} onChange={(e) => updateAccessibility({ invertAimX: e.currentTarget.checked })} /> Invert Aim X
+                                    </label>
+                                    <label style={{ display: 'block', marginTop: 4 }}>
+                                        <input type="checkbox" checked={accState.invertAimY} onChange={(e) => updateAccessibility({ invertAimY: e.currentTarget.checked })} /> Invert Aim Y
+                                    </label>
+                                    <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>Applies to controller and Anim Debug. Saved locally.</div>
+                                </div>
+                            </div>
                             {source === 'animViewer' && <AnimViewerPanel fbxScale={fbxScale} setFbxScale={setFbxScale} urls={animUrls} setUrls={setAnimUrls} index={animIndex} setIndex={setAnimIndex} backflipUrl={backflipUrl} setBackflipUrl={setBackflipUrl} />}
                             {source === 'animViewer' && (
                                 <div style={{ marginTop: 10, padding: '8px 8px', border: '1px solid #2b3b55', borderRadius: 4 }}>
@@ -818,6 +963,7 @@ export default function HeroTuner() {
                             anims={(window as any).__heroUserMap ?? (useLitePack ? liteSwordShieldMap : defaultAnimMap())}
                             scale={fbxScale}
                             showDebugPanel={showAnimDebug}
+                            externalAction={externalAction as any}
                         />
                     )}
                     {source === 'animViewer' && (

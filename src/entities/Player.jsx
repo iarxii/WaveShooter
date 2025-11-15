@@ -386,13 +386,28 @@ function Player({
     const extMz = moveInputRef ? moveInputRef.current.z : 0;
     let mx = 0,
       mz = 0;
+    let usedKeyboard = false;
     if (Math.abs(extMx) > 0.001 || Math.abs(extMz) > 0.001) {
       mx = extMx;
       mz = extMz;
+      usedKeyboard = false;
     } else {
       mx = keyMx;
       mz = keyMz;
+      usedKeyboard = true;
     }
+
+    // Apply accessibility inversion only for keyboard-derived movement (avoid double-inverting controller input)
+    try {
+      if (usedKeyboard) {
+        const acc = require("../utils/accessibility").getAccessibility();
+        if (acc?.invertMoveX) mx = -mx;
+        if (acc?.invertMoveY) mz = -mz;
+      }
+    } catch (e) {
+      // ignore if accessibility module can't be loaded synchronously
+    }
+
     const len = Math.hypot(mx, mz);
     if (len < 0.001) return null;
     return new THREE.Vector3(mx / len, 0, mz / len);
@@ -558,7 +573,6 @@ function Player({
     // If an external aim stick is provided (right-stick on touch), prefer that for free-aim
     if (
       aimInputRef &&
-      controlScheme === "touch" &&
       (Math.abs(aimInputRef.current.x) > 0.001 || Math.abs(aimInputRef.current.z) > 0.001)
     ) {
       tmpDir.current.set(aimInputRef.current.x, 0, aimInputRef.current.z);
@@ -707,18 +721,24 @@ function Player({
     const extMz = moveInputRef ? moveInputRef.current.z : 0;
     let mx = 0,
       mz = 0;
+    let usedKeyboard = false;
     if (controlScheme === "wasd") {
       mx = keyMx;
       mz = keyMz;
+      usedKeyboard = true;
     } else {
       if (Math.abs(extMx) > 0.001 || Math.abs(extMz) > 0.001) {
         mx = extMx;
         mz = extMz;
+        usedKeyboard = false;
       } else {
         mx = keyMx;
         mz = keyMz;
+        usedKeyboard = true;
       }
     }
+
+    // movement inversion handled centrally in getMoveDir for keyboard inputs
 
     // Auto-follow override on shape perimeter
     if (autoFollow && autoFollow.active) {

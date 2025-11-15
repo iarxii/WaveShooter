@@ -33,8 +33,149 @@ import FXOrbs from "./components/FXOrbs";
 import applyDamageToHero from "./utils/damage.js";
 import PlayerRadialHUD from "./components/PlayerRadialHUD.jsx";
 import { verifyRegisteredAssets, assetUrl } from "./utils/assetPaths.ts";
+import useGamepadControls from "./utils/gamepad";
+import { getAccessibility, onAccessibilityChange, updateAccessibility } from "./utils/accessibility";
+import { GridHelper } from "three";
 
 const LOGO = assetUrl("Healthcare_Heroes_3d_logo.png");
+
+// Axis preview component (module-level) shows current refs for debugging accessibility adjustments
+function AxisPreview({ moveRef, aimRef }) {
+  const [vals, setVals] = React.useState({ mx: 0, mz: 0, ax: 0, az: 0 });
+  React.useEffect(() => {
+    let r = 0;
+    const loop = () => {
+      const m = moveRef.current || { x: 0, z: 0 };
+      const a = aimRef.current || { x: 0, z: 0 };
+      setVals((v) => {
+        const mx = Number(m.x.toFixed(2));
+        const mz = Number(m.z.toFixed(2));
+        const ax = Number(a.x.toFixed(2));
+        const az = Number(a.z.toFixed(2));
+        if (v.mx === mx && v.mz === mz && v.ax === ax && v.az === az) return v;
+        return { mx, mz, ax, az };
+      });
+      r = requestAnimationFrame(loop);
+    };
+    r = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(r);
+  }, [moveRef, aimRef]);
+  return (
+    <div style={{ fontSize: 11, lineHeight: "14px", marginTop: 4, color: "#cbd5e1" }}>
+      <div>Move: x {vals.mx} z {vals.mz}</div>
+      <div>Aim: x {vals.ax} z {vals.az}</div>
+    </div>
+  );
+}
+
+// Small on-screen debug overlay that mirrors accessibility changes
+function AccessibilityDebugOverlay() {
+  const [logs, setLogs] = useState([]);
+  const [fixed, setFixed] = useState(() => {
+    try {
+      return localStorage.getItem("accessibilityDebug:fixed") === "1";
+    } catch { return true }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("accessibilityDebug:fixed", fixed ? "1" : "0") } catch {}
+  }, [fixed]);
+  useEffect(() => {
+    const unsub = onAccessibilityChange((s) => {
+      const ts = new Date().toLocaleTimeString();
+      setLogs((prev) => [{ ts, msg: JSON.stringify(s) }, ...prev].slice(0, 20));
+    });
+    return () => {
+      try { unsub && unsub(); } catch {}
+    };
+  }, []);
+  if (!logs || logs.length === 0) return null;
+  const baseStyle = {
+    background: "rgba(0,0,0,0.66)", padding: 8, borderRadius: 6, zIndex: 9999, fontSize: 12, color: "#e5e7eb", maxWidth: 360
+  };
+  const fixedStyle = { position: "fixed", left: 350, bottom: 8 };
+  const inlineStyle = { position: "relative", marginTop: 8 };
+  return (
+    <div className={`access-overlay ${fixed ? "fixed" : "inline"}`} style={{ ...(fixed ? fixedStyle : inlineStyle), ...baseStyle }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <strong style={{ fontSize: 12 }}>Accessibility Log</strong>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="button" style={{ fontSize: 11, padding: "4px 6px" }} onClick={() => setLogs([])}>Clear</button>
+          <button
+            className="button"
+            style={{ fontSize: 11, padding: "4px 6px" }}
+            onClick={() => setFixed((f) => !f)}
+            title={fixed ? "Unfix overlay (place inside parent)" : "Fix overlay (viewport)"}
+          >
+            {fixed ? "Unfix" : "Fix"}
+          </button>
+        </div>
+      </div>
+      <div style={{ maxHeight: 220, overflow: "auto" }}>
+        {logs.map((l, i) => (
+          <div key={i} style={{ opacity: 0.95, marginBottom: 6 }}>
+            <div style={{ color: "#9ca3af", fontSize: 11 }}>{l.ts}</div>
+            <div style={{ fontFamily: "monospace", fontSize: 11 }}>{l.msg}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 3D Axis + Gizmo helper: shows global X / Z axes, grid plane, and live move/aim arrows
+function AxisGizmo({ moveRef, aimRef, visible = false }) {
+  const groupRef = React.useRef();
+  const xAxis = React.useMemo(() => new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0.05, 0), 8, 0xff4444), []);
+  const zAxis = React.useMemo(() => new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0.05, 0), 8, 0x4444ff), []);
+  const moveArrow = React.useMemo(() => new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0.06, 0), 6, 0x22c55e), []);
+  const aimArrow = React.useMemo(() => new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0.07, 0), 6, 0xffff00), []);
+  const grid = React.useMemo(() => new THREE.GridHelper(40, 40, 0x666666, 0x333333), []);
+
+  React.useEffect(() => {
+    // position grid slightly above ground to avoid z-fighting
+    grid.position.y = 0.01;
+    xAxis.visible = visible;
+    zAxis.visible = visible;
+    moveArrow.visible = visible;
+    aimArrow.visible = visible;
+    grid.visible = visible;
+  }, [visible, xAxis, zAxis, moveArrow, aimArrow, grid]);
+
+  useFrame(() => {
+    const v = moveRef?.current || { x: 0, z: 0 };
+    const a = aimRef?.current || { x: 0, z: 0 };
+    const mLen = Math.hypot(v.x, v.z) || 0.0001;
+    const aLen = Math.hypot(a.x, a.z) || 0.0001;
+    // update move arrow direction/length
+    moveArrow.setDirection(new THREE.Vector3(v.x / mLen, 0, v.z / mLen));
+    moveArrow.setLength(Math.min(8, mLen * 8));
+    // update aim arrow
+    aimArrow.setDirection(new THREE.Vector3(a.x / aLen, 0, a.z / aLen));
+    aimArrow.setLength(Math.min(10, aLen * 10));
+    // keep axes visible state synced
+    const vis = !!visible;
+    xAxis.visible = vis;
+    zAxis.visible = vis;
+    moveArrow.visible = vis;
+    aimArrow.visible = vis;
+    grid.visible = vis;
+  });
+
+  return (
+    <group ref={groupRef}>
+      <primitive object={grid} />
+      <primitive object={xAxis} />
+      <primitive object={zAxis} />
+      <primitive object={moveArrow} />
+      <primitive object={aimArrow} />
+      {/* Axis labels (Text faces camera by default) */}
+      <Text position={[9, 0.1, 0]} fontSize={0.8} color="#ff6666">+X</Text>
+      <Text position={[-9, 0.1, 0]} fontSize={0.8} color="#ff6666">-X</Text>
+      <Text position={[0, 0.1, 9]} fontSize={0.8} color="#6699ff">+Z</Text>
+      <Text position={[0, 0.1, -9]} fontSize={0.8} color="#6699ff">-Z</Text>
+    </group>
+  );
+}
 
 // GAME CONSTANTS
 const PLAYER_SPEED = 24; // faster than minions to keep mobility advantage
@@ -1788,13 +1929,13 @@ function Player({
       if (e.key === "1") {
         window.dispatchEvent(
           new CustomEvent("heroTunerCommand", {
-            detail: { type: "shapeRunner", mode: "cw" },
+            detail: { type: "shapeRunner", mode: "ccw" },
           })
         );
       } else if (e.key === "2") {
         window.dispatchEvent(
           new CustomEvent("heroTunerCommand", {
-            detail: { type: "shapeRunner", mode: "ccw" },
+            detail: { type: "shapeRunner", mode: "cw" },
           })
         );
       } else if (e.key === "3") {
@@ -5332,7 +5473,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
           clearPickupInvulnTimeouts();
           applyPickupInvulnState({
             invulnerable: true,
-            movementMul: 0.2,
+            movementMul: 0.5,
             movementLocked: false,
             source: "bombs",
           });
@@ -6277,6 +6418,69 @@ export default function App({ navVisible, setNavVisible } = {}) {
   // Right-stick aim input (normalized x/z). Updated directly by right AnalogStick when touch controls active.
   const aimInputRef = useRef({ x: 0, z: 0 });
 
+  // Accessibility: shared invert flags for controller axes
+  const [acc, setAcc] = useState(() => getAccessibility());
+  useEffect(() => {
+    const unsub = onAccessibilityChange((s) => setAcc(s));
+    return () => { try { unsub?.() } catch {} };
+  }, []);
+
+  // Gizmo toggle for axis preview in 3D scene
+  const [showGizmo, setShowGizmo] = useState(false);
+
+  // Controller support: Xbox One (PDP) & PS4 via standard mapping
+  // derive effective inversion flags by XORing accessibility setting with shared flipControllerY flag
+  const effectiveInvertMoveY = (!!acc?.invertMoveY) !== !!acc?.flipControllerY;
+  const effectiveInvertAimY = (!!acc?.invertAimY) !== !!acc?.flipControllerY;
+
+  useGamepadControls({
+    moveRef: dpadVecRef,
+    aimRef: aimInputRef,
+    setAutoFire: setAutoFire,
+    getAutoFire: () => autoFire,
+    onTogglePause: useCallback(() => {
+      if (!isStartedRef.current) return;
+      if (isGameOverRef.current || (respawnRef.current && respawnRef.current > 0)) return;
+      setIsPaused((prev) => !prev);
+    }, []),
+    onDash: useCallback(() => {
+      if (!isStartedRef.current || isPausedRef.current || isGameOverRef.current) return;
+      if (dashCooldownRef.current > 0) return;
+      setDashTriggerToken((t) => t + 1);
+      setDashCooldownMs(10000);
+      dashInvulnUntilRef.current = performance.now() + 250;
+    }, []),
+    onToggleFireMode: useCallback(() => {
+      setAutoFire((v) => !v);
+    }, []),
+    onHeavyAttack: useCallback(() => {
+      try { window.dispatchEvent(new CustomEvent("heroTunerCommand", { detail: { type: "heroAction", action: "heavyAttack" } })); } catch {}
+    }, []),
+    onJump: useCallback(() => {
+      try { window.dispatchEvent(new CustomEvent("heroTunerCommand", { detail: { type: "heroAction", action: "jump" } })); } catch {}
+    }, []),
+    onPickupHold: useCallback((pressed) => {
+      // Placeholder: could set a ref/state if needed
+      (window.__pickupHoldState = pressed);
+    }, []),
+    onShapeRunCW: useCallback(() => {
+      try { window.dispatchEvent(new CustomEvent("heroTunerCommand", { detail: { type: "shapeRunner", mode: "cw" } })); } catch {}
+    }, []),
+    onShapeRunCCW: useCallback(() => {
+      try { window.dispatchEvent(new CustomEvent("heroTunerCommand", { detail: { type: "shapeRunner", mode: "ccw" } })); } catch {}
+    }, []),
+    onSpecialAttack: useCallback(() => {
+      try { window.dispatchEvent(new CustomEvent("heroTunerCommand", { detail: { type: "heroAction", action: "special" } })); } catch {}
+    }, []),
+    deadzone: 0.18,
+    aimDeadzone: 0.18,
+    aimSensitivity: 1.0,
+    invertMoveX: !!acc?.invertMoveX,
+    invertMoveY: effectiveInvertMoveY,
+    invertAimX: !!acc?.invertAimX,
+    invertAimY: effectiveInvertAimY,
+  });
+
   const handlePointerMove = useCallback((e) => {
     const x = e.clientX;
     const y = e.clientY;
@@ -6303,6 +6507,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
           <AdaptiveDpr pixelated />
           {/* HDRI-based lighting, fog, and exposure control */}
           <SceneEnvironment />
+          {/* 3D debug gizmo (axes + arrows) */}
+          <AxisGizmo moveRef={dpadVecRef} aimRef={aimInputRef} visible={showGizmo} />
           {/* Performance collectors (no-op unless overlay or marks are read) */}
           <PerfCollector enabled={true} />
           <PerfLongTaskObserver enabled={true} />
@@ -7404,6 +7610,50 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   >
                     Auto-Fire: {autoFire ? "On" : "Off"} (F)
                   </button>
+
+                  {/* Accessibility: invert movement & aim axes */}
+                  <div style={{ marginTop: 10, padding: '8px 10px', background: 'rgba(0,0,0,0.35)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div style={{ fontSize: 12, color: '#e5e7eb', marginBottom: 6 }}>Accessibility (Axes)</div>
+                    <label style={{ display: 'block', fontSize: 11, marginBottom: 4 }}>
+                      <input
+                        type="checkbox"
+                        checked={!!acc?.invertMoveX}
+                        onChange={(e) => updateAccessibility({ invertMoveX: e.currentTarget.checked })}
+                      /> Invert Move X (Left/Right)
+                    </label>
+                    <label style={{ display: 'block', fontSize: 11, marginBottom: 4 }}>
+                      <input
+                        type="checkbox"
+                        checked={!!acc?.invertMoveY}
+                        onChange={(e) => updateAccessibility({ invertMoveY: e.currentTarget.checked })}
+                      /> Invert Move Y (Forward/Back)
+                    </label>
+                    <label style={{ display: 'block', fontSize: 11, marginBottom: 4 }}>
+                      <input
+                        type="checkbox"
+                        checked={!!acc?.invertAimX}
+                        onChange={(e) => updateAccessibility({ invertAimX: e.currentTarget.checked })}
+                      /> Invert Aim X
+                    </label>
+                    <label style={{ display: 'block', fontSize: 11, marginBottom: 6 }}>
+                      <input
+                        type="checkbox"
+                        checked={!!acc?.invertAimY}
+                        onChange={(e) => updateAccessibility({ invertAimY: e.currentTarget.checked })}
+                      /> Invert Aim Y
+                    </label>
+                    {/* Live axis preview */}
+                    <AxisPreview moveRef={dpadVecRef} aimRef={aimInputRef} />
+                    <AccessibilityDebugOverlay />
+                    <div style={{ marginTop: 8 }}>
+                      <label style={{ display: 'block', fontSize: 11 }}>
+                        <input type="checkbox" checked={showGizmo} onChange={(e) => setShowGizmo(e.currentTarget.checked)} /> Show 3D Gizmo (axes + arrows)
+                      </label>
+                      <label style={{ display: 'block', fontSize: 11, marginTop: 6 }}>
+                        <input type="checkbox" checked={!!acc?.flipControllerY} onChange={(e) => updateAccessibility({ flipControllerY: e.currentTarget.checked })} /> Flip Controller Y axes (invert forward/back for both sticks)
+                      </label>
+                    </div>
+                  </div>
 
                   <div style={{ height: 10 }} />
                 </CollapsiblePanel>
@@ -9039,6 +9289,8 @@ function DPad({ onVectorChange }) {
     left: false,
     right: false,
   });
+
+  
 
   const update = useCallback(() => {
     const x = (active.current.right ? 1 : 0) - (active.current.left ? 1 : 0);

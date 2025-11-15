@@ -4,6 +4,7 @@ import { SkeletonUtils } from 'three-stdlib'
 import { useFBX, useAnimations, Html, Stats, AdaptiveDpr } from '@react-three/drei'
 import { useThree, useFrame } from '@react-three/fiber'
 import * as perf from '../../perf'
+import { getAccessibility, onAccessibilityChange, updateAccessibility } from '../../utils/accessibility'
 // Import a sample clip so even the default map resolves to a bundled URL
 // Use a sample FBX without spaces in the filename to avoid path resolution edge-cases on some setups
 import { assetUrl } from '../../utils/assetPaths'
@@ -205,8 +206,12 @@ export function HeroAnimTester({
   const [dumpToken, setDumpToken] = useState<number>(0)
   const [disableClone, setDisableClone] = useState<boolean>(false)
   const [invertDir, setInvertDir] = useState<boolean>(() => {
-    try { return (localStorage.getItem('invertDirections') === '1' || localStorage.getItem('invertDirections') === 'true') } catch { return false }
+    try { const acc = getAccessibility(); return !!(acc.invertMoveX && acc.invertMoveY) } catch { return false }
   })
+  useEffect(() => {
+    const unsub = onAccessibilityChange((s) => { setInvertDir(!!(s.invertMoveX && s.invertMoveY)) })
+    return () => { try { unsub?.() } catch {} }
+  }, [])
   // Random shape runner poses
   const poseModules = useMemo(() => (import.meta as any).glob('../../assets/models/dr_dokta_anim_poses/action_poses/*.fbx', { eager: true }) as Record<string, any>, [])
   const poseUrls = useMemo(() => Object.values(poseModules).map((m: any) => m?.default).filter(Boolean) as string[], [poseModules])
@@ -233,10 +238,7 @@ export function HeroAnimTester({
     })
   }, [anims, poseUrls])
 
-  // Persist invert setting
-  useEffect(() => {
-    try { localStorage.setItem('invertDirections', invertDir ? '1' : '0') } catch { }
-  }, [invertDir])
+  // Invert persistence now handled by accessibility module
 
   // Cleanup object URLs
   useEffect(() => {
@@ -470,7 +472,11 @@ export function HeroAnimTester({
                 <input type="checkbox" checked={useAdaptiveDpr} onChange={(e) => setUseAdaptiveDpr(e.currentTarget.checked)} /> AdaptiveDpr
               </label>
               <label style={{ marginRight: 10 }}>
-                <input type="checkbox" checked={invertDir} onChange={(e) => setInvertDir(e.currentTarget.checked)} /> Invert directions
+                <input type="checkbox" checked={invertDir} onChange={(e) => {
+                  const v = e.currentTarget.checked
+                  setInvertDir(v)
+                  updateAccessibility({ invertMoveX: v, invertMoveY: v })
+                }} /> Invert directions
               </label>
               <label style={{ marginRight: 10 }}>
                 <input type="checkbox" checked={easeEnabled} onChange={(e) => setEaseEnabled(e.currentTarget.checked)} /> Ease transitions
