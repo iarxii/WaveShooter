@@ -145,8 +145,7 @@ function PosePanel() {
         </div>
     )
 }
-import { HeroAnimTester } from '../heroes/factory/HeroAnimTester'
-import { defaultAnimMap } from '../heroes/factory/defaultAnimMap'
+import { HeroAnimTester, defaultAnimMap } from '../heroes/factory/HeroAnimTester'
 import FXOrbs from '../components/FXOrbs'
 import { liteSwordShieldMap } from '../heroes/factory/animMaps/liteSwordShieldMap'
 import type { HeroSpec } from '../heroes/factory/HeroSpec'
@@ -196,20 +195,18 @@ export default function HeroTuner() {
         window.addEventListener('keyup', up)
         return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
     }, [])
-    // Preload any user-selected FBX clips only when the Anim Viewer is active
+    // Preload any user-selected FBX clips for the anim viewer
     React.useEffect(() => {
-        if (source !== 'animViewer') return
         const unique = Array.from(new Set(animUrls.filter(Boolean)))
         unique.forEach(u => { if (/\.fbx($|\?)/i.test(u)) { try { (useFBX as any).preload?.(u) } catch {} } })
         if (backflipUrl && /\.fbx($|\?)/i.test(backflipUrl)) { try { (useFBX as any).preload?.(backflipUrl) } catch {} }
-    }, [animUrls, backflipUrl, source])
-    // Preload pose viewer asset only when Pose Viewer is active (source === 'pose')
+    }, [animUrls, backflipUrl])
+    // Preload pose viewer asset
     React.useEffect(() => {
-        if (source !== 'pose') return
         if (!poseUrl) return
         if (/\.fbx($|\?)/i.test(poseUrl)) { try { (useFBX as any).preload?.(poseUrl) } catch {} }
         else { try { (useGLTF as any).preload?.(poseUrl) } catch {} }
-    }, [poseUrl, source])
+    }, [poseUrl])
     // Anim Viewer keyboard shortcuts
     React.useEffect(() => {
         if (source !== 'animViewer') return
