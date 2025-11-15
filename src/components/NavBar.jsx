@@ -6,10 +6,42 @@ import { ENV_OPTIONS_ORDERED } from '../environments/environments'
 
 import LOGO from '../assets/Healthcare_Heroes_3d_logo.png'
 
-export default function NavBar({ hidden = false }) {
+export default function NavBar({ hidden = false, navVisible, setNavVisible }) {
   const loc = useLocation()
   // Always show the navbar on the landing page regardless of the `hidden` prop
-  if (hidden && loc.pathname !== '/') return null
+  // If hidden, we still want a compact toggle on 3D/game-tool pages so user can unhide the bar.
+  // Do NOT show the toggle on Landing (`/`) or Character viewer (`/characters`).
+  const NO_TOGGLE_PATHS = ['/', '/characters']
+  const allowTogglePaths = [
+    '/game',
+    '/randomizer',
+    '/hero-tuner',
+    '/avatar-tuner',
+    '/env-factory',
+    '/scene-viewer',
+    '/pathogen-demo',
+    '/special-boss-viewer',
+    '/modes',
+  ]
+  if (hidden) {
+    if (NO_TOGGLE_PATHS.includes(loc.pathname)) return null
+    // If we're on an allowed 3D view, render a compact floating toggle so user can reveal the navbar
+    if (allowTogglePaths.includes(loc.pathname) && typeof setNavVisible === 'function') {
+      return (
+        <div style={{ position: 'fixed', top: 8, right: 12, zIndex: 1010 }}>
+          <button
+            onClick={() => setNavVisible(v => !v)}
+            title={navVisible ? 'Hide Menu' : 'Show Menu'}
+            className="button"
+            style={{ padding: '6px 10px', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+          >
+            <span aria-hidden style={{ fontSize: 14 }}>{navVisible ? '✕' : '☰'}</span>
+          </button>
+        </div>
+      )
+    }
+    return null
+  }
   const isActive = (p) => loc.pathname === p
   const { envId, setEnvId, cycle } = useEnvironment()
   const [perfMode, setPerfMode] = React.useState(() => {
@@ -20,7 +52,7 @@ export default function NavBar({ hidden = false }) {
   React.useEffect(()=>{ window.dispatchEvent(new CustomEvent('perfModeChange', { detail: { perfMode } })) }, [perfMode])
   const options = ENV_OPTIONS_ORDERED
   return (
-    <div className="navbar" style={{position:'fixed',top:0,left:0,right:0,display:'flex',gap:12,alignItems:'center',padding:'8px 12px',background:'rgba(0, 85, 64, 0.6)',backdropFilter:'blur(4px)',zIndex:10}}>
+    <div className="navbar" style={{position:'fixed',top:0,left:0,right:0,display:'flex',gap:12,alignItems:'center',padding:'8px 12px',background:'rgba(0, 85, 64, 0.6)',backdropFilter:'blur(4px)',zIndex:1010}}>
       <div style={{height:'60px'}}>
         <img src={LOGO} alt="Logo" style={{height:'100%',width:'auto',objectFit:'contain'}} />
       </div>
@@ -64,6 +96,19 @@ export default function NavBar({ hidden = false }) {
       <div style={{marginLeft:'auto', display:'flex', alignItems:'center'}}>
         <SoundDropdown />
       </div>
+
+      {/* compact Nav toggle button (shows only when parent passed a setter) */}
+      {typeof setNavVisible === 'function' && (
+        <button
+          onClick={() => setNavVisible(v => !v)}
+          title={navVisible ? 'Hide Menu' : 'Show Menu'}
+          className="button"
+          style={{ marginLeft: 12, padding: '6px 10px', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+        >
+          {/* simple hamburger / close icon */}
+          <span aria-hidden style={{ fontSize: 14 }}>{navVisible ? '✕' : '☰'}</span>
+        </button>
+      )}
     </div>
   )
 }

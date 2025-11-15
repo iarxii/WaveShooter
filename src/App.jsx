@@ -32,7 +32,9 @@ import * as perf from "./perf.ts";
 import FXOrbs from "./components/FXOrbs";
 import applyDamageToHero from "./utils/damage.js";
 import PlayerRadialHUD from "./components/PlayerRadialHUD.jsx";
-import { verifyRegisteredAssets } from "./utils/assetPaths.ts";
+import { verifyRegisteredAssets, assetUrl } from "./utils/assetPaths.ts";
+
+const LOGO = assetUrl("Healthcare_Heroes_3d_logo.png");
 
 // GAME CONSTANTS
 const PLAYER_SPEED = 24; // faster than minions to keep mobility advantage
@@ -2846,8 +2848,32 @@ export default function App({ navVisible, setNavVisible } = {}) {
   }, [showPlayerLabelPlaceholder]);
 
   const pushPlayerLabel = useCallback((text, lifetimeMs = 2200) => {
+    // Map known label keywords to emojis for better status awareness
+    const t = (text || "").toString();
+    const U = t.toUpperCase();
+    let emoji = "";
+    if (U.includes("INVULNERABLE") || U.includes("INVULN")) emoji = "🟨 ";
+    else if (U.includes("SLOWED")) emoji = "🐌 ";
+    else if (U.includes("CORROSION")) emoji = "🔥 ";
+    else if (U.includes("LASER")) emoji = "🔴 ";
+    else if (U.includes("BOMB")) emoji = "💣 ";
+    else if (U.includes("PULSE")) emoji = "⭕ ";
+    else if (U.includes("BOOST") || U.includes("SPEED")) emoji = "⚡ ";
+    else if (U.includes("1UP") || U.includes("LIFE")) emoji = "💖 ";
+    else if (U.includes("HP") || U.includes("HEALTH")) emoji = "🟢 ";
+    else if (U.includes("AP")) {
+      // Armour/AP: positive AP gets blue square, negative AP (leading '-') gets swirl
+      const trimmed = t.trim();
+      if (trimmed.startsWith("-")) emoji = "🌀 ";
+      else emoji = "🟦 ";
+    } else if (U.includes("POWER")) {
+      // POWER may include a numeric amount; treat high-power (>=90) as special
+      const m = t.match(/(\d+)/);
+      const num = m ? parseInt(m[1], 10) : 0;
+      emoji = num >= 90 ? "💎 " : "🔷 ";
+    }
     const id = Date.now() + Math.random();
-    const evt = { id, text, start: performance.now() };
+    const evt = { id, text: `${emoji}${text}`, start: performance.now() };
     setPlayerLabelEvents((p) => [...p, evt]);
     // auto-remove after lifetime
     setTimeout(() => {
@@ -2859,6 +2885,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const [lasersEffect, setLasersEffect] = useState({ active: false });
   const lasersRemainingRef = useRef(0);
   const lasersActiveRef = useRef(false);
+  const lasersStartRef = useRef(0);
   const [healthEffect, setHealthEffect] = useState({ active: false });
   // Last known aim direction for laser beam visuals
   const lastLaserAimRef = useRef(new THREE.Vector3(0, 0, -1));
@@ -2973,6 +3000,31 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const invulnActiveRef = useRef(false);
   useEffect(() => {
     invulnActiveRef.current = invulnEffect.active;
+  }, [invulnEffect.active]);
+  // Pickup-driven invulnerability / movement modifiers (derived state)
+  const [pickupInvulnState, setPickupInvulnState] = useState({
+    invulnerable: false,
+    movementMul: 1,
+    movementLocked: false,
+    source: null,
+  });
+  const pickupInvulnRef = useRef({
+    invulnerable: false,
+    movementMul: 1,
+    movementLocked: false,
+    source: null,
+  });
+  // Track timeouts for clearing staged phases (so we can cancel if a new pickup arrives)
+  const pickupInvulnTimeoutsRef = useRef([]);
+  const clearPickupInvulnTimeouts = useCallback(() => {
+    (pickupInvulnTimeoutsRef.current || []).forEach((id) => clearTimeout(id));
+    pickupInvulnTimeoutsRef.current = [];
+  }, []);
+  const applyPickupInvulnState = useCallback((s) => {
+    pickupInvulnRef.current = s;
+    setPickupInvulnState(s);
+    // Ensure global invuln marker includes pickup-driven invuln for damage checks
+    invulnActiveRef.current = !!s.invulnerable || !!invulnEffect.active;
   }, [invulnEffect.active]);
   // Test flag to force invulnerability (debug)
   const [invulnTest, setInvulnTest] = useState(() => {
@@ -5276,6 +5328,19 @@ export default function App({ navVisible, setNavVisible } = {}) {
           try {
             pushPlayerLabel("BOMB KIT");
           } catch {}
+          // While bomb kit is active, make player invulnerable but nearly immobilized
+          clearPickupInvulnTimeouts();
+          applyPickupInvulnState({
+            invulnerable: true,
+            movementMul: 0.1,
+            movementLocked: false,
+            source: "bombs",
+          });
+          pickupInvulnTimeoutsRef.current.push(
+            setTimeout(() => {
+              applyPickupInvulnState({ invulnerable: false, movementMul: 1, movementLocked: false, source: null });
+            }, BOMB_ABILITY_DURATION_MS)
+          );
         } else if (pickup.type === "armour") {
           // Armour topup: randomized AP between 10-50
           const amt = Math.max(
@@ -5300,10 +5365,19 @@ export default function App({ navVisible, setNavVisible } = {}) {
           try {
             play("powerup");
           } catch {}
+          // Grant brief invulnerability for armour top-up
+          clearPickupInvulnTimeouts();
+          applyPickupInvulnState({ invulnerable: true, movementMul: 1, movementLocked: false, source: "armour" });
+          pickupInvulnTimeoutsRef.current.push(
+            setTimeout(() => {
+              applyPickupInvulnState({ invulnerable: false, movementMul: 1, movementLocked: false, source: null });
+            }, 3000)
+          );
         } else if (pickup.type === "lasers") {
           // Laser array: high damage bullets that also affect cone boss; 10s
           lasersRemainingRef.current = 10000;
           setLasersEffect({ active: true });
+          try { lasersStartRef.current = performance.now(); } catch {}
           try {
             pushPlayerLabel("LASER ARRAY");
           } catch {}
@@ -5311,6 +5385,21 @@ export default function App({ navVisible, setNavVisible } = {}) {
             // Play the requested 5s charge then 5s explosion sequence
             playSequence && playSequence('laser-charge', 5000, 'laser-expl', 5000)
           } catch {}
+          // Laser array: staged movement rules
+          // First 5s: fully invulnerable and movement locked; next 5s: invulnerable + slow movement (10%)
+          clearPickupInvulnTimeouts();
+          applyPickupInvulnState({ invulnerable: true, movementMul: 0, movementLocked: true, source: 'lasers_phase1' });
+          pickupInvulnTimeoutsRef.current.push(
+            setTimeout(() => {
+              applyPickupInvulnState({ invulnerable: true, movementMul: 0.1, movementLocked: false, source: 'lasers_phase2' });
+              // final clear after remaining 5s
+              pickupInvulnTimeoutsRef.current.push(
+                setTimeout(() => {
+                  applyPickupInvulnState({ invulnerable: false, movementMul: 1, movementLocked: false, source: null });
+                }, 5000)
+              );
+            }, 5000)
+          );
         } else if (pickup.type === "shield") {
           // Shield bubble: keep enemies at distance for 5s
           shieldRemainingRef.current = 5000;
@@ -5405,6 +5494,14 @@ export default function App({ navVisible, setNavVisible } = {}) {
           scheduleBurst(3400, pickup.id);
           // clear active flag after 5s
           setTimeout(() => setPulseWaveEffect({ active: false }), 5200);
+          // Pulsewave: invulnerable and movement locked for the burst duration
+          clearPickupInvulnTimeouts();
+          applyPickupInvulnState({ invulnerable: true, movementMul: 0, movementLocked: true, source: 'pulsewave' });
+          pickupInvulnTimeoutsRef.current.push(
+            setTimeout(() => {
+              applyPickupInvulnState({ invulnerable: false, movementMul: 1, movementLocked: false, source: null });
+            }, 5200)
+          );
         } else if (pickup.type === "life") {
           // If player already at max lives, restore to full health instead of wasting the 1UP
           const MAX_LIVES = 5;
@@ -6235,19 +6332,75 @@ export default function App({ navVisible, setNavVisible } = {}) {
               <SpeedBoostPlane key={sb.id} pos={sb.pos} isPaused={isPaused} />
             ))}
 
-          {/* Active laser beam (player) */}
-          {!isPaused && laserBeam && (
-            <LaserBeam
-              key={laserBeam.id}
-              pos={laserBeam.pos}
-              dir={laserBeam.dir}
-              isPaused={isPaused}
-              dmgPerSecond={48}
-              radius={0.9}
-              length={28}
-              onDamage={applyLaserDamage}
-            />
-          )}
+          {/* Active laser beam(s): when lasers power-up active, render a rotating array
+              that transitions at 6s to a forward beam; otherwise render the short-lived
+              beam produced by firing. */}
+          {!isPaused && (lasersEffect.active ? (
+            (() => {
+              const now = performance.now();
+              const start = lasersStartRef.current || 0;
+              const elapsed = Math.max(0, now - start);
+              const phaseTransitionMs = 6000;
+              // If we are before the 6s mark, render a spinning ring of beams
+              if (elapsed < phaseTransitionMs) {
+                const n = 12; // number of beams around the player
+                const rotSpeed = 0.9; // radians per second
+                const baseAngle = ((elapsed / 1000) * rotSpeed) % (Math.PI * 2);
+                const px = playerPosRef.current.x;
+                const py = playerPosRef.current.y + 0.6;
+                const pz = playerPosRef.current.z;
+                return (
+                  <group>
+                    {Array.from({ length: n }).map((_, i) => {
+                      const a = baseAngle + (i * (Math.PI * 2)) / n;
+                      const dx = Math.cos(a);
+                      const dz = Math.sin(a);
+                      return (
+                        <LaserBeam
+                          key={`spin-${i}-${Math.floor(baseAngle*100)}`}
+                          pos={[px, py, pz]}
+                          dir={[dx, 0, dz]}
+                          isPaused={isPaused}
+                          dmgPerSecond={36}
+                          radius={0.6}
+                          length={26}
+                          onDamage={applyLaserDamage}
+                        />
+                      );
+                    })}
+                  </group>
+                );
+              }
+              // After the 6s mark, transition to a forward-focused beam until lasersEffect clears
+              const aim = lastLaserAimRef.current || new THREE.Vector3(0, 0, -1);
+              const forwardPos = new THREE.Vector3().copy(playerPosRef.current).addScaledVector(aim, 1.0);
+              return (
+                <LaserBeam
+                  key={`laser-forward-${Math.floor(elapsed)}`}
+                  pos={[forwardPos.x, forwardPos.y + 0.2, forwardPos.z]}
+                  dir={[aim.x, aim.y, aim.z]}
+                  isPaused={isPaused}
+                  dmgPerSecond={72}
+                  radius={1.1}
+                  length={40}
+                  onDamage={applyLaserDamage}
+                />
+              );
+            })()
+          ) : (
+            laserBeam && (
+              <LaserBeam
+                key={laserBeam.id}
+                pos={laserBeam.pos}
+                dir={laserBeam.dir}
+                isPaused={isPaused}
+                dmgPerSecond={48}
+                radius={0.9}
+                length={28}
+                onDamage={applyLaserDamage}
+              />
+            )
+          ))}
 
           {/* Bouncer telegraphs and launched bouncers */}
           {!isPaused &&
@@ -6286,7 +6439,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
             speedBoosts={speedBoosts}
             bouncers={bouncers}
             boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
-            invulnActive={invulnEffect.active || invulnTest}
+            invulnActive={invulnEffect.active || invulnTest || pickupInvulnState.invulnerable}
+            pickupInvulnState={pickupInvulnState}
             primaryColor={heroPrimaryColor}
             heroName={selectedHero}
             heroRenderMode={heroRenderMode}
@@ -6294,6 +6448,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
             heroVisualScale={(heroQuality === "low" ? 2 : 3) * assetScale}
             powerActive={powerEffect.active}
             powerAmount={powerEffect.amount}
+            lasersActive={lasersEffect.active}
             shieldStackToken={lifeShieldToken}
             fxOrbCount={debugFxOrbCount}
             autoFollow={autoFollowSpec}
@@ -7011,8 +7166,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
 
       {/* Left Panel: Player and Boss info always visible; Accessibility under Debug toggle */}
       {(() => {
-  const HEALTH_MAX = 100;
-  const ARMOR_MAX = 100;
+        const HEALTH_MAX = 100;
+        const ARMOR_MAX = 100;
         const dashTotalMs = 10000;
         const heroDef = HEROES.find((h) => h.name === selectedHero);
 
@@ -8456,7 +8611,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
       {!isStarted && (
         <div className="pause-overlay">
           <div className="pause-content accent">
-            <h2>Healthcare Heroes: Harzard Wave Battle</h2>
+            <img src={LOGO} alt="Wave Battle Logo" style={{height: 100, width: 'auto'}} />
+            <h2>Battle the forces of Hazard in <b>Wave Battle</b>!</h2>
+            <p>Jump right in. Fight randomized enemy waves and climb the scoreboard. This will grow into a wave-based horde-shooter roguelite.</p>
             <p>
               Best — Score: <strong>{bestScore}</strong> • Wave:{" "}
               <strong>{bestWave}</strong>

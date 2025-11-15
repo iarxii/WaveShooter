@@ -7,6 +7,7 @@ import * as perf from '../../perf'
 // Import a sample clip so even the default map resolves to a bundled URL
 // Use a sample FBX without spaces in the filename to avoid path resolution edge-cases on some setups
 import { assetUrl } from '../../utils/assetPaths'
+import { defaultAnimMap } from './defaultAnimMap'
 const sampleRunBack = assetUrl('models/dr_dokta_anim_poses/Backflip.fbx')
 
 type ActionName =
@@ -46,8 +47,23 @@ function FBXAction({ url, active, scale = 0.01, onStatus, suppressWarnings = tru
   perf.end('loader_parse')
   const group = useRef<Group>(null!)
   // Create a unique deep clone so the same FBX URL can be used by multiple actions without reparenting flicker
-  const cloned = useMemo(() => (fbx ? SkeletonUtils.clone(fbx) : null), [fbx]) as any
-  const rootObj = useMemo(() => (disableClone ? fbx : cloned), [disableClone, fbx, cloned])
+  // Lazily clone only when this action becomes active to avoid many expensive clones at once
+  const clonedRef = useRef<any>(null)
+  useEffect(() => {
+    if (!fbx) return
+    if (disableClone) {
+      clonedRef.current = null
+      return
+    }
+    // Only clone when this action is active to avoid upfront work for inactive actions
+    if (active && !clonedRef.current) {
+      try { clonedRef.current = SkeletonUtils.clone(fbx) } catch { clonedRef.current = fbx }
+    }
+    return () => {
+      // Do not eagerly dispose here; Three's GC will reclaim when no references remain.
+    }
+  }, [fbx, disableClone, active])
+  const rootObj = useMemo(() => (disableClone ? fbx : (clonedRef.current || fbx)), [disableClone, fbx, clonedRef.current])
   // Bind animations directly to the rendered root object (clone or original) to ensure track target nodes resolve
   const { actions, names } = useAnimations(fbx?.animations || [], rootObj as any)
   // Cache first clip reference + playing state
@@ -206,9 +222,22 @@ export function HeroAnimTester({
   const [invertDir, setInvertDir] = useState<boolean>(() => {
     try { return (localStorage.getItem('invertDirections') === '1' || localStorage.getItem('invertDirections') === 'true') } catch { return false }
   })
-  // Random shape runner poses
-  const poseModules = useMemo(() => (import.meta as any).glob('../../assets/models/dr_dokta_anim_poses/action_poses/*.fbx', { eager: true }) as Record<string, any>, [])
-  const poseUrls = useMemo(() => Object.values(poseModules).map((m: any) => m?.default).filter(Boolean) as string[], [poseModules])
+  // Throttled preload controls (debug) with persistence
+  const [throttledPreloadEnabled, setThrottledPreloadEnabled] = useState<boolean>(() => {
+    try { return (localStorage.getItem('heroAnimThrottleEnabled') === '1') } catch { return false }
+  })
+  const [preloadThrottleMs, setPreloadThrottleMs] = useState<number>(() => {
+    try { const v = parseInt(localStorage.getItem('heroAnimPreloadMs') || '700', 10); return Number.isFinite(v) ? v : 700 } catch { return 700 }
+  })
+
+  // Persist throttle settings
+  useEffect(() => { try { localStorage.setItem('heroAnimThrottleEnabled', throttledPreloadEnabled ? '1' : '0') } catch {} }, [throttledPreloadEnabled])
+  useEffect(() => { try { localStorage.setItem('heroAnimPreloadMs', String(preloadThrottleMs)) } catch {} }, [preloadThrottleMs])
+  // Random shape runner poses (do NOT eager-load a large FBX pool - avoid GPU/context pressure)
+  // Use a lazy glob so files are resolved on-demand rather than preloading everything at startup.
+  const poseModules = useMemo(() => (import.meta as any).glob('../../assets/models/dr_dokta_anim_poses/action_poses/*.fbx') as Record<string, any>, [])
+  // Do not expand the lazy modules into URLs here to avoid heavy preloading; keep the list empty for now
+  const poseUrls: string[] = []
   const [overridePoseUrl, setOverridePoseUrl] = useState<string | null>(null)
 
   // Preload all mapped FBX URLs up-front to prevent remount hitches when user starts interacting
@@ -221,15 +250,28 @@ export function HeroAnimTester({
     })
     // Include random pose pool for shapeRunner overrides
     try { urls.push(...poseUrls) } catch {}
-    // Deduplicate
+    // Deduplicate and limit preloads to avoid GPU/context pressure from many FBX files.
+    // Disabled by default to avoid WebGL context loss during development.
     const seen = new Set<string>()
-    urls.forEach((u) => {
-      if (!u || seen.has(u)) return
+    // Throttled preload: disabled by default to avoid WebGL/context spikes.
+    // Enable manually via the debug panel 'Throttled Preload' toggle to load clips one-by-one.
+    const toPreload = [] as string[]
+    for (const u of urls) {
+      if (!u || seen.has(u)) continue
       seen.add(u)
-      if (/\.fbx($|\?)/i.test(u)) {
+      if (/\.fbx($|\?)/i.test(u)) toPreload.push(u)
+    }
+    if (!throttledPreloadEnabled || toPreload.length === 0) return
+    let cancelled = false
+    const timers: number[] = []
+    toPreload.forEach((u, i) => {
+      const id = window.setTimeout(() => {
+        if (cancelled) return
         try { (useFBX as any).preload?.(u) } catch { }
-      }
+      }, i * preloadThrottleMs)
+      timers.push(id)
     })
+    return () => { cancelled = true; timers.forEach(t => clearTimeout(t)) }
   }, [anims, poseUrls])
 
   // Persist invert setting
@@ -474,6 +516,13 @@ export function HeroAnimTester({
               <label style={{ marginRight: 10 }}>
                 <input type="checkbox" checked={easeEnabled} onChange={(e) => setEaseEnabled(e.currentTarget.checked)} /> Ease transitions
               </label>
+              <label style={{ marginRight: 10 }}>
+                <input type="checkbox" checked={throttledPreloadEnabled} onChange={(e) => setThrottledPreloadEnabled(e.currentTarget.checked)} /> Throttled Preload
+              </label>
+              <label style={{ marginRight: 10 }} title="Delay between successive preloads (ms)">
+                <input type="range" min={100} max={2000} step={50} value={preloadThrottleMs}
+                  onChange={(e) => setPreloadThrottleMs(Number((e.target as HTMLInputElement).value))} /> {preloadThrottleMs}ms
+              </label>
               <label>
                 <input type="checkbox" checked={!currentOnly} onChange={(e) => {
                   setCurrentOnly(!e.currentTarget.checked ? true : false)
@@ -551,19 +600,4 @@ export function HeroAnimTester({
 }
 
 // A convenience default map that points unknown actions to the provided sample
-export function defaultAnimMap(baseDir = 'src/assets/models/dr_dokta_anim_poses/Lite Sword and Shield Pack'): HeroAnimMap {
-  // NOTE: replace the placeholders below with exact filenames present in your pack.
-  // For now we reuse the known sample Standing Run Back for demonstration.
-  const runBack = sampleRunBack
-  return {
-    idle: runBack,
-    runForward: runBack,
-    runBackward: runBack,
-    strafeLeft: runBack,
-    strafeRight: runBack,
-    attackLight: runBack,
-    attackHeavy: runBack,
-    jump: runBack,
-    death: runBack,
-  }
-}
+// defaultAnimMap moved to `defaultAnimMap.ts` to keep exports stable for Fast Refresh

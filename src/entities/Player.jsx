@@ -57,8 +57,15 @@ function Player({
   shieldStackToken = 0,
   fireRateMs = null,
   fxOrbCount = null,
+  pickupInvulnState = { invulnerable: false, movementMul: 1, movementLocked: false },
+  lasersActive = false,
 }) {
   const ref = useRef();
+  const diamondRef = useRef();
+  const invulnActiveRefLocal = useRef(invulnActive);
+  useEffect(() => {
+    invulnActiveRefLocal.current = !!invulnActive;
+  }, [invulnActive]);
   const lastShot = useRef(0);
   const plane = useMemo(
     () => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
@@ -121,6 +128,7 @@ function Player({
     []
   );
   const landingGeom = useMemo(() => new THREE.RingGeometry(0.7, 0.8, 32), []);
+  // Diamond indicator will be created via JSX geometry/material for R3F compatibility
   // Buff/debuff and dash
   const debuffTimer = useRef(0);
   const dashing = useRef(false);
@@ -230,6 +238,16 @@ function Player({
       fxEventTimer.current = 1.0;
     }
   }, [powerActive, powerAmount]);
+
+  // Map lasers power-up to heavy attack animation while active
+  useEffect(() => {
+    if (lasersActive) {
+      setDoktaAction("attackHeavy");
+    } else {
+      // revert to idle when lasers finish (do not override other higher-priority actions)
+      setDoktaAction((prev) => (prev === "attackHeavy" ? "idle" : prev));
+    }
+  }, [lasersActive]);
 
   // Reset on respawn/restart
   useEffect(() => {
@@ -517,6 +535,26 @@ function Player({
     }
 
     // Aim handling
+
+    // Invulnerability diamond animation (hover & rotate)
+    try {
+      if (diamondRef.current) {
+        const active = !!invulnActiveRefLocal.current;
+        if (active) {
+          // base height scaled to heroVisualScale (approx head height)
+          const baseY = 1.6 * (heroVisualScale / 2 || 1);
+          const t = state.clock.getElapsedTime();
+          const bob = Math.sin(t * 3.0) * 0.12 + 0.06;
+          diamondRef.current.position.set(0, baseY + bob, 0);
+          diamondRef.current.rotation.y += dt * 2.2;
+          diamondRef.current.visible = true;
+        } else {
+          diamondRef.current.visible = false;
+        }
+      }
+    } catch (e) {
+      // swallow animation errors
+    }
     // If an external aim stick is provided (right-stick on touch), prefer that for free-aim
     if (
       aimInputRef &&
@@ -782,8 +820,18 @@ function Player({
       (moveSourceRef && moveSourceRef.current === "runner"
         ? RUNNER_SPEED_MULTIPLIER
         : 1) * debuffMul;
-    ref.current.position.x += mx * (baseSpeed * speedMul) * dt;
-    ref.current.position.z += mz * (baseSpeed * speedMul) * dt;
+    // Apply pickup-driven movement modifiers (lock or slow)
+    let effectiveMovementMul = speedMul;
+    if (pickupInvulnState && typeof pickupInvulnState.movementMul === "number") {
+      effectiveMovementMul = effectiveMovementMul * pickupInvulnState.movementMul;
+    }
+    if (pickupInvulnState && pickupInvulnState.movementLocked) {
+      // fully lock horizontal movement
+      mx = 0;
+      mz = 0;
+    }
+    ref.current.position.x += mx * (baseSpeed * effectiveMovementMul) * dt;
+    ref.current.position.z += mz * (baseSpeed * effectiveMovementMul) * dt;
     // Update hero factory controller live values
     heroCtrlRef.current.moveIntentX = mx;
     heroCtrlRef.current.moveIntentZ = mz;
@@ -1133,6 +1181,18 @@ function Player({
           opacity={highContrast ? 0.9 : 0.6}
         />
       </mesh>
+      {/* Invulnerability diamond indicator */}
+      <mesh ref={diamondRef} position={[0, 1.6, 0]} visible={false} renderOrder={999}>
+        <octahedronGeometry args={[0.45, 0]} />
+        <meshStandardMaterial
+          color={0xffdd44}
+          emissive={0xffee88}
+          emissiveIntensity={1.2}
+          metalness={0.6}
+          roughness={0.2}
+          transparent={true}
+        />
+      </mesh>
       {/* Jump charge ring */}
       <mesh
         ref={chargeRingRef}
@@ -1187,8 +1247,8 @@ import { assetUrl } from "../utils/assetPaths.ts";
 function HeroDokta() {
   // Prefer animated FBX if available; otherwise use static GLB
   let fbx = null,
-    gltf = null,
-    mixer = null;
+    gltf = null
+  const mixerRef = useRef(null)
   try {
     fbx = useFBX(assetUrl("models/dr_dokta_anim_poses/Standing Run Back.fbx"));
   } catch {}
@@ -1207,19 +1267,24 @@ function HeroDokta() {
     obj.rotation.y = Math.PI;
   }
   useEffect(() => {
-    let mixerLocal;
-    if (fbx && anim) {
-      mixerLocal = new THREE.AnimationMixer(fbx);
-      const action = mixerLocal.clipAction(anim);
-      action.play();
+    // Create and store mixer in a ref so the frame loop can update it
+    if (!fbx || !anim) return
+    try {
+      const mixerLocal = new THREE.AnimationMixer(fbx)
+      const action = mixerLocal.clipAction(anim)
+      action.play()
+      mixerRef.current = mixerLocal
+    } catch (e) {
+      mixerRef.current = null
     }
     return () => {
-      mixerLocal && mixerLocal.stopAllAction();
-    };
-  }, [fbx, anim]);
+      try { mixerRef.current?.stopAllAction?.() } catch {}
+      mixerRef.current = null
+    }
+  }, [fbx, anim])
   useFrame((_, dt) => {
-    if (mixer) mixer.update(dt);
-  });
+    try { if (mixerRef.current) mixerRef.current.update(dt) } catch {}
+  })
   return obj ? (
     <primitive object={obj} />
   ) : (

@@ -1,101 +1,73 @@
-Maximum update depth exceeded. This can happen when a component calls setState inside useEffect, but useEffect either doesn't have a dependency array, or one of the dependencies changes on every render.
+HeroAnimTester.tsx:45  THREE.FBXLoader: Vertex has more than 4 skinning weights assigned to vertex. Deleting additional weights.
 overrideMethod @ hook.js:608
-getRootForUpdatedFiber @ react-reconciler.development.js:1901
-enqueueConcurrentHookUpdate @ react-reconciler.development.js:1856
-dispatchSetStateInternal @ react-reconciler.development.js:5306
-dispatchSetState @ react-reconciler.development.js:5262
-(anonymous) @ HeroAnimTester.tsx:172
-update @ events-f8cd670d.esm.js:2244
-loop @ events-f8cd670d.esm.js:2275
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-HeroAnimTester.tsx:148  Maximum update depth exceeded. This can happen when a component calls setState inside useEffect, but useEffect either doesn't have a dependency array, or one of the dependencies changes on every render. Error Component Stack
-    at FBXAction (HeroAnimTester.tsx:26:22)
-    at ResolvedAction (HeroAnimTester.tsx:242:29)
-    at group (<anonymous>)
-    at HeroAnimTester (HeroAnimTester.tsx:100:3)
-    at group (<anonymous>)
-    at Suspense (<anonymous>)
-    at ErrorBoundary$1 (events-f8cd670d.esm.js:80:5)
-    at m (index.js:39:1)
-    at events-f8cd670d.esm.js:56:5
-    at Provider (events-f8cd670d.esm.js:2022:3)
+(anonymous) @ FBXLoader.js:1049
+genBuffers @ FBXLoader.js:1026
+genGeometry @ FBXLoader.js:919
+parseMeshGeometry @ FBXLoader.js:911
+parseGeometry @ FBXLoader.js:874
+parse @ FBXLoader.js:864
+parse @ FBXLoader.js:67
+parse @ FBXLoader.js:53
+(anonymous) @ FBXLoader.js:25
+(anonymous) @ three.core.js:44186
+Promise.then
+load @ three.core.js:44174
+load @ FBXLoader.js:21
+(anonymous) @ events-f8cd670d.esm.js:1221
+(anonymous) @ events-f8cd670d.esm.js:1221
+(anonymous) @ events-f8cd670d.esm.js:1221
+query @ index.js:51
+suspend @ index.js:68
+useLoader @ events-f8cd670d.esm.js:1237
+useFBX @ Fbx.js:8
+FBXAction @ HeroAnimTester.tsx:45
+react-stack-bottom-frame @ react-reconciler.development.js:14492
+renderWithHooks @ react-reconciler.development.js:3914
+updateFunctionComponent @ react-reconciler.development.js:6059
+beginWork @ react-reconciler.development.js:7632
+runWithFiberInDEV @ react-reconciler.development.js:522
+performUnitOfWork @ react-reconciler.development.js:12641
+workLoopSync @ react-reconciler.development.js:12461
+renderRootSync @ react-reconciler.development.js:12441
+performWorkOnRoot @ react-reconciler.development.js:11909
+performWorkOnRootViaSchedulerTask @ react-reconciler.development.js:2137
+performWorkUntilDeadline @ scheduler.development.js:44
+events-f8cd670d.esm.js:2259 [Violation] 'requestAnimationFrame' handler took 153ms
+4HeroAnimTester.tsx:232  THREE.FBXLoader: Vertex has more than 4 skinning weights assigned to vertex. Deleting additional weights.
 overrideMethod @ hook.js:608
-getRootForUpdatedFiber @ react-reconciler.development.js:1901
-enqueueConcurrentHookUpdate @ react-reconciler.development.js:1856
-dispatchSetStateInternal @ react-reconciler.development.js:5306
-dispatchSetState @ react-reconciler.development.js:5262
-(anonymous) @ HeroAnimTester.tsx:148
-(anonymous) @ HeroAnimTester.tsx:52
+(anonymous) @ FBXLoader.js:1049
+genBuffers @ FBXLoader.js:1026
+genGeometry @ FBXLoader.js:919
+parseMeshGeometry @ FBXLoader.js:911
+parseGeometry @ FBXLoader.js:874
+parse @ FBXLoader.js:864
+parse @ FBXLoader.js:67
+parse @ FBXLoader.js:53
+(anonymous) @ FBXLoader.js:25
+(anonymous) @ three.core.js:44186
+Promise.then
+load @ three.core.js:44174
+load @ FBXLoader.js:21
+(anonymous) @ events-f8cd670d.esm.js:1221
+(anonymous) @ events-f8cd670d.esm.js:1221
+(anonymous) @ events-f8cd670d.esm.js:1221
+query @ index.js:51
+preload @ index.js:70
+useLoader.preload @ events-f8cd670d.esm.js:1249
+useFBX.preload @ Fbx.js:10
+(anonymous) @ HeroAnimTester.tsx:232
+(anonymous) @ HeroAnimTester.tsx:228
 react-stack-bottom-frame @ react-reconciler.development.js:14573
 runWithFiberInDEV @ react-reconciler.development.js:522
 commitHookEffectListMount @ react-reconciler.development.js:9395
 commitHookPassiveMountEffects @ react-reconciler.development.js:9515
-commitPassiveMountOnFiber @ react-reconciler.development.js:11197
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11190
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11190
+reconnectPassiveEffects @ react-reconciler.development.js:11345
+recursivelyTraverseReconnectPassiveEffects @ react-reconciler.development.js:11317
+reconnectPassiveEffects @ react-reconciler.development.js:11392
+recursivelyTraverseReconnectPassiveEffects @ react-reconciler.development.js:11317
+commitPassiveMountOnFiber @ react-reconciler.development.js:11274
 recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
 commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11267
 recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
 commitPassiveMountOnFiber @ react-reconciler.development.js:11298
 recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
@@ -118,6 +90,8 @@ recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
 commitPassiveMountOnFiber @ react-reconciler.development.js:11298
 recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
 commitPassiveMountOnFiber @ react-reconciler.development.js:11298
+recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
+commitPassiveMountOnFiber @ react-reconciler.development.js:11190
 recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
 commitPassiveMountOnFiber @ react-reconciler.development.js:11190
 recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
@@ -147,297 +121,4 @@ commitPassiveMountOnFiber @ react-reconciler.development.js:11201
 flushPassiveEffects @ react-reconciler.development.js:13052
 (anonymous) @ react-reconciler.development.js:12921
 performWorkUntilDeadline @ scheduler.development.js:44
-2HeroAnimTester.tsx:172  Maximum update depth exceeded. This can happen when a component calls setState inside useEffect, but useEffect either doesn't have a dependency array, or one of the dependencies changes on every render.
-overrideMethod @ hook.js:608
-getRootForUpdatedFiber @ react-reconciler.development.js:1901
-enqueueConcurrentHookUpdate @ react-reconciler.development.js:1856
-dispatchSetStateInternal @ react-reconciler.development.js:5306
-dispatchSetState @ react-reconciler.development.js:5262
-(anonymous) @ HeroAnimTester.tsx:172
-update @ events-f8cd670d.esm.js:2244
-loop @ events-f8cd670d.esm.js:2275
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-HeroAnimTester.tsx:172  Maximum update depth exceeded. This can happen when a component calls setState inside useEffect, but useEffect either doesn't have a dependency array, or one of the dependencies changes on every render.
-overrideMethod @ hook.js:608
-getRootForUpdatedFiber @ react-reconciler.development.js:1901
-enqueueConcurrentHookUpdate @ react-reconciler.development.js:1856
-dispatchSetStateInternal @ react-reconciler.development.js:5306
-dispatchSetState @ react-reconciler.development.js:5262
-(anonymous) @ HeroAnimTester.tsx:172
-update @ events-f8cd670d.esm.js:2244
-loop @ events-f8cd670d.esm.js:2275
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-HeroAnimTester.tsx:172  Maximum update depth exceeded. This can happen when a component calls setState inside useEffect, but useEffect either doesn't have a dependency array, or one of the dependencies changes on every render.
-overrideMethod @ hook.js:608
-getRootForUpdatedFiber @ react-reconciler.development.js:1901
-enqueueConcurrentHookUpdate @ react-reconciler.development.js:1856
-dispatchSetStateInternal @ react-reconciler.development.js:5306
-dispatchSetState @ react-reconciler.development.js:5262
-(anonymous) @ HeroAnimTester.tsx:172
-update @ events-f8cd670d.esm.js:2244
-loop @ events-f8cd670d.esm.js:2275
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-requestAnimationFrame
-loop @ events-f8cd670d.esm.js:2260
-5HeroAnimTester.tsx:148  Maximum update depth exceeded. This can happen when a component calls setState inside useEffect, but useEffect either doesn't have a dependency array, or one of the dependencies changes on every render. Error Component Stack
-    at FBXAction (HeroAnimTester.tsx:26:22)
-    at ResolvedAction (HeroAnimTester.tsx:242:29)
-    at group (<anonymous>)
-    at HeroAnimTester (HeroAnimTester.tsx:100:3)
-    at group (<anonymous>)
-    at Suspense (<anonymous>)
-    at ErrorBoundary$1 (events-f8cd670d.esm.js:80:5)
-    at m (index.js:39:1)
-    at events-f8cd670d.esm.js:56:5
-    at Provider (events-f8cd670d.esm.js:2022:3)
-overrideMethod @ hook.js:608
-getRootForUpdatedFiber @ react-reconciler.development.js:1901
-enqueueConcurrentHookUpdate @ react-reconciler.development.js:1856
-dispatchSetStateInternal @ react-reconciler.development.js:5306
-dispatchSetState @ react-reconciler.development.js:5262
-(anonymous) @ HeroAnimTester.tsx:148
-(anonymous) @ HeroAnimTester.tsx:52
-react-stack-bottom-frame @ react-reconciler.development.js:14573
-runWithFiberInDEV @ react-reconciler.development.js:522
-commitHookEffectListMount @ react-reconciler.development.js:9395
-commitHookPassiveMountEffects @ react-reconciler.development.js:9515
-commitPassiveMountOnFiber @ react-reconciler.development.js:11197
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11190
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11190
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11267
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11190
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11190
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11190
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11190
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11190
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11190
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11190
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11190
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11190
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11298
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11190
-recursivelyTraversePassiveMountEffects @ react-reconciler.development.js:11171
-commitPassiveMountOnFiber @ react-reconciler.development.js:11201
-flushPassiveEffects @ react-reconciler.development.js:13052
-(anonymous) @ react-reconciler.development.js:12921
-performWorkUntilDeadline @ scheduler.development.js:44
-HeroAnimTester.tsx:172  Maximum update depth exceeded. This can happen when a component calls setState inside useEffect, but useEffect either doesn't have a dependency array, or one of the dependencies changes on every render.
+three.module.js:15856 THREE.WebGLRenderer: Context Lost.

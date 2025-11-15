@@ -44,10 +44,14 @@ export default function AppRouter() {
             <UISoundLayer />
             <RouteMusicSync />
             {/* Nav visibility: allow in-game toggle; Randomizer also toggleable via page controls */}
-            <NavBar hidden={
-              (window.location?.pathname === '/game' && !navVisible) ||
-              (window.location?.pathname === '/randomizer' && !navVisible)
-            } />
+            <NavBar
+              hidden={
+                (window.location?.pathname === '/game' && !navVisible) ||
+                (window.location?.pathname === '/randomizer' && !navVisible)
+              }
+              navVisible={navVisible}
+              setNavVisible={setNavVisible}
+            />
             <React.Suspense fallback={null}>
               <Routes>
                 <Route path="/" element={<Landing />} />

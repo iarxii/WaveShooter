@@ -258,7 +258,8 @@ export function SoundProvider({ children }) {
     a.src = def
     activeDeck.current = 'A'
     const tryPlay = () => {
-      if (!enabledRef.current) return
+      // require both global sound enabled and music enabled
+      if (!(enabledRef.current && musicEnabledRef.current)) return
       a.volume = musicVolumeRef.current
       a.play().then(() => { startedRef.current = true }).catch(() => {
         // Wait for first user interaction
@@ -310,7 +311,7 @@ export function SoundProvider({ children }) {
     a.src = url
     a.currentTime = 0
     a.volume = 0
-    const target = enabledRef.current ? musicVolumeRef.current : 0
+    const target = (enabledRef.current && musicEnabledRef.current) ? musicVolumeRef.current : 0
     a.play().catch(() => {})
     // simple fade-in, fade-out other
     const start = performance.now()
@@ -380,7 +381,8 @@ export function SoundProvider({ children }) {
   // react to enabled toggles for music
   useEffect(() => {
     const a = deckA.current, b = deckB.current
-    if (!enabled) {
+    // require both global sound and music toggle
+    if (!(enabled && musicEnabled)) {
       // Pause both decks while disabled to prevent stray 'ended' events
       if (a) { try { a.pause() } catch {} ; a.volume = 0 }
       if (b) { try { b.pause() } catch {} ; b.volume = 0 }
@@ -395,13 +397,14 @@ export function SoundProvider({ children }) {
       // resume if was paused
       active.play?.().catch(() => {})
     }
-  }, [enabled])
+  }, [enabled, musicEnabled])
 
   useEffect(() => {
     const a = deckA.current, b = deckB.current
-    if (a && activeDeck.current === 'A') a.volume = enabled ? musicVolume : 0
-    if (b && activeDeck.current === 'B') b.volume = enabled ? musicVolume : 0
-  }, [musicVolume, enabled])
+    const useVol = (enabled && musicEnabled) ? musicVolume : 0
+    if (a && activeDeck.current === 'A') a.volume = useVol
+    if (b && activeDeck.current === 'B') b.volume = useVol
+  }, [musicVolume, enabled, musicEnabled])
 
   const value = useMemo(() => ({
     // sfx
@@ -412,7 +415,12 @@ export function SoundProvider({ children }) {
     enabled, toggleEnabled,
     // new controls
     sfxEnabled, toggleSfxEnabled, musicEnabled, toggleMusicEnabled,
-  }), [play, volume, setVolume, musicVolume, setMusicVolume, setMusicScene, enabled, toggleEnabled])
+  }), [
+    play, playSequence, volume, setVolume,
+    musicVolume, setMusicVolume, setMusicScene,
+    enabled, toggleEnabled,
+    sfxEnabled, toggleSfxEnabled, musicEnabled, toggleMusicEnabled,
+  ])
   return (
     <SoundContext.Provider value={value}>
       {children}
