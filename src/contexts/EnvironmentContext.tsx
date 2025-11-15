@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { Environment as DreiEnvironment } from '@react-three/drei'
 import * as THREE from 'three'
 import { DEFAULT_ENV_ID, ENVIRONMENTS, type EnvId, type EnvironmentSpec, getEnvById } from '../environments/environments'
+import WorldSky from '../environments/WorldSky'
 import { ProceduralEnvironmentFactory } from '../environments/ProceduralEnvironmentFactory'
 
 interface EnvContextValue {
@@ -142,6 +143,26 @@ export function SceneEnvironment() {
   const ambientColor = env.ambient?.color ?? '#ffffff'
   const ambientIntensity = env.ambient?.intensity ?? 0.2
 
+  // World sky controls (procedural vs HDRI) -- read persisted values and listen for changes
+  const [proceduralSky, setProceduralSky] = React.useState(() => { try { return localStorage.getItem('use_procedural_sky') === '1' } catch { return false } })
+  const [infectionInfluence, setInfectionInfluence] = React.useState(() => { try { return parseFloat(localStorage.getItem('world_infection') || '0') } catch { return 0 } })
+  const [sunDirY, setSunDirY] = React.useState(() => { try { return parseFloat(localStorage.getItem('world_sunY') || '0.5') } catch { return 0.5 } })
+  React.useEffect(() => {
+    const onUse = (e: any) => { setProceduralSky(!!e?.detail) }
+    const onInfect = (e: any) => { setInfectionInfluence(typeof e?.detail === 'number' ? e.detail : parseFloat(e?.detail || 0)) }
+    const onSun = (e: any) => { setSunDirY(typeof e?.detail === 'number' ? e.detail : parseFloat(e?.detail || 0.5)) }
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'use_procedural_sky') setProceduralSky(e.newValue === '1')
+      if (e.key === 'world_infection') setInfectionInfluence(parseFloat(e.newValue || '0'))
+      if (e.key === 'world_sunY') setSunDirY(parseFloat(e.newValue || '0.5'))
+    }
+    window.addEventListener('use_procedural_sky_changed', onUse)
+    window.addEventListener('env_infection_changed', onInfect)
+    window.addEventListener('env_sun_changed', onSun)
+    window.addEventListener('storage', onStorage)
+    return () => { window.removeEventListener('use_procedural_sky_changed', onUse); window.removeEventListener('env_infection_changed', onInfect); window.removeEventListener('env_sun_changed', onSun); window.removeEventListener('storage', onStorage) }
+  }, [])
+
   // Render based on environment type
   if (env.type === 'procedural') {
     return (
@@ -159,7 +180,7 @@ export function SceneEnvironment() {
       </>
     )
   }
-  // HDRI mode
+  // HDRI mode or procedural sky
   if (perfModeRef.current) {
     // In perf mode, skip environment map to reduce fragment cost
     return (
@@ -169,14 +190,24 @@ export function SceneEnvironment() {
       </>
     )
   }
+
   return (
     <>
-      {/* Wrap in Suspense so the scene doesn't blank while HDRI loads/PMREM bakes */}
-      {env.hdri && (
-        <React.Suspense fallback={null}>
-          {/* Some HDRI themes also use the arena surface mode mapping: reuse planetoid style */}
-          <DreiEnvironment files={env.hdri} background={!!env.background} frames={1} resolution={256} />
-        </React.Suspense>
+      {/* Procedural sky override if requested */}
+      {proceduralSky ? (
+        <>
+          <WorldSky sunY={sunDirY} infectionInfluence={infectionInfluence} infectionColor={env?.arenaColors?.telegraph || '#ffcc00'} />
+        </>
+      ) : (
+        <>
+          {/* Wrap in Suspense so the scene doesn't blank while HDRI loads/PMREM bakes */}
+          {env.hdri && (
+            <React.Suspense fallback={null}>
+              {/* Some HDRI themes also use the arena surface mode mapping: reuse planetoid style */}
+              <DreiEnvironment files={env.hdri} background={!!env.background} frames={1} resolution={256} />
+            </React.Suspense>
+          )}
+        </>
       )}
       <ambientLight color={ambientColor as any} intensity={ambientIntensity} />
     </>

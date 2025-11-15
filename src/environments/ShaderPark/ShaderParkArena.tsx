@@ -1,34 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
-import { useEnvironment } from '../contexts/EnvironmentContext'
+import { useEnvironment } from '../../contexts/EnvironmentContext'
 import { compileShaderPark } from './ShaderParkCompiler'
 import PlasmaCode from './sample_shaders/PlasmaSphere.js?raw'
 import PlanetoidCode from './sample_shaders/BumpyPlanetoid.js?raw'
 import VoidCode from './sample_shaders/VoidMaterial.js?raw'
 import TurbulenceCode from './sample_shaders/Turbulence.js?raw'
 
-/*
-  ShaderParkArena (Prototype)
-  ---------------------------------------------
-  This component is a placeholder for integrating ShaderPark.
-  Since shaderpark-core is not yet installed, we approximate by:
-    - Loading script text for the selected environment mapping
-    - Displaying a central sculpt sphere using the existing ArenaSurface pulse concept later
-  Once shaderpark-core is added, replace the material with compiled shader strings.
-*/
-
-// Map env ids to sample shader script file names (in sample_shaders folder)
-const ENV_SHADER_MAP: Record<string, string> = {
-  proc_hazard_hospital: 'PlasmaSphere.js',
-  proc_hazard_lab: 'BumpyPlanetoid.js',
-  proc_blue_sky: 'VoidMaterial.js',
-  proc_darkmode: 'Turbulence.js',
-  hospital: 'BumpyPlanetoid.js',
-  surgery: 'BumpyPlanetoid.js',
-  orchard: 'BumpyPlanetoid.js'
-}
-
+// Copied ShaderParkArena into ShaderPark folder (kept original behavior)
 export const ShaderParkArena: React.FC = () => {
   const { env } = useEnvironment()
   const meshRef = useRef<THREE.Mesh>(null)

@@ -1,9 +1,10 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react'
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { EnvironmentSpec } from './environments'
-import { useThree } from '@react-three/fiber'
-import { ShaderParkGround } from './ShaderParkGround'
+import { useThree, useFrame } from '@react-three/fiber'
+import { ShaderParkGround } from './ShaderPark/ShaderParkGround'
 import { useEnvironment } from '../contexts/EnvironmentContext'
+import { createArenaMaterial, updateArenaMaterialWithEnv } from './arenaMaterial'
 
 // Lightweight pooled geometries
 const planeGeom = new THREE.PlaneGeometry(200, 200)
@@ -96,13 +97,72 @@ export function ProceduralEnvironmentFactory({ spec, perfMode }: Props) {
 
   // Consume global pulses from environment context
   const { pulses } = useEnvironment()
+  const { env } = useEnvironment()
+
+  // Engine selection: read persisted choice and listen for updates
+  const [engine, setEngine] = useState(() => {
+    try { return localStorage.getItem('env_engine') || 'three' } catch { return 'three' }
+  })
+  useEffect(() => {
+    const onStorage = (ev: StorageEvent) => { if (ev.key === 'env_engine') setEngine(ev.newValue || 'three') }
+    const onCustom = (ev: any) => { setEngine(ev?.detail || 'three') }
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('env_engine_changed', onCustom)
+    return () => { window.removeEventListener('storage', onStorage); window.removeEventListener('env_engine_changed', onCustom) }
+  }, [])
 
   return (
     <group>
       {lights}
-  {/* ShaderPark applied to arena ground */}
-  <ShaderParkGround />
+  {/* Arena ground: choose pipeline based on engine preference */}
+  {engine === 'shaderpark' ? (
+    <ShaderParkGround />
+  ) : (
+    <ThreeGround env={env} pulses={pulses} />
+  )}
       {silhouettes}
     </group>
+  )
+}
+
+function ThreeGround({ env, pulses }: { env: any; pulses: any[] }) {
+  const matRef = useRef<THREE.ShaderMaterial | null>(null)
+  const meshRef = useRef<THREE.Mesh | null>(null)
+  // Track selected shader variant (sync with global navbar selection)
+  const [variant, setVariant] = React.useState(() => {
+    try { return localStorage.getItem('env_shader') || 'planetoid' } catch { return 'planetoid' }
+  })
+  // Listen for global shader change events & storage updates
+  useEffect(() => {
+    const onShader = (e: any) => { const v = e?.detail; if (typeof v === 'string') setVariant(v) }
+    const onStorage = (e: StorageEvent) => { if (e.key === 'env_shader') setVariant(e.newValue || 'planetoid') }
+    window.addEventListener('env_shader_changed', onShader)
+    window.addEventListener('storage', onStorage)
+    return () => { window.removeEventListener('env_shader_changed', onShader); window.removeEventListener('storage', onStorage) }
+  }, [])
+  // (Re)create material when variant changes
+  useEffect(() => {
+    const old = matRef.current
+    if (old) { try { old.dispose() } catch {} }
+    const mat = createArenaMaterial(variant)
+    matRef.current = mat
+    if (meshRef.current) meshRef.current.material = mat
+    return () => { /* disposal handled on next change or unmount */ }
+  }, [variant])
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime()
+    if (matRef.current) {
+      if ((matRef.current as any).uniforms) {
+        const u = (matRef.current as any).uniforms
+        if (u.uTime) u.uTime.value = t
+        if (u.time) u.time.value = t
+      }
+      updateArenaMaterialWithEnv(matRef.current, env, pulses)
+    }
+  })
+  return (
+    <mesh ref={meshRef} rotation={[-Math.PI/2,0,0]} geometry={planeGeom}>
+      <primitive object={matRef.current || new THREE.MeshStandardMaterial({ color:'#444' })} attach="material" />
+    </mesh>
   )
 }

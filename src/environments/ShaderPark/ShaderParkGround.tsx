@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
-import { useEnvironment } from '../contexts/EnvironmentContext'
+import { useEnvironment } from '../../contexts/EnvironmentContext'
 import { compileSculptCode } from './ShaderParkCompiler'
 import PlasmaCode from './sample_shaders/PlasmaSphere.js?raw'
 import PlanetoidCode from './sample_shaders/BumpyPlanetoid.js?raw'

@@ -1,18 +1,30 @@
 import * as THREE from 'three'
-// ShaderPark compiler wrapper.
-// Tries to use sculptToThreeJSShaderSource from the UMD build for true DSL rendering.
-// If that fails (missing globals, syntax), falls back to a simple animated color shader.
+// ShaderPark compiler wrapper (copied). This copy lives under /environments/ShaderPark
+
+// Emit compiler logs (info/warn) to an in-page registry so UI can display them.
+function emitCompilerLog(type: 'info' | 'warn', msg: string, meta?: any) {
+  try {
+    if (typeof window !== 'undefined') {
+      const w = window as any
+      w.__SP_LOGS = w.__SP_LOGS || []
+      const entry = { id: Date.now() + Math.random(), type, msg: String(msg), meta: meta || null, ts: new Date().toISOString() }
+      w.__SP_LOGS.push(entry)
+      try { window.dispatchEvent(new CustomEvent('shaderpark-log', { detail: entry })) } catch {}
+    }
+  } catch {}
+}
 
 export interface CompiledShader {
   material: THREE.ShaderMaterial
 }
 
 export async function compileShaderPark(code: string, uniforms?: Record<string, any>): Promise<CompiledShader> {
-  // Prepare code: if no explicit function wrapper, wrap it so ShaderPark parser can treat DSL as a sculpture function
   const trimmed = code.trim()
   const needsWrapper = !/^\(?\s*function/.test(trimmed) && !/^\(\s*\)=>/.test(trimmed) && !/^export\s+default/.test(trimmed)
   const wrapped = needsWrapper ? `()=>{\n${trimmed}\n}` : trimmed
   try {
+    // Check for developer forced mode: 'fallback' will bypass shader-park attempts
+    try { const forced = (window as any).__SP_FORCE_MODE; if (forced === 'fallback') { emitCompilerLog('info','ShaderParkCompiler forced to fallback mode (compileShaderPark)'); throw new Error('forced-fallback') } } catch {}
     // Import UMD build explicitly to ensure named functions exist
     const mod = await import('shader-park-core/dist/shader-park-core.umd.js') as any
     const isGLSL = /\b(surfaceDistance|shade)\s*\(/.test(trimmed)
@@ -28,6 +40,7 @@ export async function compileShaderPark(code: string, uniforms?: Record<string, 
           mat.polygonOffsetFactor = 1
           mat.polygonOffsetUnits = 1
           mat.side = THREE.DoubleSide
+          emitCompilerLog('info', 'compileShaderPark: used glslToThreeJSMaterial (UMD)', { path: 'glslToThreeJSMaterial', mode: 'UMD' })
           return { material: mat }
         }
       } else if (glslSourceFn) {
@@ -42,6 +55,7 @@ export async function compileShaderPark(code: string, uniforms?: Record<string, 
             polygonOffsetFactor: 1,
             polygonOffsetUnits: 1,
           })
+          emitCompilerLog('info', 'compileShaderPark: used glslToThreeJSShaderSource (UMD)', { path: 'glslToThreeJSShaderSource', mode: 'UMD' })
           return { material }
         }
       }
@@ -51,7 +65,6 @@ export async function compileShaderPark(code: string, uniforms?: Record<string, 
         const src = sculptFn(wrapped)
         if (src && typeof src.frag === 'string' && typeof src.vert === 'string') {
           const baseUniforms = src.uniforms || []
-          // Convert uniform descriptions into actual uniforms
           const spUniforms: Record<string, any> = {}
           baseUniforms.forEach((u: any) => {
             if (u.type === 'float') spUniforms[u.name] = { value: u.value }
@@ -72,10 +85,10 @@ export async function compileShaderPark(code: string, uniforms?: Record<string, 
             depthTest: true,
             depthWrite: true,
           })
+          emitCompilerLog('info', 'compileShaderPark: used sculptToThreeJSShaderSource (UMD)', { path: 'sculptToThreeJSShaderSource', mode: 'UMD' })
           return { material }
         }
       }
-      // Attempt direct material creation if exposed
       const matFn = mod.sculptToThreeJSMaterial || (mod.default && mod.default.sculptToThreeJSMaterial)
       if (matFn) {
         const mat = matFn(wrapped)
@@ -86,15 +99,22 @@ export async function compileShaderPark(code: string, uniforms?: Record<string, 
           mat.polygonOffsetFactor = 1
           mat.polygonOffsetUnits = 1
           mat.side = THREE.DoubleSide
+          emitCompilerLog('info', 'compileShaderPark: used sculptToThreeJSMaterial (UMD)', { path: 'sculptToThreeJSMaterial', mode: 'UMD' })
           return { material: mat }
         }
       }
     }
     console.warn('[ShaderParkCompiler] sculpt conversion unavailable; using fallback')
+    emitCompilerLog('warn', '[ShaderParkCompiler] sculpt conversion unavailable; using fallback')
   } catch (e) {
-    console.warn('[ShaderParkCompiler] converter failed, using fallback:', e)
+    if (e && e.message === 'forced-fallback') {
+      // continue to fallback
+    } else {
+      const m = '[ShaderParkCompiler] converter failed, using fallback: ' + (e && e.toString ? e.toString() : String(e))
+      console.warn(m, e)
+      emitCompilerLog('warn', m, { error: (e && e.stack) || (e && e.toString && e.toString()) })
+    }
   }
-  // Fallback minimal animated shader
   let hash = 0
   for (let i = 0; i < code.length; i++) hash = (hash * 31 + code.charCodeAt(i)) >>> 0
   const hue = (hash % 360) / 360
@@ -105,13 +125,13 @@ export async function compileShaderPark(code: string, uniforms?: Record<string, 
   return { material }
 }
 
-// Compile Shader Park code that may be either DSL sculpture or GLSL SDF into a THREE.ShaderMaterial.
-// This provides a more resilient path by constructing a sculpture function for DSL text when needed.
 export async function compileSculptCode(code: string, uniforms?: Record<string, any>): Promise<THREE.ShaderMaterial> {
   const trimmed = code.trim()
   const cleaned = trimmed.replace(/^export\s+default\s+/, '')
   const isGLSL = /\b(surfaceDistance|shade)\s*\(/.test(cleaned)
   try {
+    // Check forced mode: allow dev to force fallback-only path
+    try { const forced = (window as any).__SP_FORCE_MODE; if (forced === 'fallback') { emitCompilerLog('info','ShaderParkCompiler forced to fallback mode (compileSculptCode)'); throw new Error('forced-fallback') } } catch {}
     // Try ESM/CJS default import first, then fall back to explicit UMD path
     let mod: any
     try {
@@ -124,7 +144,6 @@ export async function compileSculptCode(code: string, uniforms?: Record<string, 
       if (glslMaterialFn) {
         const mat = glslMaterialFn(cleaned)
         if (mat && mat instanceof THREE.ShaderMaterial) {
-          // Ensure time uniform exists (either 'uTime' or 'time')
           const u = (mat as any).uniforms || ((mat as any).uniforms = {})
           u.uTime = u.uTime || { value: 0 }
           u.time = u.time || { value: 0 }
@@ -135,15 +154,16 @@ export async function compileSculptCode(code: string, uniforms?: Record<string, 
           mat.polygonOffsetUnits = 1
           mat.depthTest = true
           mat.depthWrite = true
+          emitCompilerLog('info', 'compileSculptCode: used glslToThreeJSMaterial', { path: 'glslToThreeJSMaterial' })
           return mat
         }
       }
-      // Fallback through shader source path
       const glslSourceFn = mod.glslToThreeJSShaderSource || (mod.default && mod.default.glslToThreeJSShaderSource)
       if (glslSourceFn) {
         const src = glslSourceFn(cleaned)
         if (src && typeof src.frag === 'string' && typeof src.vert === 'string') {
           const u: any = { uTime: { value: 0 }, time: { value: 0 }, ...(uniforms || {}) }
+          emitCompilerLog('info', 'compileSculptCode: used glslToThreeJSShaderSource', { path: 'glslToThreeJSShaderSource' })
           return new THREE.ShaderMaterial({
             uniforms: u,
             vertexShader: src.vert,
@@ -158,16 +178,12 @@ export async function compileSculptCode(code: string, uniforms?: Record<string, 
         }
       }
     } else {
-      // DSL sculpture path: ensure we provide a function to SP APIs
       const needsWrapper = !/^\(?\s*function/.test(cleaned) && !/^\(\s*\)=>/.test(cleaned)
       const wrapped = needsWrapper ? `()=>{\n${cleaned}\n}` : cleaned
       let sculptureFn: any
       try {
-        // Construct a function without polluting scope
-        // eslint-disable-next-line no-new-func
         sculptureFn = new Function(`return (${wrapped});`)()
       } catch (e) {
-        // As a last resort, try eval
         sculptureFn = (0, eval)(wrapped)
       }
       const matFn = mod.sculptToThreeJSMaterial || (mod.default && mod.default.sculptToThreeJSMaterial)
@@ -184,6 +200,7 @@ export async function compileSculptCode(code: string, uniforms?: Record<string, 
           mat.polygonOffsetUnits = 1
           mat.depthTest = true
           mat.depthWrite = true
+          emitCompilerLog('info', 'compileSculptCode: used sculptToThreeJSMaterial', { path: 'sculptToThreeJSMaterial' })
           return mat
         }
       }
@@ -191,7 +208,6 @@ export async function compileSculptCode(code: string, uniforms?: Record<string, 
       if (sculptSrcFn && sculptureFn) {
         const src = sculptSrcFn(sculptureFn)
         if (src && typeof src.frag === 'string' && typeof src.vert === 'string') {
-          // Convert SP uniform descriptions if any
           const baseUniforms = src.uniforms || []
           const spUniforms: Record<string, any> = {}
           baseUniforms.forEach((u: any) => {
@@ -201,6 +217,7 @@ export async function compileSculptCode(code: string, uniforms?: Record<string, 
             else if (u.type === 'vec4') spUniforms[u.name] = { value: new THREE.Vector4(u.value.x, u.value.y, u.value.z, u.value.w) }
           })
           const mergedUniforms = { ...spUniforms, uTime: { value: 0 }, time: { value: 0 }, ...(uniforms || {}) }
+          emitCompilerLog('info', 'compileSculptCode: used sculptToThreeJSShaderSource', { path: 'sculptToThreeJSShaderSource' })
           return new THREE.ShaderMaterial({
             uniforms: mergedUniforms,
             vertexShader: src.vert,
@@ -217,10 +234,14 @@ export async function compileSculptCode(code: string, uniforms?: Record<string, 
       }
     }
   } catch (e) {
-    console.warn('[ShaderParkCompiler] compileSculptCode fallback:', e)
+    if (e && e.message === 'forced-fallback') {
+      // continue to fallback material below
+    } else {
+      const m = '[ShaderParkCompiler] compileSculptCode fallback: ' + (e && e.toString ? e.toString() : String(e))
+      console.warn(m, e)
+      emitCompilerLog('warn', m, { error: (e && e.stack) || (e && e.toString && e.toString()) })
+    }
   }
-
-  // Fallback minimal animated material
   const u: Record<string, any> = { uTime: { value: 0 }, ...(uniforms || {}) }
   const vertex = `uniform float uTime; varying vec3 vPos; varying vec2 vUv; void main(){ vPos = position; vUv=uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`
   const fragment = `uniform float uTime; varying vec3 vPos; varying vec2 vUv; void main(){ float g = 0.5 + 0.5*sin(uTime*1.7 + vUv.x*8.0); vec3 col = mix(vec3(0.07,0.1,0.15), vec3(0.18,0.8,0.6), g); gl_FragColor = vec4(col,1.0); }`

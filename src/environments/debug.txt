@@ -1,0 +1,103 @@
+React has detected a change in the order of Hooks called by NavBar. This will lead to bugs and errors if not fixed. For more information, read the Rules of Hooks: https://react.dev/link/rules-of-hooks
+
+   Previous render            Next render
+   ------------------------------------------------------
+1. useContext                 useContext
+2. useContext                 useContext
+3. useContext                 useContext
+4. useState                   useState
+5. useState                   useState
+6. useState                   useState
+7. useState                   useState
+8. undefined                  useState
+   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+overrideMethod @ hook.js:608
+updateHookTypesDev @ react-dom-client.development.js:7569
+useState @ react-dom-client.development.js:26507
+__commonJS.node_modules/react/cjs/react.development.js.exports.useState @ react.development.js:1263
+NavBar @ NavBar.jsx:53
+react_stack_bottom_frame @ react-dom-client.development.js:25904
+renderWithHooks @ react-dom-client.development.js:7662
+updateFunctionComponent @ react-dom-client.development.js:10166
+beginWork @ react-dom-client.development.js:11778
+runWithFiberInDEV @ react-dom-client.development.js:871
+performUnitOfWork @ react-dom-client.development.js:17641
+workLoopSync @ react-dom-client.development.js:17469
+renderRootSync @ react-dom-client.development.js:17450
+performWorkOnRoot @ react-dom-client.development.js:16504
+performSyncWorkOnRoot @ react-dom-client.development.js:18972
+flushSyncWorkAcrossRoots_impl @ react-dom-client.development.js:18814
+processRootScheduleInMicrotask @ react-dom-client.development.js:18853
+(anonymous) @ react-dom-client.development.js:18991
+hook.js:608  Error: Rendered more hooks than during the previous render.
+    at updateWorkInProgressHook (react-dom-client.development.js:7848:17)
+    at updateReducer (react-dom-client.development.js:7967:18)
+    at Object.useState (react-dom-client.development.js:26511:18)
+    at __commonJS.node_modules/react/cjs/react.development.js.exports.useState (react.development.js:1263:34)
+    at NavBar (NavBar.jsx:53:41)
+    at Object.react_stack_bottom_frame (react-dom-client.development.js:25904:20)
+    at renderWithHooks (react-dom-client.development.js:7662:22)
+    at updateFunctionComponent (react-dom-client.development.js:10166:19)
+    at beginWork (react-dom-client.development.js:11778:18)
+    at runWithFiberInDEV (react-dom-client.development.js:871:30)
+
+The above error occurred in the <NavBar> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary.
+
+overrideMethod @ hook.js:608
+defaultOnCaughtError @ react-dom-client.development.js:9410
+logCaughtError @ react-dom-client.development.js:9446
+runWithFiberInDEV @ react-dom-client.development.js:871
+inst.componentDidCatch.update.callback @ react-dom-client.development.js:9493
+callCallback @ react-dom-client.development.js:7423
+commitCallbacks @ react-dom-client.development.js:7443
+runWithFiberInDEV @ react-dom-client.development.js:871
+commitClassCallbacks @ react-dom-client.development.js:13377
+commitLayoutEffectOnFiber @ react-dom-client.development.js:14026
+recursivelyTraverseLayoutEffects @ react-dom-client.development.js:15159
+commitLayoutEffectOnFiber @ react-dom-client.development.js:14165
+recursivelyTraverseLayoutEffects @ react-dom-client.development.js:15159
+commitLayoutEffectOnFiber @ react-dom-client.development.js:14031
+flushLayoutEffects @ react-dom-client.development.js:18138
+commitRoot @ react-dom-client.development.js:17954
+commitRootWhenReady @ react-dom-client.development.js:16824
+performWorkOnRoot @ react-dom-client.development.js:16722
+performSyncWorkOnRoot @ react-dom-client.development.js:18972
+flushSyncWorkAcrossRoots_impl @ react-dom-client.development.js:18814
+processRootScheduleInMicrotask @ react-dom-client.development.js:18853
+(anonymous) @ react-dom-client.development.js:18991
+ErrorBoundary.jsx:15  ErrorBoundary caught an error Error: Rendered more hooks than during the previous render.
+    at updateWorkInProgressHook (react-dom-client.development.js:7848:17)
+    at updateReducer (react-dom-client.development.js:7967:18)
+    at Object.useState (react-dom-client.development.js:26511:18)
+    at __commonJS.node_modules/react/cjs/react.development.js.exports.useState (react.development.js:1263:34)
+    at NavBar (NavBar.jsx:53:41)
+    at Object.react_stack_bottom_frame (react-dom-client.development.js:25904:20)
+    at renderWithHooks (react-dom-client.development.js:7662:22)
+    at updateFunctionComponent (react-dom-client.development.js:10166:19)
+    at beginWork (react-dom-client.development.js:11778:18)
+    at runWithFiberInDEV (react-dom-client.development.js:871:30) {componentStack: '\n    at NavBar (http://localhost:5173/src/componen…(http://localhost:5173/src/ErrorBoundary.jsx:6:3)'}
+overrideMethod @ hook.js:608
+componentDidCatch @ ErrorBoundary.jsx:15
+react_stack_bottom_frame @ react-dom-client.development.js:25959
+inst.componentDidCatch.update.callback @ react-dom-client.development.js:9504
+callCallback @ react-dom-client.development.js:7423
+commitCallbacks @ react-dom-client.development.js:7443
+runWithFiberInDEV @ react-dom-client.development.js:871
+commitClassCallbacks @ react-dom-client.development.js:13377
+commitLayoutEffectOnFiber @ react-dom-client.development.js:14026
+recursivelyTraverseLayoutEffects @ react-dom-client.development.js:15159
+commitLayoutEffectOnFiber @ react-dom-client.development.js:14165
+recursivelyTraverseLayoutEffects @ react-dom-client.development.js:15159
+commitLayoutEffectOnFiber @ react-dom-client.development.js:14031
+flushLayoutEffects @ react-dom-client.development.js:18138
+commitRoot @ react-dom-client.development.js:17954
+commitRootWhenReady @ react-dom-client.development.js:16824
+performWorkOnRoot @ react-dom-client.development.js:16722
+performSyncWorkOnRoot @ react-dom-client.development.js:18972
+flushSyncWorkAcrossRoots_impl @ react-dom-client.development.js:18814
+processRootScheduleInMicrotask @ react-dom-client.development.js:18853
+(anonymous) @ react-dom-client.development.js:18991
+three.module.js:15856 THREE.WebGLRenderer: Context Lost.
