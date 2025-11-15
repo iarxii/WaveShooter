@@ -10,7 +10,7 @@ export default function GameMode(){
   const nav = useNavigate()
   return (
     <div style={{minHeight:'100vh', background: 'linear-gradient(135deg,#0b1220 0%, #12243e 50%, #0b1220 100%)', color:'#e6f0ff'}}>
-      <div style={{maxWidth:1040, margin:'80px auto 0 auto', padding:'32px 16px'}}>
+      <div style={{maxWidth:1040, margin:'0 auto', padding:'32px 16px'}}>
         <h1 style={{marginTop:8}}>Choose Game Mode</h1>
         <p style={{opacity:0.85, maxWidth:800}}>Pick a way to play. Campaign mode will feature curated objectives and special Hazard Agent enemies. Wave Battle is the current arcade mode with randomized enemy spawns and score chasing—soon evolving into a wave-based roguelite.</p>
         <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:16, marginTop:16}}>

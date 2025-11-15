@@ -5332,7 +5332,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
           clearPickupInvulnTimeouts();
           applyPickupInvulnState({
             invulnerable: true,
-            movementMul: 0.1,
+            movementMul: 0.2,
             movementLocked: false,
             source: "bombs",
           });
@@ -5360,7 +5360,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
             try {
               pushPlayerLabel(`+${amt} AP`);
             } catch {}
-            return next;
+            // Cap armour to a sensible maximum to avoid runaway AP stacking
+            return Math.min(next, 300);
           });
           try {
             play("powerup");
@@ -8703,7 +8704,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
       {/* Overlay: pause / life lost countdown / game over */}
       {isPaused && isStarted && (
         <div className="pause-overlay">
-          <div className="pause-content">
+          <div className="pause-content accent">
             {isGameOver ? (
               <>
                 <h2>Game Over</h2>
@@ -8747,11 +8748,11 @@ export default function App({ navVisible, setNavVisible } = {}) {
                     }}
                     title="Continue with a 10% total score penalty"
                   >
-                    Continue (-10% Total Score)
+                    Continue (<b style={{color: "#a30b0bff"}}>-10%</b> Total Score)
                   </button>
                 </div>
                 <div
-                  style={{ marginTop: 10, color: "#e0e0e0ff", fontSize: 12 }}
+                  style={{ marginTop: 10, color: "#a30b0bff", fontSize: 12 }}
                 >
                   {(() => {
                     const total = Math.max(0, score);

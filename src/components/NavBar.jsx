@@ -52,7 +52,7 @@ export default function NavBar({ hidden = false, navVisible, setNavVisible }) {
   React.useEffect(()=>{ window.dispatchEvent(new CustomEvent('perfModeChange', { detail: { perfMode } })) }, [perfMode])
   const options = ENV_OPTIONS_ORDERED
   return (
-    <div className="navbar" style={{position:'fixed',top:0,left:0,right:0,display:'flex',gap:12,alignItems:'center',padding:'8px 12px',background:'rgba(0, 85, 64, 0.6)',backdropFilter:'blur(4px)',zIndex:1010}}>
+    <div className="navbar" style={{position:'sticky',top:0,left:0,right:0,display:'flex',gap:12,alignItems:'center',padding:'8px 12px',background:'rgba(0, 85, 64, 0.6)',backdropFilter:'blur(4px)',zIndex:1010}}>
       <div style={{height:'60px'}}>
         <img src={LOGO} alt="Logo" style={{height:'100%',width:'auto',objectFit:'contain'}} />
       </div>
