@@ -8,6 +8,7 @@ import * as perf from '../../perf'
 // Use a sample FBX without spaces in the filename to avoid path resolution edge-cases on some setups
 import { assetUrl } from '../../utils/assetPaths'
 const sampleRunBack = assetUrl('models/dr_dokta_anim_poses/Backflip.fbx')
+import { defaultAnimMap } from './defaultAnimMap'
 
 type ActionName =
   | 'idle'
@@ -551,19 +552,5 @@ export function HeroAnimTester({
 }
 
 // A convenience default map that points unknown actions to the provided sample
-export function defaultAnimMap(baseDir = 'src/assets/models/dr_dokta_anim_poses/Lite Sword and Shield Pack'): HeroAnimMap {
-  // NOTE: replace the placeholders below with exact filenames present in your pack.
-  // For now we reuse the known sample Standing Run Back for demonstration.
-  const runBack = sampleRunBack
-  return {
-    idle: runBack,
-    runForward: runBack,
-    runBackward: runBack,
-    strafeLeft: runBack,
-    strafeRight: runBack,
-    attackLight: runBack,
-    attackHeavy: runBack,
-    jump: runBack,
-    death: runBack,
-  }
-}
+// defaultAnimMap is provided from `./defaultAnimMap` to keep module exports
+// stable for Fast Refresh (avoid in-file exported helpers that change shape).

@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Grid } from '@react-three/drei'
+import { OrbitControls, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei'
 import ConeBoss from '../entities/ConeBoss.jsx'
 import TriangleBoss from '../entities/TriangleBoss.jsx'
 import PipeBoss from '../entities/PipeBoss.jsx'
@@ -89,6 +89,9 @@ export default function SpecialBossViewer(){
           )}
 
           <OrbitControls enablePan={false} autoRotate={false} />
+          <GizmoHelper alignment="bottom-right" margin={[60, 60]}>
+            <GizmoViewport axisColors={["#FF3653", "#8ADB00", "#2C8FFF"]} labelColor="white" />
+          </GizmoHelper>
         </Canvas>
       </main>
     </div>

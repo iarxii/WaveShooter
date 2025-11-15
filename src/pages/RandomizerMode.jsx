@@ -1,7 +1,7 @@
 // src/pages/RandomizerMode.jsx
 import React, { useEffect, useMemo, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Grid, Html } from '@react-three/drei'
+import { OrbitControls, Grid, Html, GizmoHelper, GizmoViewport } from '@react-three/drei'
 import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
 
 function randInt(min, max){ return Math.floor(min + Math.random()*(max-min+1)) }
@@ -267,6 +267,9 @@ export default function RandomizerMode({ navVisible = false, setNavVisible }){
           })}
         </group>
         <OrbitControls />
+        <GizmoHelper alignment="center-right" margin={[60, 60]}>
+          <GizmoViewport axisColors={["#FF3653", "#8ADB00", "#2C8FFF"]} labelColor="white" />
+        </GizmoHelper>
       </Canvas>
     </div>
   )

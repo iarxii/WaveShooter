@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { GizmoHelper, GizmoViewport } from '@react-three/drei'
 import * as THREE from 'three'
 import Player from '../entities/Player.jsx'
 import { BOUNDARY_LIMIT } from '../game/constants.js'
@@ -194,6 +195,9 @@ export default function SceneViewer() {
         <SceneCore mode={mode} shaderKey={shaderKey} />
         <Player position={playerPos} onShoot={onShoot} isPaused={false} autoFire={false} setPositionRef={()=>{}} heroName={'Dokta'} heroRenderMode={'model'} />
         <BulletPool />
+        <GizmoHelper alignment="bottom-right" margin={[80, 80]}>
+          <GizmoViewport axisColors={["#FF3653", "#8ADB00", "#2C8FFF"]} labelColor="white" />
+        </GizmoHelper>
       </Canvas>
     </div>
   )

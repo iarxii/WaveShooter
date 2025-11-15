@@ -145,7 +145,8 @@ function PosePanel() {
         </div>
     )
 }
-import { HeroAnimTester, defaultAnimMap } from '../heroes/factory/HeroAnimTester'
+import { HeroAnimTester } from '../heroes/factory/HeroAnimTester'
+import { defaultAnimMap } from '../heroes/factory/defaultAnimMap'
 import FXOrbs from '../components/FXOrbs'
 import { liteSwordShieldMap } from '../heroes/factory/animMaps/liteSwordShieldMap'
 import type { HeroSpec } from '../heroes/factory/HeroSpec'

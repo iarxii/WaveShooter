@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom'
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Grid } from '@react-three/drei';
+import { OrbitControls, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import { PathogenFromSpec } from '../characters/factory/PathogenFactory';
 import ConeBoss from '../entities/ConeBoss.jsx'
 import TriangleBoss from '../entities/TriangleBoss.jsx'
@@ -602,6 +602,9 @@ export default function AvatarTuner() {
           )
         )}
         <OrbitControls enablePan={false}/>
+        <GizmoHelper alignment="bottom-right" margin={[60, 60]}>
+          <GizmoViewport axisColors={["#FF3653", "#8ADB00", "#2C8FFF"]} labelColor="white" />
+        </GizmoHelper>
       </Canvas>
     </div>
   );
