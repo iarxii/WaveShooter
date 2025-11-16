@@ -1,5 +1,5 @@
 import React from 'react'
-import { assetUrl } from '../utils/assetPaths.ts'
+import { assetUrl } from '../utils/assetPaths'
 import { Link, useNavigate } from 'react-router-dom'
 
 // Corrected path: Dr Dokta avatar lives directly under character_imgs/Dr_Dokta

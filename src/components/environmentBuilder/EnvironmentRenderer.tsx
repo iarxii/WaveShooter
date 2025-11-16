@@ -38,14 +38,36 @@ export function EnvironmentRenderer() {
     }
 
     if (skyConfig.type === 'hdri' && skyConfig.hdriPath) {
-      // Load HDRI texture and create environment
-      // For now, just set a basic background color
-      scene.background = new THREE.Color(skyConfig.solidColor || '#87CEEB')
+      // Load HDRI texture and create environment map
+      try {
+        const loader = new THREE.TextureLoader()
+        const texture = loader.load(
+          `/assets/hdri/${skyConfig.hdriPath}`,
+          (texture) => {
+            texture.mapping = THREE.EquirectangularReflectionMapping
+            scene.environment = texture
+            if (skyConfig.showBackground) {
+              scene.background = texture
+            }
+            logWebGL('info', 'HDRI loaded successfully', { path: skyConfig.hdriPath })
+          },
+          undefined,
+          (error) => {
+            logWebGL('error', 'Failed to load HDRI', { path: skyConfig.hdriPath, error: error.message })
+            scene.background = new THREE.Color(skyConfig.solidColor || '#87CEEB')
+          }
+        )
+      } catch (error) {
+        logWebGL('error', 'HDRI loading error', { error: error.message })
+        scene.background = new THREE.Color(skyConfig.solidColor || '#87CEEB')
+      }
     } else if (skyConfig.type === 'solid') {
       scene.background = new THREE.Color(skyConfig.solidColor || '#000000')
+      scene.environment = null // Clear environment map for solid colors
     } else {
       // Procedural or default
       scene.background = new THREE.Color('#87CEEB')
+      scene.environment = null
     }
 
     // Set environment exposure

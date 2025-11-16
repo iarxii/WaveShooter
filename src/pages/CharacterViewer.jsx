@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ENEMIES, HEROES } from "../data/roster.js";
 import { getEnemyImageUrl } from "../data/enemyImages.js";
 import { getHeroImageUrl } from "../data/heroImages.js";
-import { assetUrl } from "../utils/assetPaths.ts";
+import { assetUrl } from "../utils/assetPaths";
 
 const colorHex = {
   Red: "#ef4444",

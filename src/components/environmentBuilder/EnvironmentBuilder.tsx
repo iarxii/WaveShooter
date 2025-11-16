@@ -22,9 +22,9 @@ export function EnvironmentBuilder() {
   } = useEnvironmentBuilder()
 
   const [expandedSections, setExpandedSections] = useState({
-    sky: true,
-    lighting: false,
-    surface: false,
+    sky: false,
+    lighting: true,
+    surface: true,
     atmosphere: false,
     procedural: false
   })
@@ -100,33 +100,16 @@ export function EnvironmentBuilder() {
         )}
       </div>
 
-      {/* Layer Controls */}
+      {/* Layer Controls - Simplified */}
       <div className="layers-container">
-        {/* Sky Layer */}
-        <div className="layer-section">
-          <button
-            className="layer-toggle"
-            onClick={() => toggleSection('sky')}
-          >
-            <span className={`arrow ${expandedSections.sky ? 'expanded' : ''}`}>▶</span>
-            Sky Layer
-          </button>
-          {expandedSections.sky && (
-            <SkyControls
-              config={state.currentConfig.layers.sky}
-              onChange={updateSky}
-            />
-          )}
-        </div>
-
-        {/* Lighting Layer */}
+        {/* Lighting Layer - Main focus */}
         <div className="layer-section">
           <button
             className="layer-toggle"
             onClick={() => toggleSection('lighting')}
           >
             <span className={`arrow ${expandedSections.lighting ? 'expanded' : ''}`}>▶</span>
-            Lighting Layer
+            Lighting Controls
           </button>
           {expandedSections.lighting && (
             <LightingControls
@@ -136,14 +119,14 @@ export function EnvironmentBuilder() {
           )}
         </div>
 
-        {/* Surface Layer */}
+        {/* Surface Layer - Terrain and Arena controls */}
         <div className="layer-section">
           <button
             className="layer-toggle"
             onClick={() => toggleSection('surface')}
           >
             <span className={`arrow ${expandedSections.surface ? 'expanded' : ''}`}>▶</span>
-            Surface Layer
+            Terrain & Arena
           </button>
           {expandedSections.surface && (
             <SurfaceControls
@@ -153,36 +136,19 @@ export function EnvironmentBuilder() {
           )}
         </div>
 
-        {/* Atmosphere Layer */}
+        {/* Sky Layer - Basic only */}
         <div className="layer-section">
           <button
             className="layer-toggle"
-            onClick={() => toggleSection('atmosphere')}
+            onClick={() => toggleSection('sky')}
           >
-            <span className={`arrow ${expandedSections.atmosphere ? 'expanded' : ''}`}>▶</span>
-            Atmosphere Layer
+            <span className={`arrow ${expandedSections.sky ? 'expanded' : ''}`}>▶</span>
+            Sky Settings
           </button>
-          {expandedSections.atmosphere && (
-            <AtmosphereControls
-              config={state.currentConfig.layers.atmosphere}
-              onChange={updateAtmosphere}
-            />
-          )}
-        </div>
-
-        {/* Procedural Layer */}
-        <div className="layer-section">
-          <button
-            className="layer-toggle"
-            onClick={() => toggleSection('procedural')}
-          >
-            <span className={`arrow ${expandedSections.procedural ? 'expanded' : ''}`}>▶</span>
-            Procedural Layer
-          </button>
-          {expandedSections.procedural && (
-            <ProceduralControls
-              config={state.currentConfig.layers.procedural}
-              onChange={updateProcedural}
+          {expandedSections.sky && (
+            <SkyControls
+              config={state.currentConfig.layers.sky}
+              onChange={updateSky}
             />
           )}
         </div>

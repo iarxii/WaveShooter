@@ -55,10 +55,10 @@ export function SkyControls({ config, onChange, disabled }: LayerControlProps<Sk
             onChange={(e) => handleHdriChange(e.target.value)}
             disabled={disabled}
           >
-            <option value="hospital.hdr">Hospital</option>
-            <option value="surgery.hdr">Surgery</option>
-            <option value="outdoor.hdr">Outdoor</option>
-            <option value="lab.hdr">Lab</option>
+            <option value="">None</option>
+            <option value="hospital_room_1k.hdr">Hospital Room</option>
+            <option value="surgery_1k.hdr">Surgery</option>
+            <option value="citrus_orchard_road_puresky_1k.hdr">Citrus Orchard</option>
           </select>
         </div>
       )}

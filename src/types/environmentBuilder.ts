@@ -70,6 +70,24 @@ export interface SurfaceConfig {
     enabled: boolean
     speed: number
   }
+  terrain: {
+    type: 'flat' | 'mountains' | 'buildings' | 'pillars' | 'craters' | 'waves'
+    height: number
+    frequency: number
+    octaves: number
+    seed: number
+    boundaryDistance: number // Distance from arena boundary to start terrain modifications
+  }
+  arena: {
+    shader: string
+    material: {
+      metalness: number
+      roughness: number
+      color: string
+    }
+    height: number
+    thickness: number
+  }
 }
 
 export interface AtmosphereConfig {

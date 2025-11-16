@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useGame } from "../contexts/GameContext.jsx";
 import { HEROES } from "../data/roster.js";
 import { useHistoryLog } from "../contexts/HistoryContext.jsx";
-import { assetUrl } from "../utils/assetPaths.ts";
+import { assetUrl } from "../utils/assetPaths";
 import { getHeroImageUrl } from "../data/heroImages.js";
 // Key art background image
 const KEY_ART = assetUrl("character_imgs/Hero/heroes_painted_dynamic_pose.jpg");

@@ -11,33 +11,105 @@ import {
   ProceduralConfig
 } from '../types/environmentBuilder'
 
-// Default configurations
-const defaultSkyConfig: SkyConfig = {
-  type: 'hdri',
-  hdriPath: 'hospital.hdr',
+// Default configurations - Simplified to just whitebox and darkbox
+const whiteboxSkyConfig: SkyConfig = {
+  type: 'solid',
+  solidColor: '#ffffff',
+  exposure: 1.0,
+  rotation: 0,
+  showBackground: true
+}
+
+const darkboxSkyConfig: SkyConfig = {
+  type: 'solid',
+  solidColor: '#1a1a1a',
   exposure: 0.8,
   rotation: 0,
   showBackground: true
 }
 
-const defaultLightingConfig: LightingConfig = {
-  preset: 'hospital',
+const hdriSkyConfig: SkyConfig = {
+  type: 'hdri',
+  hdriPath: 'hospital_room_1k.hdr',
+  exposure: 0.8,
+  rotation: 0,
+  showBackground: true
+}
+
+const whiteboxLightingConfig: LightingConfig = {
+  preset: 'whitebox',
   directional: {
     enabled: true,
-    position: [30, 50, 20],
-    intensity: 0.9,
+    position: [10, 18, 8],
+    intensity: 0.7,
     color: '#ffffff'
   },
   hemisphere: {
     enabled: true,
-    skyColor: '#87CEEB',
-    groundColor: '#8B4513',
-    intensity: 0.6
+    skyColor: '#ffffff',
+    groundColor: '#f0f0f0',
+    intensity: 0.4
   },
   fog: {
-    enabled: true,
+    enabled: false,
     type: 'linear',
-    color: '#f0f0f0',
+    color: '#ffffff',
+    near: 10,
+    far: 100
+  },
+  ambient: {
+    enabled: true,
+    intensity: 0.6,
+    color: '#ffffff'
+  }
+}
+
+const darkboxLightingConfig: LightingConfig = {
+  preset: 'darkbox',
+  directional: {
+    enabled: true,
+    position: [10, 18, 8],
+    intensity: 0.3,
+    color: '#666666'
+  },
+  hemisphere: {
+    enabled: true,
+    skyColor: '#333333',
+    groundColor: '#111111',
+    intensity: 0.2
+  },
+  fog: {
+    enabled: false,
+    type: 'linear',
+    color: '#000000',
+    near: 10,
+    far: 50
+  },
+  ambient: {
+    enabled: true,
+    intensity: 0.3,
+    color: '#333333'
+  }
+}
+
+const hdriLightingConfig: LightingConfig = {
+  preset: 'hdri',
+  directional: {
+    enabled: false, // HDRI provides its own lighting
+    position: [10, 18, 8],
+    intensity: 0.5,
+    color: '#ffffff'
+  },
+  hemisphere: {
+    enabled: false, // HDRI provides its own lighting
+    skyColor: '#ffffff',
+    groundColor: '#ffffff',
+    intensity: 0.2
+  },
+  fog: {
+    enabled: false,
+    type: 'linear',
+    color: '#ffffff',
     near: 10,
     far: 100
   },
@@ -62,6 +134,24 @@ const defaultSurfaceConfig: SurfaceConfig = {
   animation: {
     enabled: true,
     speed: 1.0
+  },
+  terrain: {
+    type: 'flat',
+    height: 2.0,
+    frequency: 0.5,
+    octaves: 3,
+    seed: 12345,
+    boundaryDistance: 20
+  },
+  arena: {
+    shader: 'grid',
+    material: {
+      metalness: 0.8,
+      roughness: 0.2,
+      color: '#444444'
+    },
+    height: 2.0,
+    thickness: 0.5
   }
 }
 
@@ -128,11 +218,11 @@ const defaultProceduralConfig: ProceduralConfig = {
 }
 
 export const defaultEnvironmentConfig: EnvironmentConfig = {
-  id: 'default',
-  name: 'Default Environment',
+  id: 'whitebox',
+  name: 'White Box',
   layers: {
-    sky: defaultSkyConfig,
-    lighting: defaultLightingConfig,
+    sky: whiteboxSkyConfig,
+    lighting: whiteboxLightingConfig,
     surface: defaultSurfaceConfig,
     atmosphere: defaultAtmosphereConfig,
     procedural: defaultProceduralConfig
@@ -140,8 +230,67 @@ export const defaultEnvironmentConfig: EnvironmentConfig = {
   metadata: {
     created: new Date(),
     author: 'system',
-    tags: ['default']
+    tags: ['basic', 'indoor']
   }
+}
+
+// Simple presets
+const whiteboxPreset: EnvironmentPreset = {
+  id: 'whitebox',
+  name: 'White Box',
+  description: 'Clean white indoor environment',
+  config: {
+    ...defaultEnvironmentConfig,
+    layers: {
+      sky: whiteboxSkyConfig,
+      lighting: whiteboxLightingConfig,
+      surface: defaultSurfaceConfig,
+      atmosphere: defaultAtmosphereConfig,
+      procedural: defaultProceduralConfig
+    }
+  },
+  thumbnail: '',
+  tags: ['basic', 'indoor', 'white']
+}
+
+const darkboxPreset: EnvironmentPreset = {
+  id: 'darkbox',
+  name: 'Dark Box',
+  description: 'Dark indoor environment',
+  config: {
+    ...defaultEnvironmentConfig,
+    id: 'darkbox',
+    name: 'Dark Box',
+    layers: {
+      sky: darkboxSkyConfig,
+      lighting: darkboxLightingConfig,
+      surface: defaultSurfaceConfig,
+      atmosphere: defaultAtmosphereConfig,
+      procedural: defaultProceduralConfig
+    }
+  },
+  thumbnail: '',
+  tags: ['basic', 'indoor', 'dark']
+}
+
+const hdriPreset: EnvironmentPreset = {
+  id: 'hdri',
+  name: 'HDRI Environment',
+  description: 'Realistic lighting from HDRI environment map',
+  config: {
+    ...defaultEnvironmentConfig,
+    id: 'hdri',
+    name: 'HDRI Environment',
+    layers: {
+      sky: hdriSkyConfig,
+      lighting: hdriLightingConfig,
+      surface: defaultSurfaceConfig,
+      atmosphere: defaultAtmosphereConfig,
+      procedural: defaultProceduralConfig
+    }
+  },
+  thumbnail: '',
+  tags: ['realistic', 'outdoor', 'hdri']
 }
 
 // Action types
@@ -281,7 +430,7 @@ function environmentBuilderReducer(
 // Initial state
 const initialState: EnvironmentBuilderState = {
   currentConfig: defaultEnvironmentConfig,
-  presets: PresetManager.loadPresets(),
+  presets: [whiteboxPreset, darkboxPreset, hdriPreset, ...PresetManager.loadPresets()],
   isDirty: false,
   previewMode: false
 }

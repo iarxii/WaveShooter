@@ -1,0 +1,2034 @@
+[
+  {
+    "timestamp": 199.80000000074506,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 185.80ms",
+    "data": {
+      "frameCount": 2,
+      "delta": 185.79999999981374,
+      "memory": {
+        "used": 140207249,
+        "total": 145798517,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 490.5,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 290.80ms",
+    "data": {
+      "frameCount": 3,
+      "delta": 290.79999999981374,
+      "memory": {
+        "used": 145690255,
+        "total": 156034859,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 593,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 102.50ms",
+    "data": {
+      "frameCount": 4,
+      "delta": 102.5,
+      "memory": {
+        "used": 145705572,
+        "total": 156560512,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 686.2000000001863,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 93.10ms",
+    "data": {
+      "frameCount": 5,
+      "delta": 93.09999999962747,
+      "memory": {
+        "used": 145924416,
+        "total": 158395540,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 848.6000000005588,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 162.50ms",
+    "data": {
+      "frameCount": 6,
+      "delta": 162.5,
+      "memory": {
+        "used": 140305333,
+        "total": 157827245,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 964.1000000005588,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 115.50ms",
+    "data": {
+      "frameCount": 7,
+      "delta": 115.5,
+      "memory": {
+        "used": 142675481,
+        "total": 157815477,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 1024.7000000001863,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 60.60ms",
+    "data": {
+      "frameCount": 8,
+      "delta": 60.60000000055879,
+      "memory": {
+        "used": 143112160,
+        "total": 157822728,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 1069.800000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 45.20ms",
+    "data": {
+      "frameCount": 9,
+      "delta": 45.200000000186265,
+      "memory": {
+        "used": 143112160,
+        "total": 157822728,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 1149.9000000003725,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 54.80ms",
+    "data": {
+      "frameCount": 13,
+      "delta": 54.799999999813735,
+      "memory": {
+        "used": 146258040,
+        "total": 158121288,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 1910.6000000005588,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 60",
+    "data": {
+      "fps": 59.8802395236296,
+      "memory": {
+        "used": 146450811,
+        "total": 158121315,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 2427.9000000003725,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 50.00ms",
+    "data": {
+      "frameCount": 89,
+      "delta": 50,
+      "memory": {
+        "used": 147273709,
+        "total": 158121365,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 2540.100000000559,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 37.50ms",
+    "data": {
+      "frameCount": 93,
+      "delta": 37.5,
+      "memory": {
+        "used": 149437819,
+        "total": 158593631,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 2651.800000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 79.00ms",
+    "data": {
+      "frameCount": 96,
+      "delta": 79,
+      "memory": {
+        "used": 152036775,
+        "total": 159049659,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 2738.4000000003725,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 35.30ms",
+    "data": {
+      "frameCount": 99,
+      "delta": 35.30000000074506,
+      "memory": {
+        "used": 153574722,
+        "total": 159323514,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 2965.300000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 87.40ms",
+    "data": {
+      "frameCount": 109,
+      "delta": 87.40000000037253,
+      "memory": {
+        "used": 155621488,
+        "total": 160896700,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 3092,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Canvas created",
+    "data": {
+      "renderer": {
+        "frame": 48,
+        "calls": 0,
+        "triangles": 0,
+        "points": 0,
+        "lines": 0
+      }
+    }
+  },
+  {
+    "timestamp": 3096.5,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 131.30ms",
+    "data": {
+      "frameCount": 110,
+      "delta": 131.29999999981374,
+      "memory": {
+        "used": 171380347,
+        "total": 191615675,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 3132.7000000001863,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 36.30ms",
+    "data": {
+      "frameCount": 111,
+      "delta": 36.299999999813735,
+      "memory": {
+        "used": 171380347,
+        "total": 191615675,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 3226.2000000001863,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 93.40ms",
+    "data": {
+      "frameCount": 112,
+      "delta": 93.40000000037253,
+      "memory": {
+        "used": 184215530,
+        "total": 204182002,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 3612.100000000559,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 354.70ms",
+    "data": {
+      "frameCount": 114,
+      "delta": 354.70000000018626,
+      "memory": {
+        "used": 136965066,
+        "total": 190181654,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 3715.4000000003725,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 103.30ms",
+    "data": {
+      "frameCount": 115,
+      "delta": 103.29999999981374,
+      "memory": {
+        "used": 137592109,
+        "total": 190709565,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 3838.800000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 123.30ms",
+    "data": {
+      "frameCount": 116,
+      "delta": 123.29999999981374,
+      "memory": {
+        "used": 137759496,
+        "total": 190971732,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 4168.100000000559,
+    "level": "info",
+    "category": "WebGL",
+    "message": "EnvironmentRenderer mounted",
+    "data": {}
+  },
+  {
+    "timestamp": 4169.5,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Sky config update",
+    "data": {
+      "skyConfig": {
+        "type": "solid",
+        "solidColor": "#ffffff",
+        "exposure": 1,
+        "rotation": 0,
+        "showBackground": true
+      }
+    }
+  },
+  {
+    "timestamp": 4170.5,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Exposure set",
+    "data": {
+      "exposure": 1
+    }
+  },
+  {
+    "timestamp": 4171.5,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Lighting config update",
+    "data": {
+      "lightingConfig": {
+        "preset": "whitebox",
+        "directional": {
+          "enabled": true,
+          "position": [
+            10,
+            18,
+            8
+          ],
+          "intensity": 0.7,
+          "color": "#ffffff"
+        },
+        "hemisphere": {
+          "enabled": true,
+          "skyColor": "#ffffff",
+          "groundColor": "#f0f0f0",
+          "intensity": 0.4
+        },
+        "fog": {
+          "enabled": false,
+          "type": "linear",
+          "color": "#ffffff",
+          "near": 10,
+          "far": 100
+        },
+        "ambient": {
+          "enabled": true,
+          "intensity": 0.6,
+          "color": "#ffffff"
+        }
+      }
+    }
+  },
+  {
+    "timestamp": 4172.600000000559,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Directional light added",
+    "data": {
+      "color": "#ffffff",
+      "intensity": 0.7
+    }
+  },
+  {
+    "timestamp": 4173.800000000745,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Hemisphere light added",
+    "data": {
+      "skyColor": "#ffffff",
+      "groundColor": "#f0f0f0"
+    }
+  },
+  {
+    "timestamp": 4174.600000000559,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Ambient light added",
+    "data": {
+      "color": "#ffffff",
+      "intensity": 0.6
+    }
+  },
+  {
+    "timestamp": 4175.300000000745,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Fog disabled",
+    "data": {}
+  },
+  {
+    "timestamp": 4176.600000000559,
+    "level": "info",
+    "category": "Material",
+    "message": "create_start: ArenaMaterial (grid)",
+    "data": {
+      "initialColors": {
+        "base": "#0b222c",
+        "veins": "#11b5c9",
+        "telegraph": "#33f1ff"
+      },
+      "totalMaterials": 0
+    }
+  },
+  {
+    "timestamp": 4180.200000000186,
+    "level": "info",
+    "category": "Material",
+    "message": "create_start: GroundModeA (veins)",
+    "data": {
+      "totalMaterials": 1
+    }
+  },
+  {
+    "timestamp": 4181.100000000559,
+    "level": "info",
+    "category": "Material",
+    "message": "create_start: ArenaMaterial (veins)",
+    "data": {
+      "initialColors": {
+        "base": "#0b222c",
+        "veins": "#11b5c9",
+        "telegraph": "#33f1ff"
+      },
+      "totalMaterials": 2
+    }
+  },
+  {
+    "timestamp": 4240.4000000003725,
+    "level": "info",
+    "category": "WebGL",
+    "message": "EnvironmentRenderer unmounted",
+    "data": {}
+  },
+  {
+    "timestamp": 4248.300000000745,
+    "level": "info",
+    "category": "WebGL",
+    "message": "EnvironmentRenderer mounted",
+    "data": {}
+  },
+  {
+    "timestamp": 4250.100000000559,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Sky config update",
+    "data": {
+      "skyConfig": {
+        "type": "solid",
+        "solidColor": "#ffffff",
+        "exposure": 1,
+        "rotation": 0,
+        "showBackground": true
+      }
+    }
+  },
+  {
+    "timestamp": 4250.700000000186,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Exposure set",
+    "data": {
+      "exposure": 1
+    }
+  },
+  {
+    "timestamp": 4251.700000000186,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Lighting config update",
+    "data": {
+      "lightingConfig": {
+        "preset": "whitebox",
+        "directional": {
+          "enabled": true,
+          "position": [
+            10,
+            18,
+            8
+          ],
+          "intensity": 0.7,
+          "color": "#ffffff"
+        },
+        "hemisphere": {
+          "enabled": true,
+          "skyColor": "#ffffff",
+          "groundColor": "#f0f0f0",
+          "intensity": 0.4
+        },
+        "fog": {
+          "enabled": false,
+          "type": "linear",
+          "color": "#ffffff",
+          "near": 10,
+          "far": 100
+        },
+        "ambient": {
+          "enabled": true,
+          "intensity": 0.6,
+          "color": "#ffffff"
+        }
+      }
+    }
+  },
+  {
+    "timestamp": 4254.600000000559,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Directional light added",
+    "data": {
+      "color": "#ffffff",
+      "intensity": 0.7
+    }
+  },
+  {
+    "timestamp": 4255.800000000745,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Hemisphere light added",
+    "data": {
+      "skyColor": "#ffffff",
+      "groundColor": "#f0f0f0"
+    }
+  },
+  {
+    "timestamp": 4256.800000000745,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Ambient light added",
+    "data": {
+      "color": "#ffffff",
+      "intensity": 0.6
+    }
+  },
+  {
+    "timestamp": 4258.100000000559,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Fog disabled",
+    "data": {}
+  },
+  {
+    "timestamp": 4259.200000000186,
+    "level": "info",
+    "category": "Material",
+    "message": "create_start: ArenaMaterial (grid)",
+    "data": {
+      "initialColors": {
+        "base": "#0b222c",
+        "veins": "#11b5c9",
+        "telegraph": "#33f1ff"
+      },
+      "totalMaterials": 3
+    }
+  },
+  {
+    "timestamp": 4261.300000000745,
+    "level": "info",
+    "category": "Material",
+    "message": "create_start: GroundModeA (veins)",
+    "data": {
+      "totalMaterials": 4
+    }
+  },
+  {
+    "timestamp": 4262.600000000559,
+    "level": "info",
+    "category": "Material",
+    "message": "create_start: ArenaMaterial (veins)",
+    "data": {
+      "initialColors": {
+        "base": "#0b222c",
+        "veins": "#11b5c9",
+        "telegraph": "#33f1ff"
+      },
+      "totalMaterials": 5
+    }
+  },
+  {
+    "timestamp": 4290.600000000559,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 395.40ms",
+    "data": {
+      "frameCount": 119,
+      "delta": 395.40000000037253,
+      "memory": {
+        "used": 109417273,
+        "total": 188758613,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 4408.4000000003725,
+    "level": "info",
+    "category": "WebGL",
+    "message": "EnvironmentRenderer unmounted",
+    "data": {}
+  },
+  {
+    "timestamp": 4413.9000000003725,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 123.20ms",
+    "data": {
+      "frameCount": 120,
+      "delta": 123.20000000018626,
+      "memory": {
+        "used": 112352161,
+        "total": 188775037,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 4415.700000000186,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 120",
+    "data": {
+      "fps": 8.116883116870845,
+      "memory": {
+        "used": 112352161,
+        "total": 188775037,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 4420.200000000186,
+    "level": "info",
+    "category": "Shader",
+    "message": "compile_success: grid",
+    "data": {
+      "duration": 243.5,
+      "cacheKey": "grid:{\"base\":\"#0b222c\",\"veins\":\"#11b5c9\",\"telegraph\":\"#33f1ff\"}"
+    }
+  },
+  {
+    "timestamp": 4421,
+    "level": "info",
+    "category": "Material",
+    "message": "create_complete: ShaderMaterial (grid)",
+    "data": {
+      "duration": 244.40000000037253,
+      "cacheKey": "grid:{\"base\":\"#0b222c\",\"veins\":\"#11b5c9\",\"telegraph\":\"#33f1ff\"}",
+      "uniformsCount": 9,
+      "totalMaterials": 6
+    }
+  },
+  {
+    "timestamp": 4421.9000000003725,
+    "level": "info",
+    "category": "Shader",
+    "message": "compile_success: grid",
+    "data": {
+      "duration": 162.79999999981374,
+      "cacheKey": "grid:{\"base\":\"#0b222c\",\"veins\":\"#11b5c9\",\"telegraph\":\"#33f1ff\"}"
+    }
+  },
+  {
+    "timestamp": 4422.4000000003725,
+    "level": "info",
+    "category": "Material",
+    "message": "create_complete: ShaderMaterial (grid)",
+    "data": {
+      "duration": 163.29999999981374,
+      "cacheKey": "grid:{\"base\":\"#0b222c\",\"veins\":\"#11b5c9\",\"telegraph\":\"#33f1ff\"}",
+      "uniformsCount": 9,
+      "totalMaterials": 7
+    }
+  },
+  {
+    "timestamp": 4423.600000000559,
+    "level": "info",
+    "category": "Shader",
+    "message": "compile_success: veins",
+    "data": {
+      "duration": 161,
+      "cacheKey": "veins:{\"base\":\"#0b222c\",\"veins\":\"#11b5c9\",\"telegraph\":\"#33f1ff\"}"
+    }
+  },
+  {
+    "timestamp": 4424.100000000559,
+    "level": "info",
+    "category": "Material",
+    "message": "create_complete: ShaderMaterial (veins)",
+    "data": {
+      "duration": 161.3999999994412,
+      "cacheKey": "veins:{\"base\":\"#0b222c\",\"veins\":\"#11b5c9\",\"telegraph\":\"#33f1ff\"}",
+      "uniformsCount": 9,
+      "totalMaterials": 8
+    }
+  },
+  {
+    "timestamp": 4424.600000000559,
+    "level": "info",
+    "category": "Shader",
+    "message": "compile_success: veins",
+    "data": {
+      "duration": 243.5,
+      "cacheKey": "veins:{\"base\":\"#0b222c\",\"veins\":\"#11b5c9\",\"telegraph\":\"#33f1ff\"}"
+    }
+  },
+  {
+    "timestamp": 4424.800000000745,
+    "level": "info",
+    "category": "Material",
+    "message": "create_complete: ShaderMaterial (veins)",
+    "data": {
+      "duration": 243.59999999962747,
+      "cacheKey": "veins:{\"base\":\"#0b222c\",\"veins\":\"#11b5c9\",\"telegraph\":\"#33f1ff\"}",
+      "uniformsCount": 9,
+      "totalMaterials": 9
+    }
+  },
+  {
+    "timestamp": 4517.300000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 103.40ms",
+    "data": {
+      "frameCount": 121,
+      "delta": 103.3999999994412,
+      "memory": {
+        "used": 133070916,
+        "total": 209443944,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 4625.100000000559,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 107.90ms",
+    "data": {
+      "frameCount": 122,
+      "delta": 107.90000000037253,
+      "memory": {
+        "used": 157839552,
+        "total": 234181144,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 4731.600000000559,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 106.40ms",
+    "data": {
+      "frameCount": 123,
+      "delta": 106.3999999994412,
+      "memory": {
+        "used": 165654224,
+        "total": 241853256,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 4841,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 109.40ms",
+    "data": {
+      "frameCount": 124,
+      "delta": 109.40000000037253,
+      "memory": {
+        "used": 165667852,
+        "total": 241853256,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 4942.100000000559,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Canvas created",
+    "data": {
+      "renderer": {
+        "frame": 48,
+        "calls": 0,
+        "triangles": 0,
+        "points": 0,
+        "lines": 0
+      }
+    }
+  },
+  {
+    "timestamp": 4945.300000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 104.20ms",
+    "data": {
+      "frameCount": 125,
+      "delta": 104.20000000018626,
+      "memory": {
+        "used": 199606160,
+        "total": 267793752,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 5330.5,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 385.40ms",
+    "data": {
+      "frameCount": 126,
+      "delta": 385.3999999994412,
+      "memory": {
+        "used": 140724038,
+        "total": 184378910,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 5592.300000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 246.60ms",
+    "data": {
+      "frameCount": 129,
+      "delta": 246.59999999962747,
+      "memory": {
+        "used": 146040711,
+        "total": 199405219,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 5817.100000000559,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 224.90ms",
+    "data": {
+      "frameCount": 130,
+      "delta": 224.90000000037253,
+      "memory": {
+        "used": 152683438,
+        "total": 213009038,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 6087.100000000559,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 270.00ms",
+    "data": {
+      "frameCount": 131,
+      "delta": 270,
+      "memory": {
+        "used": 139665974,
+        "total": 192995922,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 6307.700000000186,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 220.50ms",
+    "data": {
+      "frameCount": 132,
+      "delta": 220.5,
+      "memory": {
+        "used": 145678183,
+        "total": 205197543,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 6573.4000000003725,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 265.80ms",
+    "data": {
+      "frameCount": 133,
+      "delta": 265.79999999981374,
+      "memory": {
+        "used": 145619358,
+        "total": 213565746,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 6856.800000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 283.40ms",
+    "data": {
+      "frameCount": 134,
+      "delta": 283.40000000037253,
+      "memory": {
+        "used": 154405182,
+        "total": 205443818,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 7048.700000000186,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 191.80ms",
+    "data": {
+      "frameCount": 135,
+      "delta": 191.79999999981374,
+      "memory": {
+        "used": 161415398,
+        "total": 218543654,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 7215.4000000003725,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 166.70ms",
+    "data": {
+      "frameCount": 136,
+      "delta": 166.70000000018626,
+      "memory": {
+        "used": 161544510,
+        "total": 218543662,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 7449.800000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 234.40ms",
+    "data": {
+      "frameCount": 137,
+      "delta": 234.3999999994412,
+      "memory": {
+        "used": 169613717,
+        "total": 230792665,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 7717.300000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 267.50ms",
+    "data": {
+      "frameCount": 138,
+      "delta": 267.5,
+      "memory": {
+        "used": 219798634,
+        "total": 255267750,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 8032.600000000559,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 315.30ms",
+    "data": {
+      "frameCount": 139,
+      "delta": 315.29999999981374,
+      "memory": {
+        "used": 149649576,
+        "total": 209343488,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 8282.800000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 250.20ms",
+    "data": {
+      "frameCount": 140,
+      "delta": 250.20000000018626,
+      "memory": {
+        "used": 158683815,
+        "total": 221680207,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 8683.300000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 400.50ms",
+    "data": {
+      "frameCount": 141,
+      "delta": 400.5,
+      "memory": {
+        "used": 165293900,
+        "total": 216525240,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 8910.300000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 227.10ms",
+    "data": {
+      "frameCount": 142,
+      "delta": 227.1000000005588,
+      "memory": {
+        "used": 169332223,
+        "total": 229396039,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 8969.400000000373,
+    "level": "info",
+    "category": "WebGL",
+    "message": "EnvironmentRenderer mounted",
+    "data": {}
+  },
+  {
+    "timestamp": 8970.200000000186,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Sky config update",
+    "data": {
+      "skyConfig": {
+        "type": "solid",
+        "solidColor": "#ffffff",
+        "exposure": 1,
+        "rotation": 0,
+        "showBackground": true
+      }
+    }
+  },
+  {
+    "timestamp": 8970.800000000745,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Exposure set",
+    "data": {
+      "exposure": 1
+    }
+  },
+  {
+    "timestamp": 8971.400000000373,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Lighting config update",
+    "data": {
+      "lightingConfig": {
+        "preset": "whitebox",
+        "directional": {
+          "enabled": true,
+          "position": [
+            10,
+            18,
+            8
+          ],
+          "intensity": 0.7,
+          "color": "#ffffff"
+        },
+        "hemisphere": {
+          "enabled": true,
+          "skyColor": "#ffffff",
+          "groundColor": "#f0f0f0",
+          "intensity": 0.4
+        },
+        "fog": {
+          "enabled": false,
+          "type": "linear",
+          "color": "#ffffff",
+          "near": 10,
+          "far": 100
+        },
+        "ambient": {
+          "enabled": true,
+          "intensity": 0.6,
+          "color": "#ffffff"
+        }
+      }
+    }
+  },
+  {
+    "timestamp": 8972.300000000745,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Directional light added",
+    "data": {
+      "color": "#ffffff",
+      "intensity": 0.7
+    }
+  },
+  {
+    "timestamp": 8973,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Hemisphere light added",
+    "data": {
+      "skyColor": "#ffffff",
+      "groundColor": "#f0f0f0"
+    }
+  },
+  {
+    "timestamp": 8973.600000000559,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Ambient light added",
+    "data": {
+      "color": "#ffffff",
+      "intensity": 0.6
+    }
+  },
+  {
+    "timestamp": 8974.200000000186,
+    "level": "info",
+    "category": "WebGL",
+    "message": "Fog disabled",
+    "data": {}
+  },
+  {
+    "timestamp": 8975.100000000559,
+    "level": "info",
+    "category": "Material",
+    "message": "create_start: ArenaMaterial (grid)",
+    "data": {
+      "initialColors": {
+        "base": "#0b222c",
+        "veins": "#11b5c9",
+        "telegraph": "#33f1ff"
+      },
+      "totalMaterials": 10
+    }
+  },
+  {
+    "timestamp": 8976.600000000559,
+    "level": "info",
+    "category": "Material",
+    "message": "cache_hit: ArenaMaterial (grid)",
+    "data": {
+      "duration": 1.7000000001862645,
+      "cacheKey": "grid:{\"base\":\"#0b222c\",\"veins\":\"#11b5c9\",\"telegraph\":\"#33f1ff\"}",
+      "totalMaterials": 11
+    }
+  },
+  {
+    "timestamp": 8978,
+    "level": "info",
+    "category": "Material",
+    "message": "create_start: GroundModeA (veins)",
+    "data": {
+      "totalMaterials": 12
+    }
+  },
+  {
+    "timestamp": 8978.900000000373,
+    "level": "info",
+    "category": "Material",
+    "message": "create_start: ArenaMaterial (veins)",
+    "data": {
+      "initialColors": {
+        "base": "#0b222c",
+        "veins": "#11b5c9",
+        "telegraph": "#33f1ff"
+      },
+      "totalMaterials": 13
+    }
+  },
+  {
+    "timestamp": 8979.700000000186,
+    "level": "info",
+    "category": "Material",
+    "message": "cache_hit: ArenaMaterial (veins)",
+    "data": {
+      "duration": 0.8999999994412065,
+      "cacheKey": "veins:{\"base\":\"#0b222c\",\"veins\":\"#11b5c9\",\"telegraph\":\"#33f1ff\"}",
+      "totalMaterials": 14
+    }
+  },
+  {
+    "timestamp": 9009.700000000186,
+    "level": "info",
+    "category": "Material",
+    "message": "create_complete: GroundModeA (veins)",
+    "data": {
+      "duration": 31.700000000186265,
+      "materialType": "ShaderMaterial",
+      "totalMaterials": 15
+    }
+  },
+  {
+    "timestamp": 9021.700000000186,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 111.40ms",
+    "data": {
+      "frameCount": 143,
+      "delta": 111.3999999994412,
+      "memory": {
+        "used": 170275485,
+        "total": 229401553,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 9140.100000000559,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 118.40ms",
+    "data": {
+      "frameCount": 144,
+      "delta": 118.40000000037253,
+      "memory": {
+        "used": 170293434,
+        "total": 229401574,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 9257.300000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 117.10ms",
+    "data": {
+      "frameCount": 145,
+      "delta": 117.09999999962747,
+      "memory": {
+        "used": 170298234,
+        "total": 229401586,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 9391.800000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 134.50ms",
+    "data": {
+      "frameCount": 146,
+      "delta": 134.5,
+      "memory": {
+        "used": 170304322,
+        "total": 229401586,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 9494.300000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 102.40ms",
+    "data": {
+      "frameCount": 147,
+      "delta": 102.40000000037253,
+      "memory": {
+        "used": 170310526,
+        "total": 229401586,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 9644.400000000373,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 150.20ms",
+    "data": {
+      "frameCount": 148,
+      "delta": 150.20000000018626,
+      "memory": {
+        "used": 170316454,
+        "total": 229401586,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 9769.400000000373,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 125.00ms",
+    "data": {
+      "frameCount": 149,
+      "delta": 125,
+      "memory": {
+        "used": 170447513,
+        "total": 229401713,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 9790.200000000186,
+    "level": "error",
+    "category": "WebGL",
+    "message": "Three.js Context Lost",
+    "data": {
+      "renderer": {
+        "frame": 48,
+        "calls": 0,
+        "triangles": 0,
+        "points": 0,
+        "lines": 0
+      },
+      "timestamp": 11265.599999999627
+    },
+    "stack": "Error\n    at WebGLDebugger.log (http://localhost:5173/src/utils/WebGLDebugger.ts:19:31)\n    at logWebGL (http://localhost:5173/src/utils/WebGLDebugger.ts:138:65)\n    at HTMLCanvasElement.handleContextLost (http://localhost:5173/src/pages/SceneViewer.jsx?t=1763292569293:731:4)"
+  },
+  {
+    "timestamp": 9873.300000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 103.90ms",
+    "data": {
+      "frameCount": 150,
+      "delta": 103.8999999994412,
+      "memory": {
+        "used": 172512806,
+        "total": 229927106,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 10008.900000000373,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 135.50ms",
+    "data": {
+      "frameCount": 151,
+      "delta": 135.5,
+      "memory": {
+        "used": 137843959,
+        "total": 212721039,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 10067.700000000186,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 58.90ms",
+    "data": {
+      "frameCount": 152,
+      "delta": 58.90000000037253,
+      "memory": {
+        "used": 137870251,
+        "total": 212721039,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 10455.400000000373,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 75.50ms",
+    "data": {
+      "frameCount": 172,
+      "delta": 75.5,
+      "memory": {
+        "used": 139710278,
+        "total": 212721198,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 10610.600000000559,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 180",
+    "data": {
+      "fps": 60.24096385677358,
+      "memory": {
+        "used": 139742646,
+        "total": 212721198,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 11449.800000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 71.60ms",
+    "data": {
+      "frameCount": 227,
+      "delta": 71.59999999962747,
+      "memory": {
+        "used": 141289370,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 11661.100000000559,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 240",
+    "data": {
+      "fps": 58.139534883091315,
+      "memory": {
+        "used": 141308322,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 12493.100000000559,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 115.60ms",
+    "data": {
+      "frameCount": 285,
+      "delta": 115.59999999962747,
+      "memory": {
+        "used": 142831838,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 12727.700000000186,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 300",
+    "data": {
+      "fps": 58.8235294117647,
+      "memory": {
+        "used": 142855198,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 13468.300000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 91.10ms",
+    "data": {
+      "frameCount": 340,
+      "delta": 91.1000000005588,
+      "memory": {
+        "used": 144428314,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 13777.5,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 360",
+    "data": {
+      "fps": 60.240963853393836,
+      "memory": {
+        "used": 144461338,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 14468.300000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 91.20ms",
+    "data": {
+      "frameCount": 397,
+      "delta": 91.20000000018626,
+      "memory": {
+        "used": 146089718,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 14827.600000000559,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 420",
+    "data": {
+      "fps": 59.8802395202902,
+      "memory": {
+        "used": 146129418,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 15468.900000000373,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 91.60ms",
+    "data": {
+      "frameCount": 454,
+      "delta": 91.6000000005588,
+      "memory": {
+        "used": 147619322,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 15877.400000000373,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 480",
+    "data": {
+      "fps": 59.52380952446948,
+      "memory": {
+        "used": 147753674,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 16458.400000000373,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 64.20ms",
+    "data": {
+      "frameCount": 511,
+      "delta": 64.20000000018626,
+      "memory": {
+        "used": 149250170,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 16927.5,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 540",
+    "data": {
+      "fps": 60.60606060606061,
+      "memory": {
+        "used": 149320638,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 17456.700000000186,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 78.80ms",
+    "data": {
+      "frameCount": 568,
+      "delta": 78.79999999981374,
+      "memory": {
+        "used": 150800342,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 17980.400000000373,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 600",
+    "data": {
+      "fps": 58.4795321618317,
+      "memory": {
+        "used": 150843758,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 18469.400000000373,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 91.60ms",
+    "data": {
+      "frameCount": 625,
+      "delta": 91.6000000005588,
+      "memory": {
+        "used": 152344406,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 19028,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 660",
+    "data": {
+      "fps": 59.8802395202902,
+      "memory": {
+        "used": 152421814,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 19455.200000000186,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 78.40ms",
+    "data": {
+      "frameCount": 681,
+      "delta": 78.40000000037253,
+      "memory": {
+        "used": 153913538,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 20081,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 720",
+    "data": {
+      "fps": 55.55555555555556,
+      "memory": {
+        "used": 153963346,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 20469.800000000745,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 91.90ms",
+    "data": {
+      "frameCount": 739,
+      "delta": 91.8999999994412,
+      "memory": {
+        "used": 155478270,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 21127.300000000745,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 780",
+    "data": {
+      "fps": 59.52380952446948,
+      "memory": {
+        "used": 155525894,
+        "total": 212721210,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 21456.60000000056,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 79.50ms",
+    "data": {
+      "frameCount": 796,
+      "delta": 79.5,
+      "memory": {
+        "used": 157012486,
+        "total": 212721214,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 22180.10000000056,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 840",
+    "data": {
+      "fps": 66.22516556454774,
+      "memory": {
+        "used": 157158018,
+        "total": 212721214,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 22444.400000000373,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 67.40ms",
+    "data": {
+      "frameCount": 853,
+      "delta": 67.40000000037253,
+      "memory": {
+        "used": 158646742,
+        "total": 212721214,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 23210.5,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 900",
+    "data": {
+      "fps": 59.171597631831766,
+      "memory": {
+        "used": 158712398,
+        "total": 212721214,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 23455.60000000056,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 77.90ms",
+    "data": {
+      "frameCount": 911,
+      "delta": 77.90000000037253,
+      "memory": {
+        "used": 160190098,
+        "total": 212721214,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 24262,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 960",
+    "data": {
+      "fps": 58.8235294117647,
+      "memory": {
+        "used": 160281458,
+        "total": 212721214,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 24445.10000000056,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 58.30ms",
+    "data": {
+      "frameCount": 968,
+      "delta": 58.299999999813735,
+      "memory": {
+        "used": 161762878,
+        "total": 212721214,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 25296.60000000056,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 1020",
+    "data": {
+      "fps": 60.60606060606061,
+      "memory": {
+        "used": 161871874,
+        "total": 212721214,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 25449.5,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 64.40ms",
+    "data": {
+      "frameCount": 1026,
+      "delta": 64.40000000037253,
+      "memory": {
+        "used": 163351386,
+        "total": 212721214,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 26328.5,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 1080",
+    "data": {
+      "fps": 58.139534883091315,
+      "memory": {
+        "used": 163369726,
+        "total": 212721214,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 26466.900000000373,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 89.70ms",
+    "data": {
+      "frameCount": 1084,
+      "delta": 89.70000000018626,
+      "memory": {
+        "used": 164840682,
+        "total": 212721214,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 27475,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 105.10ms",
+    "data": {
+      "frameCount": 1140,
+      "delta": 105.1000000005588,
+      "memory": {
+        "used": 117254869,
+        "total": 190828821,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 27476,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 1140",
+    "data": {
+      "fps": 9.514747859131145,
+      "memory": {
+        "used": 117254869,
+        "total": 190828821,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 28447.900000000373,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 70.80ms",
+    "data": {
+      "frameCount": 1196,
+      "delta": 70.79999999981374,
+      "memory": {
+        "used": 118958027,
+        "total": 190828827,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 28494.5,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 1200",
+    "data": {
+      "fps": 63.6942675151679,
+      "memory": {
+        "used": 118958027,
+        "total": 190828827,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 29453.900000000373,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 72.60ms",
+    "data": {
+      "frameCount": 1254,
+      "delta": 72.59999999962747,
+      "memory": {
+        "used": 120670971,
+        "total": 190828827,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 29543.900000000373,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 1260",
+    "data": {
+      "fps": 59.52380952446948,
+      "memory": {
+        "used": 120679951,
+        "total": 190828827,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 30483.400000000373,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 104.70ms",
+    "data": {
+      "frameCount": 1311,
+      "delta": 104.70000000018626,
+      "memory": {
+        "used": 122274939,
+        "total": 190828831,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 30610.300000000745,
+    "level": "info",
+    "category": "Performance",
+    "message": "Frame 1320",
+    "data": {
+      "fps": 59.17159763509259,
+      "memory": {
+        "used": 122312391,
+        "total": 190828831,
+        "limit": 4294705152
+      }
+    }
+  },
+  {
+    "timestamp": 31471.900000000373,
+    "level": "warn",
+    "category": "Performance",
+    "message": "Frame time spike: 93.40ms",
+    "data": {
+      "frameCount": 1367,
+      "delta": 93.40000000037253,
+      "memory": {
+        "used": 123807723,
+        "total": 190828831,
+        "limit": 4294705152
+      }
+    }
+  }
+]

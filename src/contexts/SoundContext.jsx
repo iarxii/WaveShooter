@@ -3,7 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 
 // Import SFX assets
 // All large audio files moved to public/assets/sounds; resolve via helper
-import { assetUrl } from '../utils/assetPaths.ts'
+import { assetUrl } from '../utils/assetPaths'
 const sfxBomb = assetUrl('sounds/mixkit-arcade-game-explosion-2759.wav')
 const sfxLifeSpawn = assetUrl('sounds/mixkit-game-success-alert-2039.wav')
 const sfxLifePickup = assetUrl('sounds/mixkit-game-success-alert-2039.wav')

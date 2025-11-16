@@ -71,7 +71,7 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
 }
 
 // Component to mount inside <Canvas> to apply HDRI, fog, and tone-mapping exposure transitions.
-export function SceneEnvironment({ skipLighting = false }: { skipLighting?: boolean } = {}) {
+export function SceneEnvironment({ skipLighting = false, useProcedural = true }: { skipLighting?: boolean; useProcedural?: boolean } = {}) {
   const { gl, scene, camera } = useThree()
   const { env } = useEnvironment()
   const perfModeRef = useRef<boolean>(false)
@@ -164,7 +164,21 @@ export function SceneEnvironment({ skipLighting = false }: { skipLighting?: bool
   }, [])
 
   // Render based on environment type
-  if (env.type === 'procedural') {
+  if (!useProcedural) {
+    // Simple lighting for game mode
+    return (
+      <>
+        {!skipLighting && (
+          <>
+            <ambientLight color="#ffffff" intensity={0.4} />
+            <directionalLight position={[10, 18, 8]} intensity={0.7} />
+            <hemisphereLight intensity={0.35} groundColor={'#eaeef3'} />
+          </>
+        )}
+      </>
+    )
+  }
+  if (env.type === 'procedural' && useProcedural) {
     return (
       <>
         <ProceduralEnvironmentFactory spec={env} perfMode={perfModeRef.current} />

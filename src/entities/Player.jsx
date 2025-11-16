@@ -1262,7 +1262,7 @@ export default React.memo(Player)
 
 // Simple OrbitingFX removed; replaced with FXOrbs
 
-import { assetUrl } from "../utils/assetPaths.ts";
+import { assetUrl } from "../utils/assetPaths";
 
 function HeroDokta() {
   // Prefer animated FBX if available; otherwise use static GLB

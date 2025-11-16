@@ -18,6 +18,7 @@ import { EffectsProvider } from './effects/EffectsContext.jsx'
 import { SoundProvider, UISoundLayer, useSound } from './contexts/SoundContext.jsx'
 import { EnvironmentProvider } from './contexts/EnvironmentContext.tsx'
 import { EnvironmentBuilderProvider } from './contexts/EnvironmentBuilderContext'
+import { InstancingProvider } from './contexts/InstancingContext'
 
 function RouteMusicSync() {
   const loc = useLocation()
@@ -43,6 +44,7 @@ export default function AppRouter() {
           <SoundProvider>
           <EnvironmentBuilderProvider>
           <EnvironmentProvider>
+          <InstancingProvider>
             <UISoundLayer />
             <RouteMusicSync />
             {/* Nav visibility: allow in-game toggle; Randomizer also toggleable via page controls */}
@@ -70,6 +72,7 @@ export default function AppRouter() {
                 <Route path="*" element={<Landing />} />
               </Routes>
             </React.Suspense>
+          </InstancingProvider>
           </EnvironmentProvider>
           </EnvironmentBuilderProvider>
           </SoundProvider>

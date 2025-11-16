@@ -3,6 +3,13 @@
 ## Overview
 The current environment system with modes A, B, C is confusing and limited. This plan proposes a modular, layer-based environment builder that allows intuitive world creation through composable layers and extensive controls.
 
+**Current Status**: Phase 2 completed with full terrain and arena geometry controls. Phase 3 (Atmosphere & Procedural layers) ready for implementation. The system now supports:
+- Basic lighting presets (White Box, Dark Box, HDRI)
+- Terrain geometry sculpting (mountains, buildings, pillars, craters, waves)
+- Arena boundary customization with separate materials
+- Real-time preview in SceneViewer
+- Preset save/load system
+
 ## Core Philosophy
 - **Modular Layers**: Environments built from independent layers (Sky, Lighting, Surface, Atmosphere, Procedural)
 - **Preset + Custom**: Start with presets, then tweak parameters
@@ -35,18 +42,23 @@ The current environment system with modes A, B, C is confusing and limited. This
 - Individual sliders for each property
 - Color pickers for lights/fog
 
-### 3. Surface Layer
-**Purpose**: Arena ground and surrounding geometry
+### 3. Surface Layer ✅ ENHANCED
+**Purpose**: Arena ground, surrounding terrain geometry, and boundary materials
+**Components**:
+- **Ground Plane**: Main surface with shader variants and material properties
+- **Terrain Geometry**: Procedural terrain generation around arena boundary
+- **Arena Boundary**: Separate cylindrical boundary with independent materials
 **Options**:
 - Shader variants (veins, infection, grid, bioelectric)
-- Material properties (metalness, roughness)
-- Geometry modifiers (displacement, normal maps)
-- Vertex effects (animation, deformation)
+- Material properties (metalness, roughness, color)
+- Terrain types (flat, mountains, buildings, pillars, craters, waves)
+- Geometry modifiers (height, frequency, octaves, boundary distance)
+- Arena customization (shader, material, height, thickness)
 **Controls**:
-- Shader dropdown
-- Material sliders (metalness 0-1, roughness 0-1)
-- Displacement toggle/slider
-- Animation speed controls
+- Shader dropdown for ground and arena
+- Material sliders (metalness 0-1, roughness 0-1, color picker)
+- Terrain type selector with procedural parameters
+- Arena boundary controls (height, thickness, material properties)
 
 ### 4. Atmosphere Layer
 **Purpose**: Particles, effects, and environmental details
@@ -81,24 +93,18 @@ Located in SceneViewer sidebar, expandable sections:
 
 ```
 ┌─ Environment Builder ──────────────────┐
-│ ┌─ Sky Layer ──────────┐ ┌─ Lighting ──┐ │
-│ │ HDRI: hospital.hdr   │ │ Preset:     │ │
-│ │ Exposure: [---|-----]│ │ Hospital    │ │
-│ │ Rotation: [-----|---]│ │ Fog: [x]    │ │
-│ └──────────────────────┘ │ Near: [--|-]│ │
-│                          └─────────────┘ │
-│ ┌─ Surface ─────────────┐ ┌─ Atmosphere─┐ │
-│ │ Shader: veins         │ │ Particles:  │ │
-│ │ Metalness: [-----|---]│ │ Dust [x]    │ │
-│ │ Displacement: [x]     │ │ Spores [ ]  │ │
-│ └───────────────────────┘ └─────────────┘ │
-│ ┌─ Procedural ──────────┐                 │
-│ │ Hazards: pillars      │                 │
-│ │ Frequency: [---|-----]│                 │
-│ │ Intensity: [-----|---]│                 │
-│ └───────────────────────┘                 │
-│ [Save Preset] [Load Preset] [Reset]       │
-└───────────────────────────────────────────┘
+│ ┌─ Lighting Controls ──┐ ┌─ Terrain & Arena ──┐ │
+│ │ Preset: Hospital     │ │ Terrain Type:      │ │
+│ │ Fog: [x] Near: [--|-]│ │ Mountains          │ │
+│ │ Ambient: [-----|---]│ │ Height: [---|-----]│ │
+│ └──────────────────────┘ │ Frequency: [--|---]│ │
+│                          │ Arena Shader: Grid │ │
+│ ┌─ Sky Settings ────────┐ │ Height: [---|-----]│ │
+│ │ HDRI: hospital.hdr    │ │ Color: [#444]     │ │
+│ │ Exposure: [---|-----]│ └────────────────────┘ │
+│ └───────────────────────┘                         │
+│ [Save Preset] [Load Preset] [Reset]               │
+└───────────────────────────────────────────────────┘
 ```
 
 ### Preset Management
@@ -183,23 +189,35 @@ interface SkyConfig {
 - Preset save/load/delete functionality
 - Dirty state tracking
 
-### Phase 2: UI Controls Integration ✅ COMPLETED
-1. ✅ Build collapsible layer control panels (done in Phase 1)
-2. ✅ Implement sliders, dropdowns, color pickers (done in Phase 1)
-3. ✅ Add preset save/load functionality (done in Phase 1)
-4. ✅ Integrate with SceneViewer:
-   - Added EnvironmentBuilderProvider to AppRouter
-   - Replaced old SceneViewer controls with EnvironmentBuilder component
-   - Created EnvironmentRenderer component to apply configs to Three.js scene
-   - Connected surface layer to ground rendering modes (A, B, C)
-   - Removed old shaderKey/shader management in favor of environment builder state
+### Phase 2: Terrain & Arena Controls ✅ COMPLETED
 
-### Phase 3: Layer Implementation
-1. Sky layer (HDRI + procedural)
-2. Lighting layer (fog, lights)
-3. Surface layer (shaders, materials)
-4. Atmosphere layer (particles, effects)
-5. Procedural layer (hazards, factors)
+**Status**: Fully implemented and tested
+**Features Delivered**:
+- Terrain geometry generation with procedural algorithms
+- Multiple terrain types: Mountains, Buildings, Pillars, Craters, Waves
+- Real-time height, frequency, and octaves controls
+- Arena boundary rendering with separate material system
+- Arena shader options: Grid, Veins, Solid
+- Arena height and color customization
+- Integration with Environment Builder UI
+- Terrain generation in GroundModeA
+- Arena boundaries rendered separately from terrain
+
+**Files Modified**:
+- `src/pages/SceneViewer.jsx`: Added terrain generation functions and arena boundary rendering
+- `src/contexts/EnvironmentBuilderContext.tsx`: Extended with terrain/arena config types
+- `src/components/EnvironmentBuilder/SurfaceControls.tsx`: Added terrain controls
+- `src/components/EnvironmentBuilder/EnvironmentBuilder.tsx`: Added Terrain & Arena panel
+
+### Phase 3: Atmosphere & Procedural Layers 🚧 PLANNED
+
+**Status**: Ready for implementation
+**Features Planned**:
+- Atmosphere layer: Particle systems (dust, spores, medical particles)
+- Screen effects: Vignette, chromatic aberration, bloom
+- Procedural layer: Environmental hazards and dynamic elements
+- Advanced lighting: Volumetric fog, god rays
+- Performance optimization for particle systems
 
 ### Phase 4: Advanced Features
 1. Procedural skybox generation

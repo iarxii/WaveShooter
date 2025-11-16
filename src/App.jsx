@@ -28,11 +28,11 @@ import { useSound } from "./contexts/SoundContext.jsx";
 import PerfCollector from "./components/PerfCollector.tsx";
 import PerfOverlay from "./components/PerfOverlay.tsx";
 import PerfLongTaskObserver from "./components/PerfLongTaskObserver.tsx";
-import * as perf from "./perf.ts";
+import * as perf from "./perf";
 import FXOrbs from "./components/FXOrbs";
 import applyDamageToHero from "./utils/damage.js";
 import PlayerRadialHUD from "./components/PlayerRadialHUD.jsx";
-import { verifyRegisteredAssets, assetUrl } from "./utils/assetPaths.ts";
+import { verifyRegisteredAssets, assetUrl } from "./utils/assetPaths";
 import useGamepadControls from "./utils/gamepad";
 import { getAccessibility, onAccessibilityChange, updateAccessibility } from "./utils/accessibility";
 import { GridHelper } from "three";
@@ -6506,7 +6506,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
           {/* Dynamically reduce pixel ratio on slow frames */}
           <AdaptiveDpr pixelated />
           {/* HDRI-based lighting, fog, and exposure control */}
-          <SceneEnvironment />
+          <SceneEnvironment useProcedural={false} />
           {/* 3D debug gizmo (axes + arrows) */}
           <AxisGizmo moveRef={dpadVecRef} aimRef={aimInputRef} visible={showGizmo} />
           {/* Performance collectors (no-op unless overlay or marks are read) */}
@@ -6518,7 +6518,11 @@ export default function App({ navVisible, setNavVisible } = {}) {
             intensity={0.6}
             castShadow
           />
-          {/* Legacy static ground removed; dynamic ShaderPark ground provided by ProceduralEnvironmentFactory */}
+          {/* Simple ground plane for game boundary */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+            <planeGeometry args={[GROUND_SIZE, GROUND_SIZE]} />
+            <meshStandardMaterial color="#2a2a2a" />
+          </mesh>
           {/* Boundary visual cue */}
           <BoundaryCue
             limit={boundaryLimit ?? BOUNDARY_LIMIT}
