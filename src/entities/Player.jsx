@@ -17,6 +17,7 @@ import FXOrbs from "../components/FXOrbs";
 // Dr Dokta animation controller (HeroAnimTester) + mapped animation pack
 import { HeroAnimTester } from "../heroes/factory/HeroAnimTester";
 import { liteSwordShieldMap } from "../heroes/factory/animMaps/liteSwordShieldMap";
+import { inputActions } from "../utils/inputActions";
 
 function Player({
   position,
@@ -131,10 +132,19 @@ function Player({
   // Diamond indicator will be created via JSX geometry/material for R3F compatibility
   // Buff/debuff and dash
   const debuffTimer = useRef(0);
+  const [isDashing, setIsDashing] = useState(false);
   const dashing = useRef(false);
   const dashTime = useRef(0);
   const dashDuration = 0.25;
   const dashVel = useRef(new THREE.Vector3());
+
+  // Update doktaAction based on isDashing for animation
+  useEffect(() => {
+    if (heroName === "Dr. Dokta") {
+      const action = isDashing ? "dashBackward" : "idle";
+      setDoktaAction(action);
+    }
+  }, [heroName, isDashing]);
   const portalHitCooldown = useRef(0);
   const bouncerHitCooldown = useRef(0);
   const boundaryGraceRef = useRef(0);
@@ -248,6 +258,54 @@ function Player({
       setDoktaAction((prev) => (prev === "attackHeavy" ? "idle" : prev));
     }
   }, [lasersActive]);
+
+  // Listen for centralized input actions
+  useEffect(() => {
+    const handleCommand = (e) => {
+      const { type, action, mode } = e.detail;
+      if (type === "jump") {
+        // Trigger jump logic
+        keyJumpDownAt.current = performance.now();
+        isKeyJumpDown.current = true;
+      } else if (type === "dash") {
+        // Trigger dash (assuming dashTriggerToken is handled in App.jsx)
+        // For now, set a flag or call onDashStart if available
+      }
+      // Other actions are handled elsewhere
+    };
+    window.addEventListener("heroTunerCommand", handleCommand);
+    return () => window.removeEventListener("heroTunerCommand", handleCommand);
+  }, []);
+
+  // Keyboard action handlers using centralized system
+  useEffect(() => {
+    if (isPaused) return;
+    const handleKeyDown = (e) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        inputActions.jump();
+      } else if (e.key === "1") {
+        inputActions.shapeRunCW();
+      } else if (e.key === "2") {
+        inputActions.shapeRunCCW();
+      } else if (e.key === "u" || e.key === "U") {
+        inputActions.specialAttack();
+      } else if (e.key === "k" || e.key === "K") {
+        inputActions.heavyAttack();
+      } else if (e.key === "j" || e.key === "J") {
+        inputActions.lightAttack();
+      } else if (e.key === "h" || e.key === "H") {
+        inputActions.jumpAttack();
+      } else if (e.key === "i" || e.key === "I") {
+        inputActions.forwardCharge();
+      } else if (e.key === "x" || e.key === "X") {
+        inputActions.death();
+      }
+      // Shift+Space for wall jump, but for now, handle in jump logic
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isPaused]);
 
   // Reset on respawn/restart
   useEffect(() => {
@@ -524,6 +582,7 @@ function Player({
       );
       if (dashTime.current >= dashDuration) {
         dashing.current = false;
+        setIsDashing(false);
         onDashEnd &&
           onDashEnd({ x: ref.current.position.x, z: ref.current.position.z });
       }
@@ -1104,6 +1163,7 @@ function Player({
     const speed = distance / dashDuration;
     dashVel.current.set(dashDir.x * speed, 0, dashDir.z * speed);
     dashing.current = true;
+    setIsDashing(true);
     dashTime.current = 0;
     // Choose dash animation based on movement direction (left/right/forward). Reuse same anim file for now.
     let anim = "dashForward";

@@ -35,7 +35,8 @@ import PlayerRadialHUD from "./components/PlayerRadialHUD.jsx";
 import { verifyRegisteredAssets, assetUrl } from "./utils/assetPaths";
 import useGamepadControls from "./utils/gamepad";
 import { getAccessibility, onAccessibilityChange, updateAccessibility } from "./utils/accessibility";
-import { GridHelper } from "three";
+import { inputActions } from "./utils/inputActions";
+import TouchActionButtons from "./components/TouchActionButtons.jsx";
 
 const LOGO = assetUrl("Healthcare_Heroes_3d_logo.png");
 
@@ -429,11 +430,21 @@ function AnalogStick({ onVectorChange, side = "left" }) {
     transform: "translate(0px, 0px)",
     transition: "transform 60ms linear",
     willChange: "transform",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "white",
+    fontSize: "20px",
+    fontWeight: "bold",
   };
+
+  const icon = side === "left" ? "↔↕" : "⊕";
 
   return (
     <div ref={baseRef} style={baseStyle} aria-hidden>
-      <div ref={knobRef} style={knobStyle} />
+      <div ref={knobRef} style={knobStyle}>
+        {icon}
+      </div>
     </div>
   );
 }
@@ -467,11 +478,21 @@ function GamepadStick({ x, z, side = "left" }) {
     transform: `translate(${x * radius}px, ${z * radius}px)`,
     transition: "transform 60ms linear",
     willChange: "transform",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "white",
+    fontSize: "20px",
+    fontWeight: "bold",
   };
+
+  const icon = side === "left" ? "↔↕" : "⊕";
 
   return (
     <div style={baseStyle} aria-hidden>
-      <div style={knobStyle} />
+      <div style={knobStyle}>
+        {icon}
+      </div>
     </div>
   );
 }
@@ -3020,6 +3041,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
   // Shape Runner feature is now a pickup-only visual; auto-move removed
   const [highContrast, setHighContrast] = useState(false);
   const [panelPosition, setPanelPosition] = useState({ x: window.innerWidth - 320 - 10, y: 80 }); // initial position: top right
+  const [waveScorePanelPosition, setWaveScorePanelPosition] = useState({ x: 10, y: 80 }); // initial position: top left
   const [hpEvents, setHpEvents] = useState([]); // floating HP change indicators
   const [armorEvents, setArmorEvents] = useState([]);
   const [powerEffect, setPowerEffect] = useState({ active: false, amount: 0 });
@@ -3082,6 +3104,34 @@ export default function App({ navVisible, setNavVisible } = {}) {
     isDraggingRef.current = false;
     document.removeEventListener('mousemove', handlePanelMouseMove);
     document.removeEventListener('mouseup', handlePanelMouseUp);
+  }, []);
+
+  // Dragging state for the wave/score panel
+  const isWaveScoreDraggingRef = useRef(false);
+  const waveScoreDragStartRef = useRef({ x: 0, y: 0 });
+
+  const handleWaveScorePanelMouseDown = useCallback((e) => {
+    isWaveScoreDraggingRef.current = true;
+    waveScoreDragStartRef.current = { x: e.clientX - waveScorePanelPosition.x, y: e.clientY - waveScorePanelPosition.y };
+    document.addEventListener('mousemove', handleWaveScorePanelMouseMove);
+    document.addEventListener('mouseup', handleWaveScorePanelMouseUp);
+    e.preventDefault();
+  }, [waveScorePanelPosition]);
+
+  const handleWaveScorePanelMouseMove = useCallback((e) => {
+    if (!isWaveScoreDraggingRef.current) return;
+    const newX = e.clientX - waveScoreDragStartRef.current.x;
+    const newY = e.clientY - waveScoreDragStartRef.current.y;
+    // Constrain to viewport
+    const constrainedX = Math.max(0, Math.min(window.innerWidth - 200, newX));
+    const constrainedY = Math.max(0, Math.min(window.innerHeight - 100, newY));
+    setWaveScorePanelPosition({ x: constrainedX, y: constrainedY });
+  }, []);
+
+  const handleWaveScorePanelMouseUp = useCallback(() => {
+    isWaveScoreDraggingRef.current = false;
+    document.removeEventListener('mousemove', handleWaveScorePanelMouseMove);
+    document.removeEventListener('mouseup', handleWaveScorePanelMouseUp);
   }, []);
 
   const pushPlayerLabel = useCallback((text, lifetimeMs = 2200) => {
@@ -3367,12 +3417,41 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const [isDashing, setIsDashing] = useState(false);
   const [cameraBoostUntilMs, setCameraBoostUntilMs] = useState(0);
   // Dash ability state
+  const [dashCount, setDashCount] = useState(3);
   const [dashCooldownMs, setDashCooldownMs] = useState(0);
   const dashCooldownRef = useRef(0);
   useEffect(() => {
     dashCooldownRef.current = dashCooldownMs;
   }, [dashCooldownMs]);
   const [dashTriggerToken, setDashTriggerToken] = useState(0);
+
+  // Centralized input action listener
+  useEffect(() => {
+    const handleCommand = (e) => {
+      const { type } = e.detail;
+      if (type === "dash") {
+        if (!isStartedRef.current || isPaused || isGameOver) return;
+        setDashCount((prevCount) => {
+          if (prevCount <= 0) return prevCount;
+          const newCount = prevCount - 1;
+          if (newCount === 0) {
+            setDashCooldownMs(10000);
+          }
+          return newCount;
+        });
+        setDashTriggerToken((t) => t + 1);
+        dashInvulnUntilRef.current = performance.now() + 250;
+      } else if (type === "togglePause") {
+        if (!isStartedRef.current) return;
+        if (isGameOverRef.current || (respawnRef.current && respawnRef.current > 0)) return;
+        setIsPaused((prev) => !prev);
+      } else if (type === "toggleFireMode") {
+        setAutoFire((v) => !v);
+      }
+    };
+    window.addEventListener("heroTunerCommand", handleCommand);
+    return () => window.removeEventListener("heroTunerCommand", handleCommand);
+  }, [isPaused, isGameOver]);
 
   // Arena sizing & growth
   const [boundaryLimit, setBoundaryLimit] = useState(BOUNDARY_LIMIT);
@@ -3986,7 +4065,13 @@ export default function App({ navVisible, setNavVisible } = {}) {
   useEffect(() => {
     const int = setInterval(() => {
       if (isPausedRef.current) return;
-      setDashCooldownMs((ms) => Math.max(0, ms - 100));
+      setDashCooldownMs((ms) => {
+        const newMs = Math.max(0, ms - 100);
+        if (ms > 0 && newMs === 0) {
+          setDashCount(3);
+        }
+        return newMs;
+      });
     }, 100);
     return () => clearInterval(int);
   }, []);
@@ -6551,40 +6636,15 @@ export default function App({ navVisible, setNavVisible } = {}) {
     aimRef: aimInputRef,
     setAutoFire: setAutoFire,
     getAutoFire: () => autoFire,
-    onTogglePause: useCallback(() => {
-      if (!isStartedRef.current) return;
-      if (isGameOverRef.current || (respawnRef.current && respawnRef.current > 0)) return;
-      setIsPaused((prev) => !prev);
-    }, []),
-    onDash: useCallback(() => {
-      if (!isStartedRef.current || isPausedRef.current || isGameOverRef.current) return;
-      if (dashCooldownRef.current > 0) return;
-      setDashTriggerToken((t) => t + 1);
-      setDashCooldownMs(10000);
-      dashInvulnUntilRef.current = performance.now() + 250;
-    }, []),
-    onToggleFireMode: useCallback(() => {
-      setAutoFire((v) => !v);
-    }, []),
-    onHeavyAttack: useCallback(() => {
-      try { window.dispatchEvent(new CustomEvent("heroTunerCommand", { detail: { type: "heroAction", action: "heavyAttack" } })); } catch {}
-    }, []),
-    onJump: useCallback(() => {
-      try { window.dispatchEvent(new CustomEvent("heroTunerCommand", { detail: { type: "heroAction", action: "jump" } })); } catch {}
-    }, []),
-    onPickupHold: useCallback((pressed) => {
-      // Placeholder: could set a ref/state if needed
-      (window.__pickupHoldState = pressed);
-    }, []),
-    onShapeRunCW: useCallback(() => {
-      try { window.dispatchEvent(new CustomEvent("heroTunerCommand", { detail: { type: "shapeRunner", mode: "cw" } })); } catch {}
-    }, []),
-    onShapeRunCCW: useCallback(() => {
-      try { window.dispatchEvent(new CustomEvent("heroTunerCommand", { detail: { type: "shapeRunner", mode: "ccw" } })); } catch {}
-    }, []),
-    onSpecialAttack: useCallback(() => {
-      try { window.dispatchEvent(new CustomEvent("heroTunerCommand", { detail: { type: "heroAction", action: "special" } })); } catch {}
-    }, []),
+    onTogglePause: () => inputActions.togglePause(),
+    onDash: () => inputActions.dash(),
+    onToggleFireMode: () => inputActions.toggleFireMode(),
+    onHeavyAttack: () => inputActions.heavyAttack(),
+    onJump: () => inputActions.jump(),
+    onPickupHold: (pressed) => inputActions.pickupHold(pressed),
+    onShapeRunCW: () => inputActions.shapeRunCW(),
+    onShapeRunCCW: () => inputActions.shapeRunCCW(),
+    onSpecialAttack: () => inputActions.specialAttack(),
     deadzone: 0.18,
     aimDeadzone: 0.18,
     aimSensitivity: 1.0,
@@ -7511,22 +7571,123 @@ export default function App({ navVisible, setNavVisible } = {}) {
             x={gamepadAim.x}
             z={gamepadAim.z}
           />
+          {/* Gamepad action buttons */}
+          <div style={{
+            position: 'fixed',
+            bottom: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            flexDirection: window.innerHeight > window.innerWidth ? 'column' : 'row',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '10px',
+            zIndex: 1000,
+            maxWidth: '90vw',
+            maxHeight: '90vh',
+          }}>
+            <button
+              style={{
+                width: window.innerHeight > window.innerWidth ? '50px' : '60px',
+                height: window.innerHeight > window.innerWidth ? '50px' : '60px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                color: 'white',
+                border: '2px solid white',
+                fontSize: window.innerHeight > window.innerWidth ? '10px' : '12px',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.9)'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'}
+              onClick={() => inputActions.jump()}
+              aria-label="Jump Action"
+              role="button"
+              tabIndex={0}
+            >
+              Jump
+            </button>
+            <button
+              style={{
+                width: window.innerHeight > window.innerWidth ? '50px' : '60px',
+                height: window.innerHeight > window.innerWidth ? '50px' : '60px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                color: 'white',
+                border: '2px solid white',
+                fontSize: window.innerHeight > window.innerWidth ? '10px' : '12px',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.9)'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'}
+              onClick={() => inputActions.dash()}
+              aria-label="Dash Action"
+              role="button"
+              tabIndex={0}
+            >
+              Dash
+            </button>
+            <button
+              style={{
+                width: window.innerHeight > window.innerWidth ? '50px' : '60px',
+                height: window.innerHeight > window.innerWidth ? '50px' : '60px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                color: 'white',
+                border: '2px solid white',
+                fontSize: window.innerHeight > window.innerWidth ? '10px' : '12px',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.9)'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'}
+              onClick={() => inputActions.heavyAttack()}
+              aria-label="Heavy Attack"
+              role="button"
+              tabIndex={0}
+            >
+              Heavy
+            </button>
+            <button
+              style={{
+                width: window.innerHeight > window.innerWidth ? '50px' : '60px',
+                height: window.innerHeight > window.innerWidth ? '50px' : '60px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                color: 'white',
+                border: '2px solid white',
+                fontSize: window.innerHeight > window.innerWidth ? '10px' : '12px',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.9)'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'}
+              onClick={() => inputActions.specialAttack()}
+              aria-label="Special Attack"
+              role="button"
+              tabIndex={0}
+            >
+              Special
+            </button>
+          </div>
         </>
+      )}
+      {controlScheme === "touch" && (
+        <TouchActionButtons controlScheme={controlScheme} />
       )}
 
       {/* Left Panel: Player and Boss info always visible; Accessibility under Debug toggle */}
       {(() => {
         const HEALTH_MAX = 100;
         const ARMOR_MAX = 100;
-        const dashTotalMs = 10000;
+        const dashTotalMs = 3000;
         const heroDef = HEROES.find((h) => h.name === selectedHero);
 
         const healthRatio = Math.max(0, Math.min(1, health / HEALTH_MAX));
         const armorRatio = Math.max(0, Math.min(1, armor / ARMOR_MAX));
-        const dashRatio = Math.max(
-          0,
-          Math.min(1, 1 - (dashCooldownMs || 0) / dashTotalMs)
-        );
+        const dashRatio = dashCount / 3;
         const abilityName = heroDef?.ability || "Ability";
         const abilityCooldown = heroDef?.cooldown ?? 20;
 
@@ -7712,6 +7873,69 @@ export default function App({ navVisible, setNavVisible } = {}) {
                 </div>
                 <div style={{ fontSize: 13, color: "#f1f5f9", marginTop: 2 }}>
                   {abilityName}
+                </div>
+              </div>
+            </div>
+
+            {/* Wave and Score Panel - draggable */}
+            <div
+              id="wave-score-panel"
+              style={{
+                position: "fixed",
+                left: waveScorePanelPosition.x,
+                top: waveScorePanelPosition.y,
+                display: "grid",
+                gap: 8,
+                height: "auto",
+                maxWidth: "200px",
+                padding: 10,
+                background: "rgba(0,0,0,0.25)",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.1)",
+                cursor: "move",
+                zIndex: 900,
+              }}
+              onMouseDown={handleWaveScorePanelMouseDown}
+            >
+              <div className="small" style={{ marginBottom: 6, textAlign: "center" }}>
+                <strong>Wave & Score</strong>
+              </div>
+              {/* Wave */}
+              <div
+                style={{
+                  background: "rgba(0,0,0,0.55)",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{ fontSize: 12, color: "#e5e7eb", marginBottom: 4 }}
+                >
+                  Wave
+                </div>
+                <div style={{ fontSize: 18, color: "#fbbf24", fontWeight: "bold" }}>
+                  {wave}
+                </div>
+              </div>
+              {/* Score */}
+              <div
+                style={{
+                  background: "rgba(0,0,0,0.55)",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{ fontSize: 12, color: "#e5e7eb", marginBottom: 4 }}
+                >
+                  Score
+                </div>
+                <div style={{ fontSize: 16, color: "#10b981", fontWeight: "bold" }}>
+                  {score.toLocaleString()}
                 </div>
               </div>
             </div>
@@ -7996,18 +8220,17 @@ export default function App({ navVisible, setNavVisible } = {}) {
                       </div>
                       <div className="cooldown">
                         {(() => {
-                          const pct = Math.max(
-                            0,
-                            Math.min(1, 1 - dashCooldownMs / 10000)
-                          );
+                          const pct = dashCount > 0 ? (dashCount / 3) * 100 : 0;
                           return (
                             <>
                               <div
                                 className="fill"
-                                style={{ width: `${Math.round(pct * 100)}%` }}
+                                style={{ width: `${Math.round(pct)}%` }}
                               />
                               <div className="cd-text">
-                                {dashCooldownMs > 0
+                                {dashCount > 0
+                                  ? `${dashCount}/3`
+                                  : dashCooldownMs > 0
                                   ? `${(dashCooldownMs / 1000).toFixed(1)}s`
                                   : "Ready"}
                               </div>
@@ -9101,6 +9324,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
               onClick={() => {
                 setIsStarted(true);
                 setIsPaused(false);
+                setDashCount(3);
+                setDashCooldownMs(0);
                 try {
                   play("player-spawn");
                 } catch {}

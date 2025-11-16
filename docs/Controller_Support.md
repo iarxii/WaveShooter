@@ -9,14 +9,14 @@ This project now includes basic gamepad support for standard-mapped controllers 
 | Move              | Left Stick (inverted Y)     | WASD / Arrow Keys         |
 | Aim               | Right Stick (Y invert opt.) | Mouse (orientation)       |
 | Fire (Hold)       | RT / R2 (when Auto-Fire OFF)| Left-click / Auto-Fire    |
-| Dash Ability      | A/Cross and B/Circle        | 3 key                     |
+| Dash Ability      | B/Circle                    | 3 key                     |
 | Pause / Resume    | Start / Options             | Escape / Space            |
 | Toggle Auto-Fire  | D-Pad Up                    | F key                     |
-| Heavy Attack      | Y / Triangle                | —                         |
-| Jump              | X / Square                  | —                         |
-| Shape Run (CW)    | LB / L1                     | 2 (after swap)            |
-| Shape Run (CCW)   | RB / R1                     | 1 (after swap)            |
-| Special Attack    | LB+RB / L1+R1               | —                         |
+| Heavy Attack      | Y / Triangle                | K key                     |
+| Jump              | A/Cross and X/Square                     | Space                     |
+| Shape Run (CW)    | RB / R1                     | 1 key                     |
+| Shape Run (CCW)   | LB / L1                     | 2 key                     |
+| Special Attack    | LB+RB / L1+R1               | U key                     |
 
 Notes:
 1. D-Pad is no longer tied to movement; Up toggles Auto-Fire mode.

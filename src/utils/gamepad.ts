@@ -162,8 +162,21 @@ export function useGamepadControls(opts: GamepadControlsOptions) {
 
           // Start/Options -> pause (index 9)
           if (onTogglePause && pressedOnce(9)) onTogglePause()
-          // A (Xbox) / Cross (PS) -> dash (index 0)
-          if (onDash && pressedOnce(0)) onDash()
+          // A (Xbox) / Cross (PS) -> jump (index 0)
+          if (onJump && pressedOnce(0)) onJump()
+          // X (Xbox) / Square (PS) -> jump (index 2)
+          if (onJump && pressedOnce(2)) onJump()
+          // B (Xbox) / Circle (PS) -> dash (index 1)
+          if (onDash && pressedOnce(1)) onDash()
+          // Y (Xbox) / Triangle (PS) -> heavy attack (index 3)
+          if (onHeavyAttack && pressedOnce(3)) onHeavyAttack()
+          // LB (Xbox) / L1 (PS) -> shape run CCW (index 4)
+          if (onShapeRunCCW && pressedOnce(4)) onShapeRunCCW()
+          // RB (Xbox) / R1 (PS) -> shape run CW (index 5)
+          if (onShapeRunCW && pressedOnce(5)) onShapeRunCW()
+          // LB + RB -> special attack (indices 4 and 5)
+          if (onSpecialAttack && pressedOnce(4) && now[5] === 1) onSpecialAttack()
+          if (onSpecialAttack && pressedOnce(5) && now[4] === 1) onSpecialAttack()
 
           prevButtonsRef.current = now
         }
@@ -183,7 +196,7 @@ export function useGamepadControls(opts: GamepadControlsOptions) {
 
     rafRef.current = requestAnimationFrame(loop)
     return () => { mounted = false; cancelAnimationFrame(rafRef.current) }
-  }, [moveRef, aimRef, setAutoFire, onTogglePause, onDash, deadzone, aimDeadzone, aimSensitivity])
+  }, [moveRef, aimRef, setAutoFire, onTogglePause, onDash, onToggleFireMode, onHeavyAttack, onJump, onPickupHold, onShapeRunCW, onShapeRunCCW, onSpecialAttack, deadzone, aimDeadzone, aimSensitivity, invertMoveX, invertMoveY, invertAimX, invertAimY])
 }
 
 export default useGamepadControls
