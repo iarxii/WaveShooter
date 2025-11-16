@@ -6,6 +6,9 @@ const hospitalHDR = assetUrl('hdri/hospital_room_1k.hdr')
 const surgeryHDR = assetUrl('hdri/surgery_1k.hdr')
 const orchardHDR = assetUrl('hdri/citrus_orchard_road_puresky_1k.hdr')
 
+// Note: For mobile performance, consider using compressed HDRI formats (e.g., .ktx2 with Basis Universal)
+// if loading times or memory usage become issues. Current .hdr files are uncompressed.
+
 export type EnvId =
   | 'proc_hazard_hospital'
   | 'proc_hazard_lab'

@@ -143,9 +143,9 @@ setHazardMode(modeConfig)
 ---
 Use this document as the authoritative reference when extending or tuning the environment or hazards. Keep it updated as features land.
 
-## Shader Park Integration for Environments
+## Three.js ShaderMaterial Integration for Environments
 
-The current limitation: the sample Shader Park scripts you copied are not compiling because they rely on the full Shader Park DSL runtime (ray‑march context + helper intrinsics) that the npm package does not auto‑inject when you just pass raw source text. Functions like mirrorN, setMaxIterations, sphere(), noise(), box(), mixGeo(), etc. exist only inside the interpreter’s internal DSL scope reconstructed by createSculpture. Supplying a bare string directly to sculpt/glsl converters without wrapping it in the expected function signature causes ReferenceErrors and fallback.
+The environment system now uses Three.js ShaderMaterial exclusively for dynamic arena surfaces. This provides performant, custom GLSL shaders that integrate seamlessly with the EnvironmentContext for colors and pulse events.
 
 Key constraints causing your ground shaders not to appear as intended:
 1. DSL context missing: The code snippets from shaderpark.com are fragments executed inside their online runtime where all DSL helpers are globally injected. The npm module expects either:

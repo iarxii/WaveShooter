@@ -71,7 +71,7 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
 }
 
 // Component to mount inside <Canvas> to apply HDRI, fog, and tone-mapping exposure transitions.
-export function SceneEnvironment() {
+export function SceneEnvironment({ skipLighting = false }: { skipLighting?: boolean } = {}) {
   const { gl, scene, camera } = useThree()
   const { env } = useEnvironment()
   const perfModeRef = useRef<boolean>(false)
@@ -174,9 +174,13 @@ export function SceneEnvironment() {
   if (env.type === 'whitebox') {
     return (
       <>
-        <ambientLight color={ambientColor as any} intensity={Math.max(0.35, ambientIntensity)} />
-        <directionalLight position={[10, 18, 8]} intensity={0.7} />
-        <hemisphereLight intensity={0.35} groundColor={'#eaeef3'} />
+        {!skipLighting && (
+          <>
+            <ambientLight color={ambientColor as any} intensity={Math.max(0.35, ambientIntensity)} />
+            <directionalLight position={[10, 18, 8]} intensity={0.7} />
+            <hemisphereLight intensity={0.35} groundColor={'#eaeef3'} />
+          </>
+        )}
       </>
     )
   }
@@ -185,8 +189,12 @@ export function SceneEnvironment() {
     // In perf mode, skip environment map to reduce fragment cost
     return (
       <>
-        <ambientLight color={ambientColor as any} intensity={Math.max(0.3, ambientIntensity)} />
-        <hemisphereLight intensity={0.35} groundColor={'#20232a'} />
+        {!skipLighting && (
+          <>
+            <ambientLight color={ambientColor as any} intensity={Math.max(0.3, ambientIntensity)} />
+            <hemisphereLight intensity={0.35} groundColor={'#20232a'} />
+          </>
+        )}
       </>
     )
   }
@@ -209,7 +217,9 @@ export function SceneEnvironment() {
           )}
         </>
       )}
-      <ambientLight color={ambientColor as any} intensity={ambientIntensity} />
+      {!skipLighting && (
+        <ambientLight color={ambientColor as any} intensity={ambientIntensity} />
+      )}
     </>
   )
 }

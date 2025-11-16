@@ -1,17 +1,44 @@
 import * as THREE from 'three'
-
-import VeinsFrag from './sample_shaders/veins.frag?raw'
-import InfectionFrag from './sample_shaders/infection.frag?raw'
-import GridFrag from './sample_shaders/grid.frag?raw'
-import BioelectricFrag from './sample_shaders/bioelectric.frag?raw'
+import { logMaterial, logShader } from '../utils/WebGLDebugger'
 
 export const MAX_PULSES = 8
+
+// Global cache for arena materials to avoid recompilation
+const materialCache = new Map<string, THREE.ShaderMaterial>()
+
+// Cache for loaded fragment sources
+const fragmentCache: any = {}
+
+async function loadFragment(key: string): Promise<string> {
+  if (!fragmentCache[key]) {
+    const module = await import(`./sample_shaders/${key}.frag?raw`)
+    fragmentCache[key] = module.default
+  }
+  return fragmentCache[key]
+}
 
 export function colorToVec3(hexOrStr) {
   try { return new THREE.Color(hexOrStr).toArray().slice(0,3) } catch { return [0.08, 0.12, 0.16] }
 }
 
-export function createArenaMaterial(variant = 'default', initialColors = { base: '#0b222c', veins: '#11b5c9', telegraph: '#33f1ff' }) {
+export async function createArenaMaterial(variant = 'default', initialColors = { base: '#0b222c', veins: '#11b5c9', telegraph: '#33f1ff' }) {
+  const startTime = performance.now()
+  logMaterial('create_start', 'ArenaMaterial', variant, { initialColors })
+
+  // Create cache key from variant and colors
+  const colorsKey = JSON.stringify(initialColors)
+  const cacheKey = `${variant}:${colorsKey}`
+
+  // Check cache first
+  if (materialCache.has(cacheKey)) {
+    const cached = materialCache.get(cacheKey)!.clone()
+    logMaterial('cache_hit', 'ArenaMaterial', variant, {
+      duration: performance.now() - startTime,
+      cacheKey
+    })
+    return cached
+  }
+
   const base = new THREE.Color(initialColors.base)
   const veins = new THREE.Color(initialColors.veins)
   const tele = new THREE.Color(initialColors.telegraph)
@@ -31,9 +58,10 @@ export function createArenaMaterial(variant = 'default', initialColors = { base:
   const vertex = `varying vec2 vUv; varying vec3 vWorld;
   void main(){ vUv = uv; vec4 worldPos = modelMatrix * vec4(position,1.0); vWorld = worldPos.xyz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`
 
-  // choose fragment by variant
-  const fragments: any = {
-    default: `precision mediump float; varying vec2 vUv; varying vec3 vWorld;
+  // Load fragment based on variant
+  let fragment: string
+  if (variant === 'default') {
+    fragment = `precision mediump float; varying vec2 vUv; varying vec3 vWorld;
   uniform float uTime; uniform float uNow;
   uniform vec3 uBaseColor; uniform vec3 uVeinColor; uniform vec3 uTeleColor;
   uniform int uPulseCount; uniform vec3 uPulses[${MAX_PULSES}];
@@ -45,20 +73,44 @@ export function createArenaMaterial(variant = 'default', initialColors = { base:
     float add = 0.0;
     for(int i=0;i<${MAX_PULSES};i++){ if(i >= uPulseCount) break; vec3 p = uPulses[i]; float start = p.z; if(start > 0.0){ float dt = uNow - start; if(dt >= 0.0){ float r = dt * uPulseSpeed; float d = distance(vWorld.xz, p.xy); float ring = 1.0 - smoothstep(r - uPulseWidth, r + uPulseWidth, d); ring *= exp(-dt*0.6); add = max(add, ring); } } }
     vec3 tele = uTeleColor * (1.0 + add*2.2) * add; vec3 outCol = col + tele; outCol = clamp(outCol, 0.0, 1.0); gl_FragColor = vec4(outCol, 1.0); }
-  `,
-    veins: VeinsFrag,
-    infection: InfectionFrag,
-    grid: GridFrag,
-    bioelectric: BioelectricFrag
+  `
+  } else {
+    fragment = await loadFragment(variant)
   }
-
-  const fragment = fragments[variant] || fragments['default']
 
   const mat = new THREE.ShaderMaterial({
     uniforms,
     vertexShader: vertex,
     fragmentShader: fragment,
     side: THREE.DoubleSide,
+  })
+
+  // Test compilation to avoid context loss
+  try {
+    // Attempt to compile the shader
+    mat.needsUpdate = true
+    logShader('compile_success', variant, true, {
+      duration: performance.now() - startTime,
+      cacheKey
+    })
+    // If it throws, it will be caught
+  } catch (e) {
+    logShader('compile_failed', variant, false, {
+      error: e.message,
+      duration: performance.now() - startTime,
+      fallback: 'MeshStandardMaterial'
+    })
+    // Fallback to basic material
+    return new THREE.MeshStandardMaterial({ color: initialColors.base })
+  }
+
+  // Cache the material
+  materialCache.set(cacheKey, mat)
+
+  logMaterial('create_complete', 'ShaderMaterial', variant, {
+    duration: performance.now() - startTime,
+    cacheKey,
+    uniformsCount: Object.keys(mat.uniforms).length
   })
 
   return mat

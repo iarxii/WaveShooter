@@ -101,7 +101,7 @@ Integration & wiring
   - clamp pulses to `MAX_PULSES`, fill `uPulses[]` with (x,z,startTimeSeconds,intensity)
   - update `uBaseColor`, `uAccentColor` from `env.arenaColors` or a theme palette
   - set `uPulseCount` and any per-env parameters (gridScale, stainDecay)
-- When compiling ShaderPark or other runtime shaders, ensure `material.dispose()` is called before replacing materials on meshes.
+- When compiling Three.js shaders, ensure `material.dispose()` is called before replacing materials on meshes.
 
 Art direction & palettes
 - Neutral / Safe: base steel / clinical blue-gray: `#0e2a33` base, `#8fd3ff` accents
@@ -129,7 +129,6 @@ Developer notes — adding a new variant
 
 Testing checklist
 - Verify pulses spawn and rings expand from correct world positions.
-- Toggle engine (`three`/`shaderpark`) and confirm the Three.js material carries pulses identically.
 - Monitor memory / texture allocation in browser DevTools. Ensure no leaking materials after swaps.
 - Confirm HDRI and PMREM do not overload GPU; if so, use a smaller HDRI or lower sample counts.
 

@@ -17,6 +17,7 @@ import NavBar from './components/NavBar.jsx'
 import { EffectsProvider } from './effects/EffectsContext.jsx'
 import { SoundProvider, UISoundLayer, useSound } from './contexts/SoundContext.jsx'
 import { EnvironmentProvider } from './contexts/EnvironmentContext.tsx'
+import { EnvironmentBuilderProvider } from './contexts/EnvironmentBuilderContext'
 
 function RouteMusicSync() {
   const loc = useLocation()
@@ -40,6 +41,7 @@ export default function AppRouter() {
         <GameProvider>
           <EffectsProvider>
           <SoundProvider>
+          <EnvironmentBuilderProvider>
           <EnvironmentProvider>
             <UISoundLayer />
             <RouteMusicSync />
@@ -69,6 +71,7 @@ export default function AppRouter() {
               </Routes>
             </React.Suspense>
           </EnvironmentProvider>
+          </EnvironmentBuilderProvider>
           </SoundProvider>
           </EffectsProvider>
         </GameProvider>

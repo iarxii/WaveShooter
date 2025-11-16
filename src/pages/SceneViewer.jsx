@@ -1,69 +1,120 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { GizmoHelper, GizmoViewport, OrbitControls } from '@react-three/drei'
-import ShaderParkLogOverlay from '../components/ShaderPark/ShaderParkLogOverlay'
 import * as THREE from 'three'
 import Player from '../entities/Player.jsx'
 import { SceneEnvironment } from '../contexts/EnvironmentContext'
 import { BOUNDARY_LIMIT } from '../game/constants.js'
-import { compileSculptCode } from '../environments/ShaderPark/ShaderParkCompiler'
 import { useEnvironment } from '../contexts/EnvironmentContext'
-import PlasmaCode from '../environments/ShaderPark/sample_shaders/PlasmaSphere.js?raw'
-import PlanetoidCode from '../environments/ShaderPark/sample_shaders/BumpyPlanetoid.js?raw'
-import VoidCode from '../environments/ShaderPark/sample_shaders/VoidMaterial.js?raw'
-import TurbulenceCode from '../environments/ShaderPark/sample_shaders/Turbulence.js?raw'
 import { createArenaMaterial, updateArenaMaterialWithEnv } from '../environments/arenaMaterial'
+import { logMaterial, logPerformance, logWebGL } from '../utils/WebGLDebugger'
+import { DebugPanel } from '../components/DebugPanel'
+import { EnvironmentBuilder } from '../components/environmentBuilder/EnvironmentBuilder'
+import { EnvironmentRenderer } from '../components/environmentBuilder/EnvironmentRenderer'
+import { useEnvironmentBuilder } from '../contexts/EnvironmentBuilderContext'
 
 // Mode helpers --------------------------------------------------------------
 // Mapping from environment id to default shader sample
 const ENV_SHADER_MAP = {
-  proc_hazard_hospital: 'plasma',
-  proc_hazard_lab: 'planetoid',
-  proc_blue_sky: 'void',
-  proc_darkmode: 'turbulence',
-  hospital: 'planetoid',
-  surgery: 'planetoid',
-  orchard: 'planetoid'
-}
-
-const SHADER_SOURCES = {
-  plasma: PlasmaCode,
-  planetoid: PlanetoidCode,
-  void: VoidCode,
-  turbulence: TurbulenceCode
-}
-
-function selectCodeByKey(key) {
-  return SHADER_SOURCES[key] || PlanetoidCode
+  proc_hazard_hospital: 'veins',
+  proc_hazard_lab: 'infection',
+  proc_blue_sky: 'grid',
+  proc_darkmode: 'bioelectric',
+  hospital: 'veins',
+  surgery: 'veins',
+  orchard: 'veins'
 }
 
 // Simple Three.js ShaderMaterial for fallback / ThreeJS pipeline
-function createSimpleThreeMaterial(variant) {
+async function createSimpleThreeMaterial(variant) {
   // wrapper: create the richer arena material for a named variant
-  return createArenaMaterial(variant)
+  return await createArenaMaterial(variant)
 }
 
 // Option A: Background full-screen quad (shader) + separate collision ground
-function GroundModeA({ shaderKey, engine }) {
+function GroundModeA() {
+  const { state } = useEnvironmentBuilder()
   const { size } = { size: 200 }
   const { env, pulses } = useEnvironment()
-  const code = useMemo(()=> selectCodeByKey(shaderKey), [shaderKey])
   const matRef = useRef(null)
   const bgMeshRef = useRef(null)
+
+  // Use EnvironmentBuilder state or fallback values
+  const shaderKey = state?.currentConfig?.layers?.surface?.shader || 'veins'
+  const surfaceConfig = state?.currentConfig?.layers?.surface || {
+    material: { metalness: 0.1, roughness: 0.8, color: '#ffffff' },
+    displacement: { scale: 0.1 },
+    animation: { speed: 1.0 }
+  }
+
+  // Create material when shader changes
   useEffect(()=>{ let cancelled=false; (async()=>{
-    if (engine === 'shaderpark') {
-      const mat = await compileSculptCode(code, {});
-      if(!cancelled){ matRef.current = mat; if(bgMeshRef.current) bgMeshRef.current.material = mat }
-    } else {
-      const mat = createSimpleThreeMaterial(shaderKey)
-      if(!cancelled){ matRef.current = mat; if(bgMeshRef.current) bgMeshRef.current.material = mat }
+    const startTime = performance.now()
+    logMaterial('create_start', 'GroundModeA', shaderKey)
+
+    const mat = await createArenaMaterial(shaderKey)
+    if(!cancelled){
+      // Apply initial surface configuration
+      if (mat instanceof THREE.ShaderMaterial) {
+        const uniforms = mat.uniforms
+        if (uniforms) {
+          if (uniforms.uMetalness) uniforms.uMetalness.value = surfaceConfig.material.metalness
+          if (uniforms.uRoughness) uniforms.uRoughness.value = surfaceConfig.material.roughness
+          if (uniforms.uColor) uniforms.uColor.value = new THREE.Color(surfaceConfig.material.color)
+          if (uniforms.uDisplacementScale) uniforms.uDisplacementScale.value = surfaceConfig.displacement.scale
+          if (uniforms.uAnimationSpeed) uniforms.uAnimationSpeed.value = surfaceConfig.animation.speed
+        }
+      } else if (mat instanceof THREE.MeshStandardMaterial) {
+        mat.metalness = surfaceConfig.material.metalness
+        mat.roughness = surfaceConfig.material.roughness
+        mat.color = new THREE.Color(surfaceConfig.material.color)
+        if (surfaceConfig.displacement.enabled) {
+          mat.displacementScale = surfaceConfig.displacement.scale
+        }
+      }
+      matRef.current = mat;
+      if(bgMeshRef.current) bgMeshRef.current.material = mat
+
+      logMaterial('create_complete', 'GroundModeA', shaderKey, {
+        duration: performance.now() - startTime,
+        materialType: mat instanceof THREE.ShaderMaterial ? 'ShaderMaterial' : 'MeshStandardMaterial'
+      })
     }
-  })(); return ()=>{cancelled=true} }, [code, engine])
+  })(); return ()=>{cancelled=true} }, [shaderKey])
+
+  // Update material properties when surface config changes
+  useEffect(() => {
+    if (matRef.current) {
+      logMaterial('property_update', 'GroundModeA', shaderKey, {
+        metalness: surfaceConfig.material.metalness,
+        roughness: surfaceConfig.material.roughness,
+        color: surfaceConfig.material.color
+      })
+
+      if (matRef.current instanceof THREE.ShaderMaterial) {
+        const uniforms = matRef.current.uniforms
+        if (uniforms) {
+          if (uniforms.uMetalness) uniforms.uMetalness.value = surfaceConfig.material.metalness
+          if (uniforms.uRoughness) uniforms.uRoughness.value = surfaceConfig.material.roughness
+          if (uniforms.uColor) uniforms.uColor.value = new THREE.Color(surfaceConfig.material.color)
+          if (uniforms.uDisplacementScale) uniforms.uDisplacementScale.value = surfaceConfig.displacement.scale
+          if (uniforms.uAnimationSpeed) uniforms.uAnimationSpeed.value = surfaceConfig.animation.speed
+        }
+      } else if (matRef.current instanceof THREE.MeshStandardMaterial) {
+        matRef.current.metalness = surfaceConfig.material.metalness
+        matRef.current.roughness = surfaceConfig.material.roughness
+        matRef.current.color = new THREE.Color(surfaceConfig.material.color)
+        if (surfaceConfig.displacement.enabled) {
+          matRef.current.displacementScale = surfaceConfig.displacement.scale
+        }
+      }
+    }
+  }, [surfaceConfig.material.metalness, surfaceConfig.material.roughness, surfaceConfig.material.color, surfaceConfig.displacement.scale, surfaceConfig.displacement.enabled, surfaceConfig.animation.speed])
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime()
     const u = matRef.current?.uniforms
     if (u) { if (u.uTime) u.uTime.value = t; if (u.time) u.time.value = t }
-    if (engine !== 'shaderpark' && matRef.current) {
+    if (matRef.current) {
       updateArenaMaterialWithEnv(matRef.current, env, pulses)
     }
   })
@@ -82,8 +133,8 @@ function GroundModeA({ shaderKey, engine }) {
 }
 
 // Option C: Offscreen render target -> texture on visible plane
-function GroundModeC({ shaderKey, engine }) {
-  const code = useMemo(()=> selectCodeByKey(shaderKey), [shaderKey])
+function GroundModeC() {
+  const { state } = useEnvironmentBuilder()
   const [material, setMaterial] = useState(null)
   const { gl, size } = useThree()
   const rtRef = useRef(null)
@@ -92,12 +143,15 @@ function GroundModeC({ shaderKey, engine }) {
   const offCamera = useMemo(()=> new THREE.OrthographicCamera(-1,1,1,-1,0.1,10), [])
   const offMeshRef = useRef(null)
   const { env, pulses } = useEnvironment()
-  // keep render target sized to canvas (create/dispose safely and cap size)
+
+  const shaderKey = state?.currentConfig?.layers?.surface?.shader || 'veins'
+  // keep render target sized to canvas (create/dispose safely and cap size for performance)
   useEffect(()=>{
     const dpr = (gl && gl.getPixelRatio) ? gl.getPixelRatio() : (window.devicePixelRatio || 1)
-    const maxCap = Math.min((gl && gl.capabilities && gl.capabilities.maxTextureSize) || 4096, 2048)
-    const w = Math.min(maxCap, Math.max(256, Math.floor(size.width * dpr)))
-    const h = Math.min(maxCap, Math.max(256, Math.floor(size.height * dpr)))
+    // Cap more aggressively for performance: max 1024 for better mobile support
+    const maxCap = Math.min((gl && gl.capabilities && gl.capabilities.maxTextureSize) || 4096, 1024)
+    const w = Math.min(maxCap, Math.max(256, Math.floor(size.width * dpr * 0.5))) // Scale down by 0.5 for efficiency
+    const h = Math.min(maxCap, Math.max(256, Math.floor(size.height * dpr * 0.5)))
     // Dispose previous target if size changed
     try {
       if (rtRef.current) {
@@ -129,12 +183,11 @@ function GroundModeC({ shaderKey, engine }) {
     }
   }, [offCamera, offScene])
 
+  // Create material and setup offscreen rendering when shader changes
   useEffect(()=>{
     let cancelled=false
     ;(async()=>{
-      let mat = null
-      if (engine === 'shaderpark') mat = await compileSculptCode(code, {})
-      else mat = createSimpleThreeMaterial(shaderKey)
+      const mat = await createSimpleThreeMaterial(shaderKey)
       if(cancelled) return
       // defensive: ensure uTime/time uniforms exist
       if(mat && mat.uniforms){ mat.uniforms.uTime = mat.uniforms.uTime || { value: 0 }; mat.uniforms.time = mat.uniforms.time || { value: 0 } }
@@ -144,14 +197,37 @@ function GroundModeC({ shaderKey, engine }) {
       setMaterial(mat)
     })()
     return ()=>{ cancelled=true }
-  }, [code, offScene, engine])
+  }, [shaderKey, offScene])
+
+  // Update material properties when surface config changes
+  useEffect(() => {
+    if (material) {
+      if (material instanceof THREE.ShaderMaterial) {
+        const uniforms = material.uniforms
+        if (uniforms) {
+          if (uniforms.uMetalness) uniforms.uMetalness.value = state.currentConfig.layers.surface.material.metalness
+          if (uniforms.uRoughness) uniforms.uRoughness.value = state.currentConfig.layers.surface.material.roughness
+          if (uniforms.uColor) uniforms.uColor.value = new THREE.Color(state.currentConfig.layers.surface.material.color)
+          if (uniforms.uDisplacementScale) uniforms.uDisplacementScale.value = state.currentConfig.layers.surface.displacement.scale
+          if (uniforms.uAnimationSpeed) uniforms.uAnimationSpeed.value = state.currentConfig.layers.surface.animation.speed
+        }
+      } else if (material instanceof THREE.MeshStandardMaterial) {
+        material.metalness = state.currentConfig.layers.surface.material.metalness
+        material.roughness = state.currentConfig.layers.surface.material.roughness
+        material.color = new THREE.Color(state.currentConfig.layers.surface.material.color)
+        if (state.currentConfig.layers.surface.displacement.enabled) {
+          material.displacementScale = state.currentConfig.layers.surface.displacement.scale
+        }
+      }
+    }
+  }, [material, state.currentConfig.layers.surface.material.metalness, state.currentConfig.layers.surface.material.roughness, state.currentConfig.layers.surface.material.color, state.currentConfig.layers.surface.displacement.scale, state.currentConfig.layers.surface.displacement.enabled, state.currentConfig.layers.surface.animation.speed])
 
   useFrame(({ gl, clock }) => {
     const t = clock.getElapsedTime()
     if(material?.uniforms){ if(material.uniforms.uTime) material.uniforms.uTime.value = t; if(material.uniforms.time) material.uniforms.time.value = t }
-    if (engine !== 'shaderpark' && material) updateArenaMaterialWithEnv(material, env, pulses)
-    // defensive: only render to target if it exists
-    if (rtRef.current) {
+    if (material) updateArenaMaterialWithEnv(material, env, pulses)
+    // defensive: only render to target if it exists and material is ready
+    if (rtRef.current && material) {
       try {
         gl.setRenderTarget(rtRef.current)
         gl.clear()
@@ -183,26 +259,63 @@ function GroundModeC({ shaderKey, engine }) {
 }
 
 // Option B (placeholder): Adapt shader to stripe slice look (no full raymarch adaptation yet)
-function GroundModeB({ shaderKey, engine }) {
-  const code = useMemo(()=> selectCodeByKey(shaderKey), [shaderKey])
+function GroundModeB() {
+  const { state } = useEnvironmentBuilder()
   const [mat, setMat] = useState(null)
   const { env, pulses } = useEnvironment()
-  useEffect(()=>{ let cancelled=false; (async()=>{ const material = (engine === 'shaderpark') ? await compileSculptCode(code, {}) : createSimpleThreeMaterial(shaderKey); if(cancelled) return; if(material.fragmentShader){
-      // Ensure vPos available
-      if(!/varying\s+vec3\s+vPos/.test(material.vertexShader)) {
-        material.vertexShader = material.vertexShader.replace(/gl_Position\s*=\s*.+?;/, 'vPos = position; $&')
-        material.vertexShader = 'varying vec3 vPos;\n' + material.vertexShader
+
+  const shaderKey = state?.currentConfig?.layers?.surface?.shader || 'veins'
+  const surfaceConfig = state?.currentConfig?.layers?.surface || {
+    material: { metalness: 0.1, roughness: 0.8, color: '#ffffff' },
+    displacement: { scale: 0.1 },
+    animation: { speed: 1.0 }
+  }
+  // Create and modify material when shader changes
+  useEffect(()=>{ let cancelled=false; (async()=>{ const material = await createSimpleThreeMaterial(shaderKey); if(cancelled) return; 
+    try {
+      if(material.fragmentShader){
+        // Ensure vPos available
+        if(!/varying\s+vec3\s+vPos/.test(material.vertexShader)) {
+          material.vertexShader = material.vertexShader.replace(/gl_Position\s*=\s*.+?;/, 'vPos = position; $&')
+          material.vertexShader = 'varying vec3 vPos;\n' + material.vertexShader
+        }
+        if(!/varying\s+vec3\s+vPos/.test(material.fragmentShader)) {
+          material.fragmentShader = 'varying vec3 vPos;\n' + material.fragmentShader
+        }
+        // Stripe slice coloration injection (placeholder slice sampling)
+        const injectPattern = /gl_FragColor\s*=\s*vec4\(([^;]+)\);/;
+        material.fragmentShader = material.fragmentShader.replace(injectPattern, 'vec3 baseCol = $1; float g = smoothstep(0.0,1.0,mod(vPos.x*0.07+uTime*0.3,1.0)); float h = smoothstep(0.0,1.0,mod(vPos.z*0.07+uTime*0.22,1.0)); vec3 slice = mix(baseCol*0.5, baseCol*1.25, g*h); gl_FragColor = vec4(slice,1.0);')
+        material.needsUpdate = true
       }
-      if(!/varying\s+vec3\s+vPos/.test(material.fragmentShader)) {
-        material.fragmentShader = 'varying vec3 vPos;\n' + material.fragmentShader
-      }
-      // Stripe slice coloration injection (placeholder slice sampling)
-      const injectPattern = /gl_FragColor\s*=\s*vec4\(([^;]+)\);/;
-      material.fragmentShader = material.fragmentShader.replace(injectPattern, 'vec3 baseCol = $1; float g = smoothstep(0.0,1.0,mod(vPos.x*0.07+uTime*0.3,1.0)); float h = smoothstep(0.0,1.0,mod(vPos.z*0.07+uTime*0.22,1.0)); vec3 slice = mix(baseCol*0.5, baseCol*1.25, g*h); gl_FragColor = vec4(slice,1.0);')
-      material.needsUpdate = true
+    } catch (e) {
+      console.error('Failed to modify shader in GroundModeB:', e)
+      // Use unmodified material
     }
-    setMat(material) })(); return ()=>{cancelled=true} }, [code, engine])
-  useFrame(({ clock }) => { const t = clock.getElapsedTime(); if(mat?.uniforms){ if(mat.uniforms.uTime) mat.uniforms.uTime.value = t; if(mat.uniforms.time) mat.uniforms.time.value = t } if (engine !== 'shaderpark' && mat) updateArenaMaterialWithEnv(mat, env, pulses) })
+    setMat(material) })(); return ()=>{cancelled=true} }, [shaderKey])
+
+  // Update material properties when surface config changes
+  useEffect(() => {
+    if (mat) {
+      if (mat instanceof THREE.ShaderMaterial) {
+        const uniforms = mat.uniforms
+        if (uniforms) {
+          if (uniforms.uMetalness) uniforms.uMetalness.value = surfaceConfig.material.metalness
+          if (uniforms.uRoughness) uniforms.uRoughness.value = surfaceConfig.material.roughness
+          if (uniforms.uColor) uniforms.uColor.value = new THREE.Color(surfaceConfig.material.color)
+          if (uniforms.uDisplacementScale) uniforms.uDisplacementScale.value = surfaceConfig.displacement.scale
+          if (uniforms.uAnimationSpeed) uniforms.uAnimationSpeed.value = surfaceConfig.animation.speed
+        }
+      } else if (mat instanceof THREE.MeshStandardMaterial) {
+        mat.metalness = surfaceConfig.material.metalness
+        mat.roughness = surfaceConfig.material.roughness
+        mat.color = new THREE.Color(surfaceConfig.material.color)
+        if (surfaceConfig.displacement.enabled) {
+          mat.displacementScale = surfaceConfig.displacement.scale
+        }
+      }
+    }
+  }, [mat, surfaceConfig.material.metalness, surfaceConfig.material.roughness, surfaceConfig.material.color, surfaceConfig.displacement.scale, surfaceConfig.displacement.enabled, surfaceConfig.animation.speed])
+  useFrame(({ clock }) => { const t = clock.getElapsedTime(); if(mat?.uniforms){ if(mat.uniforms.uTime) mat.uniforms.uTime.value = t; if(mat.uniforms.time) mat.uniforms.time.value = t } if (mat) updateArenaMaterialWithEnv(mat, env, pulses) })
   return mat ? (
     <mesh rotation={[-Math.PI/2,0,0]} position={[0,0,0]}>
       <planeGeometry args={[200,200,1,1]} />
@@ -226,45 +339,54 @@ function Boundary() {
   )
 }
 
-function SceneCore({ mode, shaderKey, engine }) {
+// Context Loss Handler Component
+function ContextLossHandler() {
+  const { gl } = useThree()
+
+  useEffect(() => {
+    const handleContextLost = (event) => {
+      event.preventDefault()
+      logWebGL('error', 'Three.js Context Lost', {
+        renderer: gl.info?.render,
+        timestamp: performance.now()
+      })
+    }
+
+    const handleContextRestored = (event) => {
+      logWebGL('info', 'Three.js Context Restored', {
+        renderer: gl.info?.render,
+        timestamp: performance.now()
+      })
+    }
+
+    const canvas = gl.domElement
+    canvas.addEventListener('webglcontextlost', handleContextLost)
+    canvas.addEventListener('webglcontextrestored', handleContextRestored)
+
+    return () => {
+      canvas.removeEventListener('webglcontextlost', handleContextLost)
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored)
+    }
+  }, [gl])
+
+  return null
+}
+
+function SceneCore({ mode }) {
   return (
     <group>
-      <SceneEnvironment />
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[30,50,20]} intensity={0.9} />
-      {mode === 'A' && <GroundModeA shaderKey={shaderKey} engine={engine} />}
-      {mode === 'B' && <GroundModeB shaderKey={shaderKey} engine={engine} />}
-      {mode === 'C' && <GroundModeC shaderKey={shaderKey} engine={engine} />}
+      <SceneEnvironment skipLighting={true} />
+      {mode === 'A' && <GroundModeA />}
+      {mode === 'B' && <GroundModeB />}
+      {mode === 'C' && <GroundModeC />}
       <Boundary />
     </group>
   )
 }
 
 export default function SceneViewer() {
-  const [mode, setMode] = useState('C') // default to C (offscreen) as recommended
+  const [mode, setMode] = useState('A') // default to A (simple) to avoid potential issues
   const [playerPos] = useState([0,0.5,0])
-  const { env } = useEnvironment()
-  const [followEnv, setFollowEnv] = useState(true)
-  const [engine, setEngine] = useState(() => {
-    try { return localStorage.getItem('env_engine') || 'three' } catch (e) { return 'three' }
-  }) // 'shaderpark' or 'three'
-  useEffect(() => { try { localStorage.setItem('env_engine', engine) } catch (e) {} }, [engine])
-  useEffect(() => { try { window.dispatchEvent(new CustomEvent('env_engine_changed', { detail: engine })) } catch (e) {} }, [engine])
-  const [shaderKey, setShaderKey] = useState(() => {
-    try {
-      return localStorage.getItem('env_shader') || ENV_SHADER_MAP[env.id] || 'planetoid'
-    } catch (e) { return ENV_SHADER_MAP[env.id] || 'planetoid' }
-  })
-  // Listen to global shader changes from the NavBar or other UI
-  useEffect(() => {
-    const onChange = (ev) => { try { const v = ev?.detail || localStorage.getItem('env_shader'); if (v) { setShaderKey(v); setFollowEnv(false) } } catch(e){} }
-    const onStorage = (ev) => { if (ev.key === 'env_shader') { setShaderKey(ev.newValue || ENV_SHADER_MAP[env.id] || 'planetoid'); setFollowEnv(false) } }
-    window.addEventListener('env_shader_changed', onChange)
-    window.addEventListener('storage', onStorage)
-    return () => { window.removeEventListener('env_shader_changed', onChange); window.removeEventListener('storage', onStorage) }
-  }, [])
-  // Update shader when environment changes if follow enabled
-  useEffect(()=> { if(followEnv) setShaderKey(ENV_SHADER_MAP[env.id] || 'planetoid') }, [env.id, followEnv])
   const bulletsRef = useRef([])
   const onShoot = (origin, dir) => { bulletsRef.current.push({ pos: origin.clone(), dir: new THREE.Vector3(...dir), t: 0 }) }
   const BulletPool = () => {
@@ -284,56 +406,41 @@ export default function SceneViewer() {
     )
   }
   return (
-    <div style={{width:'100%',height:'100vh',position:'relative'}}>
-      <ShaderParkLogOverlay />
-      <div style={{position:'absolute',top:100,left:8,zIndex:20,background:'rgba(0,0,0,0.5)',padding:'8px 12px',borderRadius:8,fontSize:14,color:'#fff',backdropFilter:'blur(4px)'}}>
-        <div style={{fontWeight:600,marginBottom:6}}>Scene Viewer</div>
-        <label style={{display:'block',marginBottom:4}}>Render Mode:</label>
-        <select value={mode} onChange={e=> setMode(e.target.value)} style={{padding:'4px 6px',borderRadius:4}}>
-          <option value='A'>A - Background Quad</option>
-          <option value='B'>B - Slice Adapt (Placeholder)</option>
-          <option value='C'>C - Offscreen Texture</option>
-        </select>
-        <div style={{marginTop:8,fontSize:12,lineHeight:'16px',maxWidth:240}}>
-            {mode==='A' && (engine==='shaderpark' ? 'Full-screen ShaderPark quad + separate collision plane.' : 'Full-screen ThreeJS ShaderMaterial quad + separate collision plane.')}
-            {mode==='B' && (engine==='shaderpark' ? 'Placeholder ShaderPark slice adaptation.' : 'Placeholder ThreeJS slice adaptation.')}
-            {mode==='C' && (engine==='shaderpark' ? 'Offscreen ShaderPark render -> textured arena plane.' : 'Offscreen ThreeJS ShaderMaterial render -> textured arena plane.')}
-        </div>
-          <div style={{marginTop:8}}>
-            <label style={{display:'block',marginBottom:4}}>Engine:</label>
-            <select value={engine} onChange={e=> setEngine(e.target.value)} style={{padding:'4px 6px',borderRadius:4}}>
-              <option value='shaderpark'>ShaderPark pipeline</option>
-              <option value='three'>Three.js ShaderMaterial</option>
-            </select>
-          </div>
-        <hr style={{margin:'10px 0',opacity:0.3}} />
-        <label style={{display:'block',marginBottom:4}}>Shader Sample:</label>
-        <select disabled={followEnv} value={shaderKey} onChange={e=> { setShaderKey(e.target.value); }} style={{padding:'4px 6px',borderRadius:4,minWidth:160}}>
-          <option value='plasma'>Plasma Sphere</option>
-          <option value='planetoid'>Bumpy Planetoid</option>
-          <option value='void'>Void Material</option>
-          <option value='turbulence'>Turbulence</option>
-          <option value='veins'>Veins (Three.js)</option>
-          <option value='infection'>Infection Stain (Three.js)</option>
-          <option value='grid'>Containment Grid (Three.js)</option>
-          <option value='bioelectric'>Bioelectric Veins (Three.js)</option>
-        </select>
-        <label style={{display:'flex',alignItems:'center',gap:6,marginTop:6,fontSize:12}}>
-          <input type='checkbox' checked={followEnv} onChange={e=> setFollowEnv(e.target.checked)} /> Follow Environment
-        </label>
-        <div style={{marginTop:6,fontSize:11,opacity:0.75,maxWidth:240}}>
-          {followEnv ? 'Linked: environment changes will switch shader.' : 'Manual: select any shader sample.'}
+    <>
+      <div style={{width:'100%',height:'calc(100vh - 80px)',position:'relative', display: 'flex'}}>
+        <EnvironmentBuilder />
+        <div style={{flex: 1}}>
+          <Canvas
+            shadows
+            camera={{ position:[0,10,20], fov:52 }}
+            gl={{
+              antialias: true,
+              alpha: false,
+              powerPreference: "high-performance",
+              failIfMajorPerformanceCaveat: false,
+              preserveDrawingBuffer: true
+            }}
+            style={{ background: '#333', width: '100%', height: '100%' }}
+            onCreated={({ gl }) => {
+              logWebGL('info', 'Canvas created', { renderer: gl.info.render })
+            }}
+            onError={(error) => {
+              logWebGL('error', 'Canvas error', { error: error.message })
+            }}
+          >
+            <ContextLossHandler />
+            <EnvironmentRenderer />
+            <SceneCore mode={mode} />
+            <OrbitControls makeDefault enableDamping dampingFactor={0.07} />
+            <Player position={playerPos} onShoot={onShoot} isPaused={false} autoFire={false} setPositionRef={()=>{}} heroName={'Dokta'} heroRenderMode={'model'} />
+            <BulletPool />
+            <GizmoHelper alignment="bottom-right" margin={[80, 80]}>
+              <GizmoViewport axisColors={["#FF3653", "#8ADB00", "#2C8FFF"]} labelColor="white" />
+            </GizmoHelper>
+          </Canvas>
         </div>
       </div>
-      <Canvas shadows camera={{ position:[0,48,48], fov:52 }}>
-        <SceneCore mode={mode} shaderKey={shaderKey} engine={engine} />
-        <OrbitControls makeDefault enableDamping dampingFactor={0.07} />
-        <Player position={playerPos} onShoot={onShoot} isPaused={false} autoFire={false} setPositionRef={()=>{}} heroName={'Dokta'} heroRenderMode={'model'} />
-        <BulletPool />
-        <GizmoHelper alignment="bottom-right" margin={[80, 80]}>
-          <GizmoViewport axisColors={["#FF3653", "#8ADB00", "#2C8FFF"]} labelColor="white" />
-        </GizmoHelper>
-      </Canvas>
-    </div>
+      <DebugPanel />
+    </>
   )
 }

@@ -2,7 +2,6 @@ import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { EnvironmentSpec } from './environments'
 import { useThree, useFrame } from '@react-three/fiber'
-import { ShaderParkGround } from './ShaderPark/ShaderParkGround'
 import { useEnvironment } from '../contexts/EnvironmentContext'
 import { createArenaMaterial, updateArenaMaterialWithEnv } from './arenaMaterial'
 
@@ -18,11 +17,11 @@ export function ProceduralEnvironmentFactory({ spec, perfMode }: Props) {
   // Map env id to arena shader variant
   const mode = useMemo(() => {
     switch (spec.id) {
-      case 'proc_hazard_hospital': return 'plasma'
-      case 'proc_hazard_lab': return 'planetoid'
-      case 'proc_blue_sky': return 'void'
-      case 'proc_darkmode': return 'turbulence'
-      default: return 'planetoid'
+      case 'proc_hazard_hospital': return 'veins'
+      case 'proc_hazard_lab': return 'infection'
+      case 'proc_blue_sky': return 'grid'
+      case 'proc_darkmode': return 'bioelectric'
+      default: return 'veins'
     }
   }, [spec.id])
   // Background & fog adjustments (already applied in SceneEnvironment effect for fog; here only background)
@@ -99,34 +98,17 @@ export function ProceduralEnvironmentFactory({ spec, perfMode }: Props) {
   const { pulses } = useEnvironment()
   const { env } = useEnvironment()
 
-  // Engine selection: read persisted choice and listen for updates
-  const [engine, setEngine] = useState(() => {
-    try { return localStorage.getItem('env_engine') || 'three' } catch { return 'three' }
-  })
-  useEffect(() => {
-    const onStorage = (ev: StorageEvent) => { if (ev.key === 'env_engine') setEngine(ev.newValue || 'three') }
-    const onCustom = (ev: any) => { setEngine(ev?.detail || 'three') }
-    window.addEventListener('storage', onStorage)
-    window.addEventListener('env_engine_changed', onCustom)
-    return () => { window.removeEventListener('storage', onStorage); window.removeEventListener('env_engine_changed', onCustom) }
-  }, [])
-
   return (
     <group>
       {lights}
-  {/* Arena ground: choose pipeline based on engine preference */}
-  {engine === 'shaderpark' ? (
-    <ShaderParkGround />
-  ) : (
-    <ThreeGround env={env} pulses={pulses} />
-  )}
+      <ThreeGround env={env} pulses={pulses} />
       {silhouettes}
     </group>
   )
 }
 
 function ThreeGround({ env, pulses }: { env: any; pulses: any[] }) {
-  const matRef = useRef<THREE.ShaderMaterial | null>(null)
+  const matRef = useRef<THREE.Material | null>(null)
   const meshRef = useRef<THREE.Mesh | null>(null)
   // Track selected shader variant (sync with global navbar selection)
   const [variant, setVariant] = React.useState(() => {
@@ -142,27 +124,34 @@ function ThreeGround({ env, pulses }: { env: any; pulses: any[] }) {
   }, [])
   // (Re)create material when variant changes
   useEffect(() => {
-    const old = matRef.current
-    if (old) { try { old.dispose() } catch {} }
-    const mat = createArenaMaterial(variant)
-    matRef.current = mat
-    if (meshRef.current) meshRef.current.material = mat
-    return () => { /* disposal handled on next change or unmount */ }
+    let cancelled = false
+      ; (async () => {
+        const old = matRef.current
+        if (old) { try { old.dispose() } catch { } }
+        const mat = await createArenaMaterial(variant)
+        if (!cancelled) {
+          matRef.current = mat
+          if (meshRef.current) meshRef.current.material = mat
+        }
+      })()
+    return () => { cancelled = true }
   }, [variant])
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime()
-    if (matRef.current) {
-      if ((matRef.current as any).uniforms) {
-        const u = (matRef.current as any).uniforms
-        if (u.uTime) u.uTime.value = t
-        if (u.time) u.time.value = t
-      }
-      updateArenaMaterialWithEnv(matRef.current, env, pulses)
+    const mat = matRef.current
+    if (!mat) return
+    // Only update shader-specific uniforms and apply env updates when the material is shader-like
+    if ('uniforms' in (mat as any)) {
+      const u = (mat as any).uniforms
+      if (u.uTime) u.uTime.value = t
+      if (u.time) u.time.value = t
+      // updateArenaMaterialWithEnv expects a shader-like material; cast accordingly
+      updateArenaMaterialWithEnv(mat as THREE.ShaderMaterial, env, pulses)
     }
   })
   return (
-    <mesh ref={meshRef} rotation={[-Math.PI/2,0,0]} geometry={planeGeom}>
-      <primitive object={matRef.current || new THREE.MeshStandardMaterial({ color:'#444' })} attach="material" />
+    <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} geometry={planeGeom}>
+      <primitive object={matRef.current || new THREE.MeshStandardMaterial({ color: '#444' })} attach="material" />
     </mesh>
   )
 }

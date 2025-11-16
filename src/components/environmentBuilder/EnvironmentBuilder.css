@@ -1,0 +1,239 @@
+/* Environment Builder Styles */
+.environment-builder {
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 16px;
+  border-radius: 8px;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  width: 400px;
+  height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+
+.builder-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 8px;
+}
+
+.builder-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.dirty-indicator {
+  color: #ff6b6b;
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* Preset Section */
+.preset-section {
+  margin-bottom: 20px;
+}
+
+.preset-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+}
+
+.preset-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.preset-controls select,
+.preset-controls button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.preset-controls button {
+  cursor: pointer;
+  background: rgba(100, 150, 255, 0.3);
+}
+
+.preset-controls button:hover {
+  background: rgba(100, 150, 255, 0.5);
+}
+
+.save-preset {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.save-preset input {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.save-preset button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: none;
+  background: rgba(100, 200, 100, 0.3);
+  color: white;
+  cursor: pointer;
+}
+
+.save-preset button:hover:not(:disabled) {
+  background: rgba(100, 200, 100, 0.5);
+}
+
+.save-preset button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.delete-preset {
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: none;
+  background: rgba(255, 100, 100, 0.3);
+  color: white;
+  cursor: pointer;
+}
+
+.delete-preset:hover {
+  background: rgba(255, 100, 100, 0.5);
+}
+
+/* Layer Sections */
+.layers-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.layer-section {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.layer-toggle {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.layer-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.arrow {
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+
+.arrow.expanded {
+  transform: rotate(90deg);
+}
+
+/* Layer Controls */
+.layer-controls {
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.layer-controls h4 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: #4fc3f7;
+}
+
+.subsection {
+  margin-bottom: 16px;
+}
+
+.subsection h5 {
+  margin: 8px 0 8px 0;
+  font-size: 14px;
+  color: #81c784;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 4px;
+}
+
+.control-group {
+  margin-bottom: 12px;
+}
+
+.control-group label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: bold;
+}
+
+.control-group input[type="range"] {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.control-group input[type="color"] {
+  width: 50px;
+  height: 30px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.control-group select {
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.control-group select[size] {
+  height: auto;
+}
+
+.control-group input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+/* Builder Status */
+.builder-status {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.status-item .dirty {
+  color: #ff6b6b;
+}
+
+.status-item .clean {
+  color: #4caf50;
+}
