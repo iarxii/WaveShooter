@@ -2,10 +2,7 @@ import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-export function ParticlesExample() {
-  const pointsRef = useRef();
-
-  const particleCount = 1000;
+export function ParticlesExample({ particleCount = 1000 }) {
 
   const positions = useMemo(() => {
     const positions = new Float32Array(particleCount * 3);

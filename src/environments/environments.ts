@@ -10,16 +10,10 @@ const orchardHDR = assetUrl('hdri/citrus_orchard_road_puresky_1k.hdr')
 // if loading times or memory usage become issues. Current .hdr files are uncompressed.
 
 export type EnvId =
-  | 'proc_hazard_hospital'
-  | 'proc_hazard_lab'
-  | 'proc_blue_sky'
-  | 'proc_darkmode'
-  | 'whitebox'
-  | 'hospital'
-  | 'surgery'
-  | 'orchard'
+  | 'instance_dynamic'
+  | 'ocean'
 
-export type EnvType = 'procedural' | 'hdri' | 'whitebox'
+export type EnvType = 'dynamic' | 'hdri' | 'whitebox'
 
 export interface EnvironmentSpec {
   id: EnvId
@@ -49,94 +43,32 @@ export interface EnvironmentSpec {
 }
 
 export const ENVIRONMENTS: EnvironmentSpec[] = [
-  // Procedural presets (top of the list)
+  // Dynamic environments (from SceneViewer examples)
   {
-    id: 'proc_hazard_hospital',
-    label: 'Procedure_Hazard_Hospital',
-    type: 'procedural',
-    background: false,
-    exposure: 1.05,
-    fog: { enabled: true, color: '#0e1a22', near: 40, far: 140, type: 'linear' },
-    ambient: { intensity: 0.22, color: '#9adbe7' },
-    arenaColors: { base: '#0b222c', veins: '#11b5c9', telegraph: '#33f1ff' },
-  },
-  {
-    id: 'proc_hazard_lab',
-    label: 'Procedure_Hazard_Lab',
-    type: 'procedural',
-    background: false,
-    exposure: 1.0,
-    fog: { enabled: true, color: '#0f1522', near: 50, far: 160, type: 'linear' },
-    ambient: { intensity: 0.24, color: '#bfe3ff' },
-    arenaColors: { base: '#092536', veins: '#ff3e7d', telegraph: '#ffd2e5' },
-  },
-  {
-    id: 'proc_blue_sky',
-    label: 'Procedure_BlueSky',
-    type: 'procedural',
-    background: false,
-    exposure: 0.98,
-    fog: { enabled: true, color: '#cfe8ff', density: 0.006, type: 'exp2' },
-    ambient: { intensity: 0.2, color: '#cfe8ff' },
-    arenaColors: { base: '#d8ecfa', veins: '#5fb3ff', telegraph: '#7fd1ff' },
-  },
-  {
-    id: 'proc_darkmode',
-    label: 'Procedure_DarkMode',
-    type: 'procedural',
-    background: false,
-    exposure: 0.92,
-    fog: { enabled: true, color: '#05080c', near: 30, far: 120, type: 'linear' },
-    ambient: { intensity: 0.18, color: '#243447' },
-    arenaColors: { base: '#0a121a', veins: '#2b6cb0', telegraph: '#5dade2' },
-  },
-  // Whitebox (no HDRI)
-  {
-    id: 'whitebox',
-    label: 'Whitebox (No HDRI)',
-    type: 'whitebox',
-    background: false,
-    exposure: 1.0,
-    fog: { enabled: true, color: '#eaeef3', near: 80, far: 200, type: 'linear' },
-    ambient: { intensity: 0.3, color: '#ffffff' },
-    arenaColors: { base: '#eaeef3', veins: '#7aa7cc', telegraph: '#406080' },
-  },
-  {
-    id: 'hospital',
-    label: 'Hospital Room (HDRI)',
-    type: 'hdri',
-    hdri: hospitalHDR,
-    background: false,
-    exposure: 1.1,
-    fog: { enabled: true, color: '#eaeef3', near: 60, far: 160, type: 'linear' },
-    ambient: { intensity: 0.25, color: '#e0f2f1' },
-    arenaColors: { base: '#edf7f7', veins: '#38b6c1', telegraph: '#5ed7e3' },
-  },
-  {
-    id: 'surgery',
-    label: 'Surgery Suite (HDRI)',
-    type: 'hdri',
-    hdri: surgeryHDR,
-    background: false,
-    exposure: 1.0,
-    fog: { enabled: true, color: '#e3f2fd', near: 80, far: 180, type: 'linear' },
-    ambient: { intensity: 0.22, color: '#e3f2fd' },
-    arenaColors: { base: '#eef6ff', veins: '#4fb1ff', telegraph: '#7ec9ff' },
-  },
-  {
-    id: 'orchard',
-    label: 'Outdoor Puresky (HDRI)',
-    type: 'hdri',
+    id: 'instance_dynamic',
+    label: 'Instance Dynamic',
+    type: 'dynamic',
     hdri: orchardHDR,
     background: true,
-    exposure: 0.95,
-    fog: { enabled: true, color: '#cfe8ff', density: 0.008, type: 'exp2' },
-    ambient: { intensity: 0.18, color: '#cfe8ff' },
-    arenaColors: { base: '#f3f9ff', veins: '#6fbaff', telegraph: '#a6d6ff' },
+    exposure: 1.0,
+    fog: { enabled: true, color: '#ffffff', near: 80, far: 200, type: 'linear' },
+    ambient: { intensity: 0.3, color: '#ffffff' },
+    arenaColors: { base: '#ffffff', veins: '#cccccc', telegraph: '#999999' },
+  },
+  {
+    id: 'ocean',
+    label: 'Ocean',
+    type: 'dynamic',
+    hdri: orchardHDR,
+    background: true,
+    exposure: 1.0,
+    fog: { enabled: true, color: '#87ceeb', near: 100, far: 500, type: 'linear' },
+    ambient: { intensity: 0.4, color: '#87ceeb' },
+    arenaColors: { base: '#006994', veins: '#00aaff', telegraph: '#ffffff' },
   },
 ]
 
-export const DEFAULT_ENV_ID: EnvId = 'proc_hazard_hospital'
+export const DEFAULT_ENV_ID: EnvId = 'orchard'
 
 export function getEnvById(id: EnvId): EnvironmentSpec {
   return ENVIRONMENTS.find(e => e.id === id) || ENVIRONMENTS[0]

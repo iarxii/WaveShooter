@@ -2,10 +2,7 @@ import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-export function FlockingExample() {
-  const groupRef = useRef();
-
-  const birdCount = 50;
+export function FlockingExample({ birdCount = 50 }) {
   const birds = useMemo(() => {
     return Array.from({ length: birdCount }, () => ({
       position: new THREE.Vector3(

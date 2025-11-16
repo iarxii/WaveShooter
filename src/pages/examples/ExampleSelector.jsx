@@ -40,6 +40,18 @@ const EXAMPLES = {
   portal: {
     name: 'Portal',
     description: 'Portal effect with objects visible through surface'
+  },
+  voxelpainter: {
+    name: 'Voxel Painter',
+    description: 'Interactive voxel painting with click to add/remove'
+  },
+  lensflare: {
+    name: 'Lensflare',
+    description: 'Lensflare effects with lights and reflective surfaces'
+  },
+  ocean: {
+    name: 'Ocean',
+    description: 'Realistic ocean water with sky and sun positioning'
   }
 };
 

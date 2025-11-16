@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import TWEEN from '@tweenjs/tween.js';
 
-export function InstancingExample({ colors: propColors, speed = 1, animationType = 'bounce', shape = 'box', gap = 2 }) {
+export function InstancingExample({ colors: propColors, speed = 1, animationType = 'bounce', shape = 'box', gap = 1 }) {
   const meshRef = useRef();
   const timerRef = useRef(new THREE.Timer());
   const { mouse, camera } = useThree();
@@ -105,7 +105,7 @@ export function InstancingExample({ colors: propColors, speed = 1, animationType
       const pos = positions.current[globalI];
       const mesh = meshesRef.current[meshIndex];
 
-      dummy.position.set(pos.x, 0, pos.z);
+      dummy.position.set(pos.x, -3, pos.z);
       dummy.scale.set(1, 2, 1);
       if (shape === 'tetrahedron' || (isMixed && meshIndex === 1)) {
         dummy.rotation.y = (globalI % 2) * Math.PI;
@@ -211,7 +211,7 @@ export function InstancingExample({ colors: propColors, speed = 1, animationType
             break;
         }
 
-        dummy.position.y = y;
+        dummy.position.y = -3 + y;
 
         dummy.updateMatrix();
         mesh.setMatrixAt(localI, dummy.matrix);

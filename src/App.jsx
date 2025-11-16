@@ -6512,17 +6512,6 @@ export default function App({ navVisible, setNavVisible } = {}) {
           {/* Performance collectors (no-op unless overlay or marks are read) */}
           <PerfCollector enabled={true} />
           <PerfLongTaskObserver enabled={true} />
-          {/* Keep a gentle key light to complement IBL */}
-          <directionalLight
-            position={[10, 40, 10]}
-            intensity={0.6}
-            castShadow
-          />
-          {/* Simple ground plane for game boundary */}
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-            <planeGeometry args={[GROUND_SIZE, GROUND_SIZE]} />
-            <meshStandardMaterial color="#2a2a2a" />
-          </mesh>
           {/* Boundary visual cue */}
           <BoundaryCue
             limit={boundaryLimit ?? BOUNDARY_LIMIT}
@@ -10236,6 +10225,10 @@ function TopDownRig({ playerPosRef, boundaryLimit, zoom = 1.0 }) {
 function AimReticle({ playerPosRef, aimInputRef, autoAimEnabled, highContrast }) {
   const reticleRef = useRef();
   const { raycaster, pointer, camera } = useThree();
+  const plane = useMemo(
+    () => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+    []
+  );
   useFrame(() => {
     if (!reticleRef.current || !playerPosRef.current) return;
     let dir = null;

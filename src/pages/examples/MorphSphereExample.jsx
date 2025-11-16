@@ -2,7 +2,7 @@ import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-export function MorphSphereExample() {
+export function MorphSphereExample({ morphSpeed = 1 }) {
   const meshRef = useRef();
 
   // Create base sphere geometry
@@ -54,8 +54,8 @@ export function MorphSphereExample() {
       const time = state.clock.elapsedTime;
 
       // Animate morph target influences
-      meshRef.current.morphTargetInfluences[0] = Math.sin(time) * 0.5 + 0.5;
-      meshRef.current.morphTargetInfluences[1] = Math.cos(time * 0.7) * 0.5 + 0.5;
+      meshRef.current.morphTargetInfluences[0] = Math.sin(time * morphSpeed) * 0.5 + 0.5;
+      meshRef.current.morphTargetInfluences[1] = Math.cos(time * morphSpeed * 0.7) * 0.5 + 0.5;
 
       // Rotate the sphere
       meshRef.current.rotation.y += 0.01;

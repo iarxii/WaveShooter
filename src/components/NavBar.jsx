@@ -10,7 +10,7 @@ export default function NavBar({ hidden = false, navVisible, setNavVisible }) {
   const loc = useLocation()
   // global UI state for shader and world controls (persisted)
   const { envId, setEnvId, cycle } = useEnvironment()
-  const [shader, setShader] = React.useState(() => { try { return localStorage.getItem('env_shader') || 'planetoid' } catch { return 'planetoid' } })
+  const [shader, setShader] = React.useState(() => { try { return localStorage.getItem('env_shader') || 'veins' } catch { return 'veins' } })
   const [proceduralSky, setProceduralSky] = React.useState(() => { try { return localStorage.getItem('use_procedural_sky') === '1' } catch { return false } })
   const [worldInfection, setWorldInfection] = React.useState(() => { try { return parseFloat(localStorage.getItem('world_infection') || '0') } catch { return 0 } })
   const [worldSunY, setWorldSunY] = React.useState(() => { try { return parseFloat(localStorage.getItem('world_sunY') || '0.5') } catch { return 0.5 } })
@@ -116,10 +116,6 @@ export default function NavBar({ hidden = false, navVisible, setNavVisible }) {
               <option value='infection'>Infection Stain (Three.js)</option>
               <option value='grid'>Containment Grid (Three.js)</option>
               <option value='bioelectric'>Bioelectric Veins (Three.js)</option>
-              <option value='planetoid'>Bumpy Planetoid</option>
-              <option value='plasma'>Plasma Sphere</option>
-              <option value='void'>Void Material</option>
-              <option value='turbulence'>Turbulence</option>
             </select>
           </div>
           <hr style={{margin:'8px 0',opacity:0.3}} />

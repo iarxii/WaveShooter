@@ -112,12 +112,12 @@ function ThreeGround({ env, pulses }: { env: any; pulses: any[] }) {
   const meshRef = useRef<THREE.Mesh | null>(null)
   // Track selected shader variant (sync with global navbar selection)
   const [variant, setVariant] = React.useState(() => {
-    try { return localStorage.getItem('env_shader') || 'planetoid' } catch { return 'planetoid' }
+    try { return localStorage.getItem('env_shader') || 'veins' } catch { return 'veins' }
   })
   // Listen for global shader change events & storage updates
   useEffect(() => {
     const onShader = (e: any) => { const v = e?.detail; if (typeof v === 'string') setVariant(v) }
-    const onStorage = (e: StorageEvent) => { if (e.key === 'env_shader') setVariant(e.newValue || 'planetoid') }
+    const onStorage = (e: StorageEvent) => { if (e.key === 'env_shader') setVariant(e.newValue || 'veins') }
     window.addEventListener('env_shader_changed', onShader)
     window.addEventListener('storage', onStorage)
     return () => { window.removeEventListener('env_shader_changed', onShader); window.removeEventListener('storage', onStorage) }

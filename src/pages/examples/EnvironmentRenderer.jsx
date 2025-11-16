@@ -2,12 +2,22 @@ import React, { Suspense } from 'react';
 import { Environment as DreiEnvironment } from '@react-three/drei';
 import { ENVIRONMENTS, getEnvById } from '../../environments/environments';
 import WorldSky from '../../environments/WorldSky';
+import { InstancingExample } from './InstancingExample';
+import { OceanExample } from './OceanExample';
 
 /**
  * @param {Object} props
  * @param {string} props.environmentId
+ * @param {Array} props.instancingColors
+ * @param {number} props.animationSpeed
+ * @param {string} props.animationType
+ * @param {string} props.shape
+ * @param {number} props.gap
+ * @param {number} props.oceanElevation
+ * @param {number} props.oceanAzimuth
+ * @param {number} props.oceanDistortion
  */
-export function EnvironmentRenderer({ environmentId }) {
+export function EnvironmentRenderer({ environmentId, instancingColors, animationSpeed, animationType, shape, gap, oceanElevation, oceanAzimuth, oceanDistortion }) {
   const env = getEnvById(environmentId);
 
   // Apply fog settings
@@ -43,6 +53,19 @@ export function EnvironmentRenderer({ environmentId }) {
         infectionInfluence={0}
         infectionColor={env?.arenaColors?.telegraph || '#ffcc00'}
       />
+    );
+  }
+
+  if (env.type === 'dynamic') {
+    return (
+      <>
+        <ambientLight
+          color={env.ambient?.color || '#ffffff'}
+          intensity={env.ambient?.intensity || 0.3}
+        />
+        {env.id === 'instance_dynamic' && <InstancingExample colors={instancingColors} speed={animationSpeed} animationType={animationType} shape={shape} gap={gap} />}
+        {env.id === 'ocean' && <OceanExample elevation={oceanElevation} azimuth={oceanAzimuth} distortionScale={oceanDistortion} />}
+      </>
     );
   }
 

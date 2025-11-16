@@ -5,15 +5,14 @@ import * as THREE from 'three'
 import { DEFAULT_ENV_ID, ENVIRONMENTS, type EnvId, type EnvironmentSpec, getEnvById } from '../environments/environments'
 import WorldSky from '../environments/WorldSky'
 import { ProceduralEnvironmentFactory } from '../environments/ProceduralEnvironmentFactory'
+import { InstancingExample } from '../pages/examples/InstancingExample'
+import { OceanExample } from '../pages/examples/OceanExample'
 
 interface EnvContextValue {
   env: EnvironmentSpec
   envId: EnvId
   setEnvId: (id: EnvId) => void
   cycle: () => void
-  // Dynamic arena pulse prototype API
-  pulses: Array<{ x: number; z: number; startTime: number }>
-  triggerPulse: (x?: number, z?: number) => void
   // Prototype overrides for environment factory (merged atop base spec)
   overrides: Partial<EnvironmentSpec>
   setOverrides: (o: Partial<EnvironmentSpec>) => void
@@ -52,21 +51,8 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
     const next = ENVIRONMENTS[(idx + 1) % ENVIRONMENTS.length]
     setEnvId(next.id)
   }
-  // Pulses state (prototype), global so ArenaSurface can consume regardless of environment component boundaries
-  const [pulses, setPulses] = useState<Array<{ x: number; z: number; startTime: number }>>([])
-  const triggerPulse = (x: number = 0, z: number = 0) => {
-    setPulses(p => [{ x, z, startTime: performance.now() }, ...p].slice(0, 8))
-  }
-  // Debug key: press 'P' to emit a pulse at origin
-  React.useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key?.toLowerCase() === 'p') triggerPulse(0, 0)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
 
-  const value = useMemo(() => ({ env, envId, setEnvId, cycle, pulses, triggerPulse, overrides, setOverrides, clearOverrides }), [env, envId, pulses, overrides, clearOverrides])
+  const value = useMemo(() => ({ env, envId, setEnvId, cycle, overrides, setOverrides, clearOverrides }), [env, envId, overrides, clearOverrides])
   return <EnvironmentContext.Provider value={value}>{children}</EnvironmentContext.Provider>
 }
 
@@ -165,7 +151,36 @@ export function SceneEnvironment({ skipLighting = false, useProcedural = true }:
 
   // Render based on environment type
   if (!useProcedural) {
-    // Simple lighting for game mode
+    // Game mode: render environments but skip procedural sky
+    if (env.type === 'dynamic') {
+      return (
+        <>
+          {!skipLighting && (
+            <ambientLight color={ambientColor as any} intensity={ambientIntensity} />
+          )}
+          {env.hdri && (
+            <React.Suspense fallback={null}>
+              <DreiEnvironment files={env.hdri} background={!!env.background} frames={1} resolution={256} />
+            </React.Suspense>
+          )}
+          {env.id === 'instance_dynamic' && <InstancingExample />}
+          {env.id === 'ocean' && <OceanExample />}
+        </>
+      )
+    }
+    if (env.type === 'hdri' && env.hdri) {
+      return (
+        <>
+          {!skipLighting && (
+            <ambientLight color={ambientColor as any} intensity={ambientIntensity} />
+          )}
+          <React.Suspense fallback={null}>
+            <DreiEnvironment files={env.hdri} background={!!env.background} frames={1} resolution={256} />
+          </React.Suspense>
+        </>
+      )
+    }
+    // Default lighting for game mode
     return (
       <>
         {!skipLighting && (
@@ -195,6 +210,17 @@ export function SceneEnvironment({ skipLighting = false, useProcedural = true }:
             <hemisphereLight intensity={0.35} groundColor={'#eaeef3'} />
           </>
         )}
+      </>
+    )
+  }
+  if (env.type === 'dynamic') {
+    return (
+      <>
+        {!skipLighting && (
+          <ambientLight color={ambientColor as any} intensity={ambientIntensity} />
+        )}
+        {env.id === 'instance_dynamic' && <InstancingExample />}
+        {env.id === 'ocean' && <OceanExample />}
       </>
     )
   }

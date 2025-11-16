@@ -9,7 +9,7 @@ export function InstancingProvider({ children }) {
   const [animationSpeed, setAnimationSpeed] = useState(1);
   const [animationType, setAnimationType] = useState('bounce');
   const [shape, setShape] = useState('box');
-  const [gap, setGap] = useState(2);
+  const [gap, setGap] = useState(1);
 
   return (
     <InstancingContext.Provider value={{ instancingColors, setInstancingColors, animationSpeed, setAnimationSpeed, animationType, setAnimationType, shape, setShape, gap, setGap }}>
