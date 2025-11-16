@@ -6801,6 +6801,13 @@ export default function App({ navVisible, setNavVisible } = {}) {
             }}
           />
 
+          <AimReticle
+            playerPosRef={playerPosRef}
+            aimInputRef={aimInputRef}
+            autoAimEnabled={cameraMode === "follow" || cameraMode === "topdown"}
+            highContrast={highContrast}
+          />
+
           {/* Shield bubble visual when active */}
           {!isPaused && shieldEffect.active && (
             <ShieldBubble
@@ -10220,3 +10227,38 @@ function TopDownRig({ playerPosRef, boundaryLimit, zoom = 1.0 }) {
   });
   return null;
 }
+
+// Aiming reticle that appears at a fixed distance from the player, following manual aim inputs
+function AimReticle({ playerPosRef, aimInputRef, autoAimEnabled, highContrast }) {
+  const reticleRef = useRef();
+  const { raycaster, pointer, camera } = useThree();
+  useFrame(() => {
+    if (!reticleRef.current || !playerPosRef.current) return;
+    let dir = null;
+    if (!autoAimEnabled) {
+      if (aimInputRef && (Math.abs(aimInputRef.current.x) > 0.001 || Math.abs(aimInputRef.current.z) > 0.001)) {
+        dir = new THREE.Vector3(aimInputRef.current.x, 0, aimInputRef.current.z).normalize();
+      } else {
+        raycaster.setFromCamera(pointer, camera);
+        const hit = raycaster.ray.intersectPlane(plane, new THREE.Vector3());
+        if (hit) {
+          dir = new THREE.Vector3().subVectors(hit, playerPosRef.current).normalize();
+        }
+      }
+    }
+    if (dir && dir.lengthSq() > 0) {
+      reticleRef.current.position.copy(playerPosRef.current).addScaledVector(dir, RETICLE_DISTANCE);
+      reticleRef.current.visible = true;
+    } else {
+      reticleRef.current.visible = false;
+    }
+  });
+  return (
+    <mesh ref={reticleRef} position={[0, 0.1, 0]} visible={false}>
+      <ringGeometry args={[0.3, 0.5, 16]} />
+      <meshBasicMaterial color={highContrast ? 0xffffff : 0x00ff00} transparent opacity={0.8} />
+    </mesh>
+  );
+}
+
+const RETICLE_DISTANCE = 12;

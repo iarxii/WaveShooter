@@ -153,9 +153,10 @@ export default function CharacterViewer() {
       <div
         style={{
           // width: "100%",
-          height: "calc(100vh - 76px)",
+          height: "calc(100vh - 76px - 32px)",
           margin: "0 auto",
-          padding: "80px 16px 16px 16px",
+          // padding: "80px 16px 16px 16px",
+          padding: "16px",
           display: "grid",
           gridTemplateColumns:
             "minmax(220px, 1fr) minmax(420px, 1.2fr) minmax(280px, 1fr)",
