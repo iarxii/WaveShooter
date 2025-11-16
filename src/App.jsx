@@ -213,7 +213,7 @@ const BOMB_CONTACT_RADIUS = 1.4;
 const BOMB_AOE_RADIUS = 6.2;
 const BOMB_UP_VEL = 12;
 const BOMB_GRAVITY = 24;
-const BOMB_SPAWN_INTERVAL_MS = 250; // 4 per second
+const BOMB_SPAWN_INTERVAL_MS = 300; // 3.33 per second (reduced from 4)
 const BOMB_ABILITY_DURATION_MS = 6000; // extended: total 6s
 // Bouncer constants
 const BOUNCER_TELEGRAPH_MS = 4000;
@@ -437,6 +437,45 @@ function AnalogStick({ onVectorChange, side = "left" }) {
     </div>
   );
 }
+
+// Gamepad stick widget: displays current vector without interaction
+function GamepadStick({ x, z, side = "left" }) {
+  const radius = 64;
+  const baseStyle = {
+    position: side === "left" ? "fixed" : "fixed",
+    left: side === "left" ? 20 : undefined,
+    right: side === "right" ? 20 : undefined,
+    bottom: 20,
+    width: radius * 2 + "px",
+    height: radius * 2 + "px",
+    borderRadius: "50%",
+    background: "rgba(0,0,0,0.18)",
+    border: "2px solid var(--accent)",
+    boxShadow: "0 6px 26px rgba(34,197,94,0.12)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000,
+  };
+  const knobStyle = {
+    width: 48,
+    height: 48,
+    borderRadius: "50%",
+    background: "rgba(255,255,255,0.12)",
+    border: "2px solid var(--accent)",
+    boxShadow: "0 6px 16px rgba(0,0,0,0.6)",
+    transform: `translate(${x * radius}px, ${z * radius}px)`,
+    transition: "transform 60ms linear",
+    willChange: "transform",
+  };
+
+  return (
+    <div style={baseStyle} aria-hidden>
+      <div style={knobStyle} />
+    </div>
+  );
+}
+
 function getActiveMax(level, perfMode) {
   const base =
     LEVEL_CONFIG.caps.activeBase +
@@ -2958,7 +2997,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const pushBossFeedRef = useRef(null);
   const [spawnPressureMul, setSpawnPressureMul] = useState(() => {
     const v = parseFloat(localStorage.getItem("spawnPressureMul") || "");
-    return Number.isFinite(v) && v > 0 ? v : 0.9;
+    return Number.isFinite(v) && v > 0 ? v : 0.8;
   });
   const spawnPressureMulRef = useRef(0.9);
   const [autoFire, setAutoFire] = useState(true);
@@ -2980,6 +3019,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const [enemySpeedScale, setEnemySpeedScale] = useState(1);
   // Shape Runner feature is now a pickup-only visual; auto-move removed
   const [highContrast, setHighContrast] = useState(false);
+  const [panelPosition, setPanelPosition] = useState({ x: window.innerWidth - 320 - 10, y: 80 }); // initial position: top right
   const [hpEvents, setHpEvents] = useState([]); // floating HP change indicators
   const [armorEvents, setArmorEvents] = useState([]);
   const [powerEffect, setPowerEffect] = useState({ active: false, amount: 0 });
@@ -3015,6 +3055,34 @@ export default function App({ navVisible, setNavVisible } = {}) {
       );
     } catch {}
   }, [showPlayerLabelPlaceholder]);
+
+  // Dragging state for the player stats panel
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+
+  const handlePanelMouseDown = useCallback((e) => {
+    isDraggingRef.current = true;
+    dragStartRef.current = { x: e.clientX - panelPosition.x, y: e.clientY - panelPosition.y };
+    document.addEventListener('mousemove', handlePanelMouseMove);
+    document.addEventListener('mouseup', handlePanelMouseUp);
+    e.preventDefault();
+  }, [panelPosition]);
+
+  const handlePanelMouseMove = useCallback((e) => {
+    if (!isDraggingRef.current) return;
+    const newX = e.clientX - dragStartRef.current.x;
+    const newY = e.clientY - dragStartRef.current.y;
+    // Constrain to viewport
+    const constrainedX = Math.max(0, Math.min(window.innerWidth - 320, newX));
+    const constrainedY = Math.max(0, Math.min(window.innerHeight - 200, newY));
+    setPanelPosition({ x: constrainedX, y: constrainedY });
+  }, []);
+
+  const handlePanelMouseUp = useCallback(() => {
+    isDraggingRef.current = false;
+    document.removeEventListener('mousemove', handlePanelMouseMove);
+    document.removeEventListener('mouseup', handlePanelMouseUp);
+  }, []);
 
   const pushPlayerLabel = useCallback((text, lifetimeMs = 2200) => {
     // Map known label keywords to emojis for better status awareness
@@ -3640,6 +3708,16 @@ export default function App({ navVisible, setNavVisible } = {}) {
       localStorage.setItem("spawnPressureMul", String(spawnPressureMul));
     } catch {}
   }, [spawnPressureMul]);
+  // Auto-scale spawn pressure with wave: 80% at wave 1, up to 120% at wave 200
+  useEffect(() => {
+    if (wave > 0) {
+      const base = 0.8;
+      const maxIncrease = 0.4; // to 1.2
+      const scale = Math.min(1, (wave - 1) / 199);
+      const autoPressure = base + scale * maxIncrease;
+      setSpawnPressureMul(autoPressure);
+    }
+  }, [wave]);
   // removed shapeRunner persistence
   useEffect(() => {
     try {
@@ -5827,10 +5905,12 @@ export default function App({ navVisible, setNavVisible } = {}) {
         const dt = 100; // ms tick granularity
         bombEffectTimeRef.current = Math.max(0, bombEffectTimeRef.current - dt);
         bombSpawnTimerRef.current += dt;
-        // spawn bombs every 250ms while effect time remains
+        // spawn bombs every 300ms while effect time remains, but cap at 12 active bombs in performance mode, 16 otherwise
+        const maxBombs = performanceMode ? 12 : 16;
         while (
           bombSpawnTimerRef.current >= BOMB_SPAWN_INTERVAL_MS &&
-          bombEffectTimeRef.current > 0
+          bombEffectTimeRef.current > 0 &&
+          bombs.length < maxBombs
         ) {
           bombSpawnTimerRef.current -= BOMB_SPAWN_INTERVAL_MS;
           // launch a bomb from player position with upward velocity and slight horizontal spread
@@ -6421,6 +6501,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
   // Source of movement for speed scaling/override semantics: 'dpad' | 'runner' | 'keyboard' | 'none'
   const moveSourceRef = useRef("none");
 
+  // Gamepad widget display state
+  const [gamepadMove, setGamepadMove] = useState({ x: 0, z: 0 });
+  const [gamepadAim, setGamepadAim] = useState({ x: 0, z: 0 });
+
   // shape runner auto-move removed
 
   // External movement: only DPad input; keyboard handled directly in Player
@@ -6509,6 +6593,16 @@ export default function App({ navVisible, setNavVisible } = {}) {
     invertAimX: !!acc?.invertAimX,
     invertAimY: effectiveInvertAimY,
   });
+
+  // Update gamepad widget state
+  useEffect(() => {
+    if (controlScheme !== "gamepad") return;
+    const interval = setInterval(() => {
+      setGamepadMove({ x: dpadVecRef.current.x, z: dpadVecRef.current.z });
+      setGamepadAim({ x: aimInputRef.current.x, z: aimInputRef.current.z });
+    }, 50); // 20fps update
+    return () => clearInterval(interval);
+  }, [controlScheme]);
 
   const handlePointerMove = useCallback((e) => {
     const x = e.clientX;
@@ -7128,7 +7222,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
                     return updated;
                   });
                 }
-                // Visual explosion cue (cap to last 12)
+                // Visual explosion cue (cap to last 8 in performance mode, 12 otherwise)
+                const maxAoes = performanceMode ? 8 : 12;
                 setAoes((prev) => {
                   const next = [
                     ...prev,
@@ -7139,16 +7234,18 @@ export default function App({ navVisible, setNavVisible } = {}) {
                       radius: BOMB_AOE_RADIUS,
                     },
                   ];
-                  return next.length > 12 ? next.slice(next.length - 12) : next;
+                  return next.length > maxAoes ? next.slice(next.length - maxAoes) : next;
                 });
-                // VFX: scalable bomb explosion
-                try {
-                  triggerEffect &&
-                    triggerEffect("bombExplosion", {
-                      position: [cx, 0.2, cz],
-                      power: 1.0,
-                    });
-                } catch {}
+                // VFX: scalable bomb explosion (skip in performance mode)
+                if (!performanceMode) {
+                  try {
+                    triggerEffect &&
+                      triggerEffect("bombExplosion", {
+                        position: [cx, 0.2, cz],
+                        power: 1.0,
+                      });
+                  } catch {}
+                }
                 // SFX: bomb explosion
                 try {
                   play("bomb");
@@ -7402,6 +7499,20 @@ export default function App({ navVisible, setNavVisible } = {}) {
           />
         </>
       )}
+      {controlScheme === "gamepad" && (
+        <>
+          <GamepadStick
+            side="left"
+            x={gamepadMove.x}
+            z={gamepadMove.z}
+          />
+          <GamepadStick
+            side="right"
+            x={gamepadAim.x}
+            z={gamepadAim.z}
+          />
+        </>
+      )}
 
       {/* Left Panel: Player and Boss info always visible; Accessibility under Debug toggle */}
       {(() => {
@@ -7434,25 +7545,24 @@ export default function App({ navVisible, setNavVisible } = {}) {
               overflowY: "auto",
             }}
           >
-            {/* Player Statistics - fixed to bottom of viewport */}
+            {/* Player Statistics - draggable */}
             <div
               id="fixed-player-stats"
               style={{
                 position: "fixed",
-                top: 80,
-                right: 10,
-                // left: "50%",
-                // transform: "translateX(-50%)",
+                left: panelPosition.x,
+                top: panelPosition.y,
                 display: "grid",
                 gap: 12,
                 height: "auto",
-                // minWidth: 300,
                 maxWidth: "80vw",
                 padding: 10,
                 background: "rgba(0,0,0,0.25)",
                 borderRadius: 12,
                 border: "1px solid rgba(255,255,255,0.1)",
+                cursor: "move",
               }}
+              onMouseDown={handlePanelMouseDown}
             >
               <div className="small" style={{ marginBottom: 6 }}>
                 Hero: <strong>{selectedHero}</strong>
@@ -8537,6 +8647,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                         <option value="wasd">WASD Control</option>
                         <option value="dpad">D-Buttons Control</option>
                         <option value="touch">Touch (Analogue)</option>
+                        <option value="gamepad">Gamepad</option>
                       </select>
                       <div style={{ height: 6 }} />
                       {/* Shape runner repurposed into a pickup-driven invulnerability effect (no manual toggle) */}
@@ -9942,7 +10053,7 @@ function Bomb({ data, isPaused, onUpdate, onExplode, onHitEnemy }) {
           vel: [vx, 0, vz],
           state: "ground",
           landedAt: performance.now(),
-          explodeAt: performance.now() + 2000,
+          explodeAt: performance.now() + 1000,
         });
       } else {
         onUpdate(id, { pos: [x, y, z], vel: [vx, vy, vz] });
