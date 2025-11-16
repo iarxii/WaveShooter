@@ -4,9 +4,12 @@ import { useEffects } from '../effects/EffectsContext.jsx'
 import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
+import { Pathogen } from '../characters/Pathogen';
+import { Mutagen } from '../characters/Mutagen';
+import { InfectionVector } from '../characters/InfectionVector';
 
 // Generic roster enemy: minion-like chaser with health, stun/knockback support
-function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth=3, color=0xff0055, speedScale=1, spawnHeight, label=null, stunImmune=false, shape='Circle', moveSpeed=10, onHazard, factorySpec=null, visualScale=1 }) {
+function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth=3, color=0xff0055, speedScale=1, spawnHeight, label=null, stunImmune=false, shape='Circle', moveSpeed=10, onHazard, factorySpec=null, visualScale=1, enemyData=null }) {
   const ref = useRef()
   const { triggerEffect } = useEffects()
   const baseSpeed = moveSpeed
@@ -346,15 +349,26 @@ function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth
 
   return (
   <group scale={[visualScale, visualScale, visualScale]}>
-      {factorySpec ? (
-        <group ref={ref} position={pos}>
-          <PathogenFromSpec spec={factorySpec} />
-        </group>
-      ) : (
-        <mesh ref={ref} position={pos} material={mat}>
-          <primitive object={geom} attach="geometry" />
-        </mesh>
-      )}
+      <group ref={ref} position={pos}>
+        {(() => {
+          if (enemyData && enemyData.type) {
+            if (enemyData.type === 'Pathogen') {
+              return <Pathogen enemyData={enemyData} />;
+            } else if (enemyData.type === 'Mutagen') {
+              return <Mutagen enemyData={enemyData} playerPosRef={playerPosRef} onProjectile={onHazard} />;
+            } else if (enemyData.type === 'Vector (Boss)') {
+              return <InfectionVector enemyData={enemyData} />;
+            }
+          }
+          return factorySpec ? (
+            <PathogenFromSpec spec={factorySpec} />
+          ) : (
+            <mesh material={mat}>
+              <primitive object={geom} attach="geometry" />
+            </mesh>
+          );
+        })()}
+      </group>
       {/* Enemy bombs visuals */}
       {bombsRef.current.map(b => (
         <mesh key={b.id} position={[b.pos.x, 0.6, b.pos.z]}>

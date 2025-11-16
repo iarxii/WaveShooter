@@ -4561,6 +4561,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   ? 0.5
                   : 1,
                 moveSpeed,
+                enemyData: picked,
               },
             ]);
           } else {
@@ -7002,6 +7003,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   shape={e.rosterShape || "Circle"}
                   factorySpec={e.factorySpec || null}
                   visualScale={assetScale}
+                  enemyData={e.enemyData}
                   onHazard={(hz) => {
                     // Add hazard zones managed by App
                     const id = Date.now() + Math.random();

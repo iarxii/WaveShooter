@@ -43,7 +43,7 @@ function noiseish(t, i, seed = 0) {
  *
  * Props are tuned to match your reference image while staying light on GPU.
  */
-export function Pathogen({
+export function PathogenMesh({
   baseShape = 'icosahedron',
   radius = 1.0,
   detail = 1, // 0..2 (higher = more triangles)
@@ -671,3 +671,101 @@ export function Pathogen({
     </group>
   );
 }
+
+// Pathogen Factory
+import { SnakePathogen } from './SnakePathogen';
+
+export function Pathogen({ enemyData, ...props }) {
+  if (enemyData) {
+    const { name, shape, color, stats, vfx } = enemyData;
+
+  // Determine if it's a snake variant
+  const isSnake = name.toLowerCase().includes('snake') || name === 'SnakePathogen';
+
+  if (isSnake) {
+    // Use SnakePathogen
+    const spec = {
+      segmentCount: 8,
+      segmentSpacing: 0.6,
+      snakeCurvature: 0.3,
+      snakeTwist: 0.2,
+      segmentRadiusScaleStart: 1.0,
+      segmentRadiusScaleEnd: 0.6,
+      spikeCount: 42,
+      spikeStyle: 'tentacle',
+      radius: 1.0,
+      height: 2.0,
+      detail: 1,
+      seed: name.hashCode || 1,
+      spikeLength: 0.45,
+      spikeRadius: 0.11,
+      nodeCount: 6,
+      baseColor: color,
+      spikeColor: color,
+      nodeColor: "#FFD24A",
+      arcColor: "#FFEC9C",
+      emissive: "#BD875B",
+      emissiveIntensityCore: 0.35,
+      spikeEmissive: undefined,
+      emissiveIntensitySpikes: 0.12,
+      metalnessCore: 0.25,
+      roughnessCore: 0.85,
+      metalnessSpikes: 0.15,
+      roughnessSpikes: 0.9,
+      metalnessNodes: 1.0,
+      roughnessNodes: 0.25,
+      spin: 0.25,
+      roll: 0.0,
+      breathe: 0.015,
+      flickerSpeed: 8.0,
+      quality: "high"
+    };
+    return <SnakePathogen spec={spec} />;
+  } else {
+    // Use standard PathogenMesh
+    return <PathogenMesh
+      baseShape='icosahedron'
+      radius={1.0}
+      detail={1}
+      spikeCount={42}
+      spikeLength={0.45}
+      spikeRadius={0.11}
+      nodeCount={6}
+      arcCount={5}
+      seed={name.hashCode || 7}
+      baseColor={color}
+      spikeColor={color}
+      nodeColor="#FFD24A"
+      arcColor="#FFEC9C"
+      emissive="#BD875B"
+      emissiveIntensityCore={0.35}
+      spikeEmissive={undefined}
+      emissiveIntensitySpikes={0.12}
+      metalnessCore={0.25}
+      roughnessCore={0.85}
+      metalnessSpikes={0.15}
+      roughnessSpikes={0.9}
+      metalnessNodes={1.0}
+      roughnessNodes={0.25}
+      flatShading={true}
+      spin={0.25}
+      roll={0.0}
+      breathe={0.015}
+      flickerSpeed={8.0}
+      quality="high"
+      />;
+    }
+  } else {
+    // Backward compatibility: use PathogenMesh with props
+    return <PathogenMesh {...props} />;
+  }
+}// Helper hash
+String.prototype.hashCode = function() {
+  let hash = 0;
+  for (let i = 0; i < this.length; i++) {
+    const char = this.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+};

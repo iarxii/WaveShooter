@@ -215,6 +215,103 @@ export const ENEMIES = [
     stats: { health: 14, speed: 2.0, damage: 6 }, maxConcurrent: 1,
     vfx: { onHit: { type: 'bulletHit', color: '#7c3aed' }, onAura: { type: 'debuffField', color: '#7c3aed' } },
   },
+  // infection vectors (creatures that spread pathogens)
+  // --- Infection Vectors (Tier-4 Bosses) ---
+  {
+    name: 'Broodmother Cockroach',
+    type: 'Vector (Boss)',
+    scientificName: 'Periplaneta americana (colony)',
+    realWorldEffect: 'Household pest; linked to allergen/asthma triggers and pathogen carriage',
+    gameplayEffect: 'Ootheca Burst — spawns 8–12 roachlings in a forward cone; leaves slow trail for 3s',
+    shape: 'Model',
+    color: '#B36A2E',
+    tier: 4,
+    unlock: 22,
+    stats: { health: 18, speed: 2.0, damage: 7 },
+    maxConcurrent: 1,
+    vfx: {
+      onHit: { type: 'bulletHit', color: '#B36A2E' },
+      onSpecial: { type: 'spawnCone', color: '#B36A2E' },
+      onAura: { type: 'slowTrail', color: '#8C4F1E' }
+    },
+    specId: 'cockroach_broodmother'
+  },
+  {
+    name: 'Plague Fly Colossus',
+    type: 'Vector (Boss)',
+    scientificName: 'Musca domestica (oversized)',
+    realWorldEffect: 'Mechanical transmission of pathogens; contaminates food and surfaces',
+    gameplayEffect: 'Carrion Buzz — AoE slow + aim shake; spawns 6 maggots on hit',
+    shape: 'Model',
+    color: '#2F2F2F',
+    tier: 4,
+    unlock: 23,
+    stats: { health: 16, speed: 2.4, damage: 6 },
+    maxConcurrent: 1,
+    vfx: {
+      onHit: { type: 'bulletHit', color: '#8FE1E9' },
+      onAura: { type: 'buzzField', color: '#8FE1E9', pulse: true },
+      onSpecial: { type: 'maggotSpawn', color: '#8FE1E9' }
+    },
+    specId: 'fly_colossus'
+  },
+  {
+    name: 'Mosquito Matriarch',
+    type: 'Vector (Boss)',
+    scientificName: 'Anopheles spp (queen)',
+    realWorldEffect: 'Vector for malaria and arboviruses; hematophagic behavior',
+    gameplayEffect: 'Proboscis Drain — life‑steal tether; gains temporary shield',
+    shape: 'Model',
+    color: '#3D3A38',
+    tier: 4,
+    unlock: 24,
+    stats: { health: 15, speed: 2.6, damage: 6 },
+    maxConcurrent: 1,
+    vfx: {
+      onHit: { type: 'bulletHit', color: '#E7B466' },
+      onSpecial: { type: 'lifeDrainTether', color: '#E7B466' },
+      onAura: { type: 'shieldGain', color: '#E7B466' }
+    },
+    specId: 'mosquito_matriarch'
+  },
+  {
+    name: 'Sewer Rat King',
+    type: 'Vector (Boss)',
+    scientificName: 'Rattus norvegicus (alpha)',
+    realWorldEffect: 'Reservoir/vector for multiple pathogens; urban infestation risks',
+    gameplayEffect: 'Filth Charge — dash + toxin splash; summons 4 runners briefly',
+    shape: 'Model',
+    color: '#6B5D52',
+    tier: 4,
+    unlock: 25,
+    stats: { health: 17, speed: 2.2, damage: 7 },
+    maxConcurrent: 1,
+    vfx: {
+      onHit: { type: 'bulletHit', color: '#6B5D52' },
+      onSpecial: { type: 'toxinSplash', color: '#7A6A5E' },
+      onAura: { type: 'runnerSummon', color: '#6B5D52' }
+    },
+    specId: 'rat_king'
+  },
+  {
+    name: 'Carrion Vulture',
+    type: 'Vector (Boss)',
+    scientificName: 'Gyps spp (carrion scout)',
+    realWorldEffect: 'Scavenger; carcass contact and long-range movement',
+    gameplayEffect: 'Swoop & Drop — high‑arc dive; drops carcass hazard (DoT zone)',
+    shape: 'Model',
+    color: '#2B2F3A',
+    tier: 4,
+    unlock: 26,
+    stats: { health: 19, speed: 2.1, damage: 8 },
+    maxConcurrent: 1,
+    vfx: {
+      onHit: { type: 'bulletHit', color: '#E5B65D' },
+      onSpecial: { type: 'swoopTelegraph', color: '#E5B65D' },
+      onAura: { type: 'carcassZone', color: '#8A6B33' }
+    },
+    specId: 'vulture_harbinger'
+  },
 ]
 
 export const HEROES = [
@@ -227,6 +324,85 @@ export const HEROES = [
   { name: 'Dina', role: 'Hero', ability: 'Nutrition Boost', cooldown: 17, notes: 'Short regen buff', vfx: { abilityEffect: 'greenShieldAura', color: '#10b981' } },
   { name: 'Ray', role: 'Hero', ability: 'Radiation Block', cooldown: 18, notes: 'Hazard resistance', vfx: { abilityEffect: 'lightningBolt', color: '#60a5fa' } },
 ]
+
+// Support vectors (Allies) – timed & capped to preserve FPS
+export const ALLIES = [
+  {
+    name: 'Honeybee Medics',
+    type: 'Ally',
+    role: 'Support Vector',
+    gameplayEffect: 'Healing Pollen Aura — +4 HP/s regen; cleans slow debuffs',
+    shape: 'Model',
+    color: '#FFC93B',
+    stats: { health: 8, speed: 3.0, damage: 0 },
+    duration: 15,           // seconds
+    maxConcurrent: 1,
+    vfx: {
+      onAura: { type: 'healingPollen', color: '#FFC93B', pulse: true }
+    },
+    specId: 'bee_medics'
+  },
+  {
+    name: 'Ladybug Sterilizers',
+    type: 'Ally',
+    role: 'Support Vector',
+    gameplayEffect: 'Debride Clouds — clears toxin/spore hazards on contact; tiny stun',
+    shape: 'Model',
+    color: '#CE2A2A',
+    stats: { health: 6, speed: 3.2, damage: 0 },
+    duration: 15,
+    maxConcurrent: 1,
+    vfx: {
+      onAura: { type: 'hazardClear', color: '#CE2A2A' }
+    },
+    specId: 'ladybug_sterilizers'
+  },
+  {
+    name: 'Dragonfly Sentinels',
+    type: 'Ally',
+    role: 'Support Vector',
+    gameplayEffect: 'Vector Hunt — prioritizes aerial enemies; +50% damage vs flies/mosquitoes',
+    shape: 'Model',
+    color: '#2C566E',
+    stats: { health: 7, speed: 3.5, damage: 3 },
+    duration: 15,
+    maxConcurrent: 1,
+    vfx: {
+      onTrail: { type: 'wingStreak', color: '#9FE8FF' }
+    },
+    specId: 'dragonfly_sentinels'
+  },
+  {
+    name: 'Swallow Sweep',
+    type: 'Ally',
+    role: 'Support Vector',
+    gameplayEffect: 'Lane Dashes — periodic swoops that push back enemies in strips',
+    shape: 'Model',
+    color: '#22324A',
+    stats: { health: 9, speed: 3.4, damage: 4 },
+    duration: 12,
+    maxConcurrent: 1,
+    vfx: {
+      onSpecial: { type: 'laneDash', color: '#EAD088' }
+    },
+    specId: 'swallow_sweep'
+  },
+  {
+    name: 'Therapy Dog',
+    type: 'Ally',
+    role: 'Support Vector',
+    gameplayEffect: 'Morale Aura — +10% damage resist, +2 HP/s; cleans fear on life loss',
+    shape: 'Model',
+    color: '#7A5D43',
+    stats: { health: 12, speed: 3.0, damage: 0 },
+    duration: 20,
+    maxConcurrent: 1,
+    vfx: {
+      onAura: { type: 'moraleGlow', color: '#E9D6C0' }
+    },
+    specId: 'therapy_dog'
+  }
+];
 
 // Helpers for filtering/sorting in UIs
 export function filterEnemies({ minLevel = 1, tier = 'all' } = {}){
