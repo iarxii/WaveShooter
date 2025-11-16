@@ -2705,6 +2705,34 @@ export default function App({ navVisible, setNavVisible } = {}) {
       );
     } catch {}
   }, [showAccessibilityControls]);
+  // Debug: Show enemy names above meshes
+  const [showEnemyNames, setShowEnemyNames] = useState(() => {
+    try {
+      const v = localStorage.getItem("showEnemyNames");
+      return !(v === "0" || v === "false");
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("showEnemyNames", showEnemyNames ? "1" : "0");
+    } catch {}
+  }, [showEnemyNames]);
+  // Debug: Show enemy thumbnails in labels
+  const [showThumbnails, setShowThumbnails] = useState(() => {
+    try {
+      const v = localStorage.getItem("showThumbnails");
+      return !(v === "0" || v === "false");
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("showThumbnails", showThumbnails ? "1" : "0");
+    } catch {}
+  }, [showThumbnails]);
   // Enemy visuals render mode: 'factory' (default) or 'simple'
   const [enemyRenderMode, setEnemyRenderMode] = useState(() => {
     try {
@@ -7004,6 +7032,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   factorySpec={e.factorySpec || null}
                   visualScale={assetScale}
                   enemyData={e.enemyData}
+                  showEnemyNames={showEnemyNames}
+                  showThumbnails={showThumbnails}
                   onHazard={(hz) => {
                     // Add hazard zones managed by App
                     const id = Date.now() + Math.random();
@@ -7612,6 +7642,24 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   >
                     Auto-Fire: {autoFire ? "On" : "Off"} (F)
                   </button>
+                  <div style={{ height: 6 }} />
+                  <label style={{ display: 'block', fontSize: 11 }}>
+                    <input
+                      type="checkbox"
+                      checked={showEnemyNames}
+                      onChange={(e) => setShowEnemyNames(e.target.checked)}
+                    />
+                    Show Enemy Names
+                  </label>
+                  <div style={{ height: 6 }} />
+                  <label style={{ display: 'block', fontSize: 11 }}>
+                    <input
+                      type="checkbox"
+                      checked={showThumbnails}
+                      onChange={(e) => setShowThumbnails(e.target.checked)}
+                    />
+                    Show Enemy Thumbnails
+                  </label>
 
                   {/* Accessibility: invert movement & aim axes */}
                   <div style={{ marginTop: 10, padding: '8px 10px', background: 'rgba(0,0,0,0.35)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.08)' }}>

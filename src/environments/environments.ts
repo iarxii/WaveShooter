@@ -68,7 +68,7 @@ export const ENVIRONMENTS: EnvironmentSpec[] = [
   },
 ]
 
-export const DEFAULT_ENV_ID: EnvId = 'orchard'
+export const DEFAULT_ENV_ID: EnvId = 'ocean'
 
 export function getEnvById(id: EnvId): EnvironmentSpec {
   return ENVIRONMENTS.find(e => e.id === id) || ENVIRONMENTS[0]

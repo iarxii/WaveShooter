@@ -2,14 +2,15 @@ import React, { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useEffects } from '../effects/EffectsContext.jsx'
 import { useFrame } from '@react-three/fiber'
-import { Text } from '@react-three/drei'
+import { Text, Html } from '@react-three/drei'
 import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
 import { Pathogen } from '../characters/Pathogen';
 import { Mutagen } from '../characters/Mutagen';
 import { InfectionVector } from '../characters/InfectionVector';
+import { getEnemyImageUrl } from '../data/enemyImages.js';
 
 // Generic roster enemy: minion-like chaser with health, stun/knockback support
-function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth=3, color=0xff0055, speedScale=1, spawnHeight, label=null, stunImmune=false, shape='Circle', moveSpeed=10, onHazard, factorySpec=null, visualScale=1, enemyData=null }) {
+function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth=3, color=0xff0055, speedScale=1, spawnHeight, label=null, stunImmune=false, shape='Circle', moveSpeed=10, onHazard, factorySpec=null, visualScale=1, enemyData=null, showEnemyNames=false, showThumbnails=false }) {
   const ref = useRef()
   const { triggerEffect } = useEffects()
   const baseSpeed = moveSpeed
@@ -369,6 +370,21 @@ function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth
           );
         })()}
       </group>
+      {/* Enemy name label */}
+      {showEnemyNames && (enemyData?.name || label) && (
+        <Html position={[pos[0] + ((id % 5) - 2) * 0.3, pos[1] + 5 + (Math.floor(id / 5) % 3) * 0.3, pos[2]]} center>
+          <div style={{ background: 'rgba(0,0,0,0.6)', padding: '2px 4px', borderRadius: '4px', fontSize: '14px', color: `rgb(${((color >> 16) & 255)}, ${((color >> 8) & 255)}, ${(color & 255)})`, fontFamily: 'Arial, sans-serif', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+            {showThumbnails && (
+              <img
+                src={getEnemyImageUrl(enemyData?.name || label)}
+                style={{ width: 20, height: 20, marginRight: 4, borderRadius: '2px' }}
+                alt=""
+              />
+            )}
+            {enemyData?.name || label || 'Enemy'}
+          </div>
+        </Html>
+      )}
       {/* Enemy bombs visuals */}
       {bombsRef.current.map(b => (
         <mesh key={b.id} position={[b.pos.x, 0.6, b.pos.z]}>
