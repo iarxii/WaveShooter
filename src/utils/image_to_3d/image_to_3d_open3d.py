@@ -16,7 +16,7 @@ import numpy as np
 import open3d as o3d
 
 def load_midas_model():
-    model_type = "DPT_Small"  # lightweight version
+    model_type = "MiDaS_small"  # lightweight version
     midas = torch.hub.load("intel-isl/MiDaS", model_type)
     midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
     transform = midas_transforms.small_transform

@@ -3,3 +3,5 @@ torchvision
 torchaudio
 opencv-python
 trimesh
+timm
+scipy
