@@ -7,7 +7,13 @@ import React, {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Stats, Text, AdaptiveDpr, Html } from "@react-three/drei";
+import {
+  OrbitControls,
+  Stats,
+  Text,
+  AdaptiveDpr,
+  Html,
+} from "@react-three/drei";
 import { SceneEnvironment } from "./contexts/EnvironmentContext.tsx";
 import * as THREE from "three";
 import { useHistoryLog } from "./contexts/HistoryContext.jsx";
@@ -34,7 +40,11 @@ import applyDamageToHero from "./utils/damage.js";
 import PlayerRadialHUD from "./components/PlayerRadialHUD.jsx";
 import { verifyRegisteredAssets, assetUrl } from "./utils/assetPaths";
 import useGamepadControls from "./utils/gamepad";
-import { getAccessibility, onAccessibilityChange, updateAccessibility } from "./utils/accessibility";
+import {
+  getAccessibility,
+  onAccessibilityChange,
+  updateAccessibility,
+} from "./utils/accessibility";
 import { inputActions } from "./utils/inputActions";
 import TouchActionButtons from "./components/TouchActionButtons.jsx";
 
@@ -62,9 +72,20 @@ function AxisPreview({ moveRef, aimRef }) {
     return () => cancelAnimationFrame(r);
   }, [moveRef, aimRef]);
   return (
-    <div style={{ fontSize: 11, lineHeight: "14px", marginTop: 4, color: "#cbd5e1" }}>
-      <div>Move: x {vals.mx} z {vals.mz}</div>
-      <div>Aim: x {vals.ax} z {vals.az}</div>
+    <div
+      style={{
+        fontSize: 11,
+        lineHeight: "14px",
+        marginTop: 4,
+        color: "#cbd5e1",
+      }}
+    >
+      <div>
+        Move: x {vals.mx} z {vals.mz}
+      </div>
+      <div>
+        Aim: x {vals.ax} z {vals.az}
+      </div>
     </div>
   );
 }
@@ -75,10 +96,14 @@ function AccessibilityDebugOverlay() {
   const [fixed, setFixed] = useState(() => {
     try {
       return localStorage.getItem("accessibilityDebug:fixed") === "1";
-    } catch { return true }
+    } catch {
+      return true;
+    }
   });
   useEffect(() => {
-    try { localStorage.setItem("accessibilityDebug:fixed", fixed ? "1" : "0") } catch {}
+    try {
+      localStorage.setItem("accessibilityDebug:fixed", fixed ? "1" : "0");
+    } catch {}
   }, [fixed]);
   useEffect(() => {
     const unsub = onAccessibilityChange((s) => {
@@ -86,26 +111,54 @@ function AccessibilityDebugOverlay() {
       setLogs((prev) => [{ ts, msg: JSON.stringify(s) }, ...prev].slice(0, 20));
     });
     return () => {
-      try { unsub && unsub(); } catch {}
+      try {
+        unsub && unsub();
+      } catch {}
     };
   }, []);
   if (!logs || logs.length === 0) return null;
   const baseStyle = {
-    background: "rgba(0,0,0,0.66)", padding: 8, borderRadius: 6, zIndex: 9999, fontSize: 12, color: "#e5e7eb", maxWidth: 360
+    background: "rgba(0,0,0,0.66)",
+    padding: 8,
+    borderRadius: 6,
+    zIndex: 9999,
+    fontSize: 12,
+    color: "#e5e7eb",
+    maxWidth: 360,
   };
   const fixedStyle = { position: "fixed", left: 350, bottom: 8 };
   const inlineStyle = { position: "relative", marginTop: 8 };
   return (
-    <div className={`access-overlay ${fixed ? "fixed" : "inline"}`} style={{ ...(fixed ? fixedStyle : inlineStyle), ...baseStyle }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+    <div
+      className={`access-overlay ${fixed ? "fixed" : "inline"}`}
+      style={{ ...(fixed ? fixedStyle : inlineStyle), ...baseStyle }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 6,
+        }}
+      >
         <strong style={{ fontSize: 12 }}>Accessibility Log</strong>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="button" style={{ fontSize: 11, padding: "4px 6px" }} onClick={() => setLogs([])}>Clear</button>
+          <button
+            className="button"
+            style={{ fontSize: 11, padding: "4px 6px" }}
+            onClick={() => setLogs([])}
+          >
+            Clear
+          </button>
           <button
             className="button"
             style={{ fontSize: 11, padding: "4px 6px" }}
             onClick={() => setFixed((f) => !f)}
-            title={fixed ? "Unfix overlay (place inside parent)" : "Fix overlay (viewport)"}
+            title={
+              fixed
+                ? "Unfix overlay (place inside parent)"
+                : "Fix overlay (viewport)"
+            }
           >
             {fixed ? "Unfix" : "Fix"}
           </button>
@@ -126,11 +179,50 @@ function AccessibilityDebugOverlay() {
 // 3D Axis + Gizmo helper: shows global X / Z axes, grid plane, and live move/aim arrows
 function AxisGizmo({ moveRef, aimRef, visible = false }) {
   const groupRef = React.useRef();
-  const xAxis = React.useMemo(() => new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0.05, 0), 8, 0xff4444), []);
-  const zAxis = React.useMemo(() => new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0.05, 0), 8, 0x4444ff), []);
-  const moveArrow = React.useMemo(() => new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0.06, 0), 6, 0x22c55e), []);
-  const aimArrow = React.useMemo(() => new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0.07, 0), 6, 0xffff00), []);
-  const grid = React.useMemo(() => new THREE.GridHelper(40, 40, 0x666666, 0x333333), []);
+  const xAxis = React.useMemo(
+    () =>
+      new THREE.ArrowHelper(
+        new THREE.Vector3(1, 0, 0),
+        new THREE.Vector3(0, 0.05, 0),
+        8,
+        0xff4444
+      ),
+    []
+  );
+  const zAxis = React.useMemo(
+    () =>
+      new THREE.ArrowHelper(
+        new THREE.Vector3(0, 0, 1),
+        new THREE.Vector3(0, 0.05, 0),
+        8,
+        0x4444ff
+      ),
+    []
+  );
+  const moveArrow = React.useMemo(
+    () =>
+      new THREE.ArrowHelper(
+        new THREE.Vector3(0, 0, 1),
+        new THREE.Vector3(0, 0.06, 0),
+        6,
+        0x22c55e
+      ),
+    []
+  );
+  const aimArrow = React.useMemo(
+    () =>
+      new THREE.ArrowHelper(
+        new THREE.Vector3(0, 0, 1),
+        new THREE.Vector3(0, 0.07, 0),
+        6,
+        0xffff00
+      ),
+    []
+  );
+  const grid = React.useMemo(
+    () => new THREE.GridHelper(40, 40, 0x666666, 0x333333),
+    []
+  );
 
   React.useEffect(() => {
     // position grid slightly above ground to avoid z-fighting
@@ -170,10 +262,18 @@ function AxisGizmo({ moveRef, aimRef, visible = false }) {
       <primitive object={moveArrow} />
       <primitive object={aimArrow} />
       {/* Axis labels (Text faces camera by default) */}
-      <Text position={[9, 0.1, 0]} fontSize={0.8} color="#ff6666">+X</Text>
-      <Text position={[-9, 0.1, 0]} fontSize={0.8} color="#ff6666">-X</Text>
-      <Text position={[0, 0.1, 9]} fontSize={0.8} color="#6699ff">+Z</Text>
-      <Text position={[0, 0.1, -9]} fontSize={0.8} color="#6699ff">-Z</Text>
+      <Text position={[9, 0.1, 0]} fontSize={0.8} color="#ff6666">
+        +X
+      </Text>
+      <Text position={[-9, 0.1, 0]} fontSize={0.8} color="#ff6666">
+        -X
+      </Text>
+      <Text position={[0, 0.1, 9]} fontSize={0.8} color="#6699ff">
+        +Z
+      </Text>
+      <Text position={[0, 0.1, -9]} fontSize={0.8} color="#6699ff">
+        -Z
+      </Text>
     </group>
   );
 }
@@ -368,7 +468,9 @@ function AnalogStick({ onVectorChange, side = "left" }) {
       baseRef.current.setPointerCapture(pointerIdRef.current);
       const v = toVec(e.clientX, e.clientY);
       if (knobRef.current)
-        knobRef.current.style.transform = `translate(${v.x * radius}px, ${v.z * radius}px)`;
+        knobRef.current.style.transform = `translate(${v.x * radius}px, ${
+          v.z * radius
+        }px)`;
       onVectorChange(v.x, v.z);
       e.preventDefault();
     };
@@ -376,7 +478,9 @@ function AnalogStick({ onVectorChange, side = "left" }) {
       if (pointerIdRef.current !== e.pointerId) return;
       const v = toVec(e.clientX, e.clientY);
       if (knobRef.current)
-        knobRef.current.style.transform = `translate(${v.x * radius}px, ${v.z * radius}px)`;
+        knobRef.current.style.transform = `translate(${v.x * radius}px, ${
+          v.z * radius
+        }px)`;
       onVectorChange(v.x, v.z);
     };
     const onPointerUp = (e) => {
@@ -385,7 +489,8 @@ function AnalogStick({ onVectorChange, side = "left" }) {
         baseRef.current.releasePointerCapture(pointerIdRef.current);
       } catch {}
       pointerIdRef.current = null;
-      if (knobRef.current) knobRef.current.style.transform = `translate(0px, 0px)`;
+      if (knobRef.current)
+        knobRef.current.style.transform = `translate(0px, 0px)`;
       onVectorChange(0, 0);
     };
     const el = baseRef.current;
@@ -490,9 +595,7 @@ function GamepadStick({ x, z, side = "left" }) {
 
   return (
     <div style={baseStyle} aria-hidden>
-      <div style={knobStyle}>
-        {icon}
-      </div>
+      <div style={knobStyle}>{icon}</div>
     </div>
   );
 }
@@ -1058,7 +1161,15 @@ function LaserBeam({
   const effectiveLength = Math.round(length * 1.6);
   const thinRadius = Math.max(0.08, radius * 0.18);
   const geomThin = useMemo(
-    () => new THREE.CylinderGeometry(thinRadius, thinRadius, effectiveLength, 8, 1, true),
+    () =>
+      new THREE.CylinderGeometry(
+        thinRadius,
+        thinRadius,
+        effectiveLength,
+        8,
+        1,
+        true
+      ),
     [thinRadius, effectiveLength]
   );
   const mat = useMemo(
@@ -1089,7 +1200,10 @@ function LaserBeam({
       );
       b.position.copy(center);
       const axis = new THREE.Vector3(0, 1, 0);
-      const q = new THREE.Quaternion().setFromUnitVectors(axis, dirVec.clone().normalize());
+      const q = new THREE.Quaternion().setFromUnitVectors(
+        axis,
+        dirVec.clone().normalize()
+      );
       b.quaternion.copy(q);
     }
   }, [pos, dirVec, length]);
@@ -1106,9 +1220,13 @@ function LaserBeam({
       const t = performance.now() * (0.006 + i * 0.002);
       const jitter = 0.06 * Math.sin(t * 12 + i * 1.2);
       const center = new THREE.Vector3(
-        pos[0] + dirVec.x * (effectiveLength / 2) + rightVec.x * (offset + jitter),
+        pos[0] +
+          dirVec.x * (effectiveLength / 2) +
+          rightVec.x * (offset + jitter),
         pos[1] + dirVec.y * (effectiveLength / 2),
-        pos[2] + dirVec.z * (effectiveLength / 2) + rightVec.z * (offset + jitter)
+        pos[2] +
+          dirVec.z * (effectiveLength / 2) +
+          rightVec.z * (offset + jitter)
       );
       b.position.copy(center);
       const s = 1 + 0.05 * Math.sin(performance.now() * 0.015 + i);
@@ -1129,7 +1247,7 @@ function LaserBeam({
           const proj = d.clone().multiplyScalar(t).add(origin);
           const perpDist2 = proj.distanceToSquared(ep);
           // use a slightly larger hit radius so the multi-beam visually matches damage
-          if (perpDist2 <= (radius * 1.0) * (radius * 1.0)) {
+          if (perpDist2 <= radius * 1.0 * (radius * 1.0)) {
             // apply damage scaled by dt
             const dmg = dmgPerSecond * dt; // fractional units
             onDamage && onDamage(ge.id, dmg);
@@ -1142,7 +1260,13 @@ function LaserBeam({
   return (
     <group>
       {[0, 1, 2, 3].map((i) => (
-        <mesh key={i} ref={beamRefs[i]} geometry={geomThin} material={mat} castShadow />
+        <mesh
+          key={i}
+          ref={beamRefs[i]}
+          geometry={geomThin}
+          material={mat}
+          castShadow
+        />
       ))}
     </group>
   );
@@ -1158,34 +1282,35 @@ function LoadingOverlay() {
   }, []);
 
   const overlayStyle = {
-    position: 'fixed',
+    position: "fixed",
     left: 0,
     top: 0,
     right: 0,
     bottom: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    pointerEvents: 'auto',
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    pointerEvents: "auto",
     zIndex: 9999,
-    background: 'linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.85) 100%)',
-    color: '#fff',
-    flexDirection: 'column',
+    background:
+      "linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.85) 100%)",
+    color: "#fff",
+    flexDirection: "column",
   };
   const boxStyle = {
-    padding: '18px 24px',
+    padding: "18px 24px",
     borderRadius: 8,
-    textAlign: 'center',
-    background: 'rgba(0,0,0,0.35)',
-    boxShadow: '0 6px 30px rgba(0,0,0,0.6)',
+    textAlign: "center",
+    background: "rgba(0,0,0,0.35)",
+    boxShadow: "0 6px 30px rgba(0,0,0,0.6)",
   };
   const spinnerStyle = {
     width: 56,
     height: 56,
-    borderRadius: '50%',
-    border: '4px solid rgba(255,255,255,0.08)',
-    borderTopColor: '#ff4d4d',
-    margin: '0 auto 10px',
+    borderRadius: "50%",
+    border: "4px solid rgba(255,255,255,0.08)",
+    borderTopColor: "#ff4d4d",
+    margin: "0 auto 10px",
   };
   const [angle, setAngle] = React.useState(0);
   // rotate spinner via JS to avoid injecting <style> tags inside Canvas tree
@@ -1199,8 +1324,10 @@ function LoadingOverlay() {
     <div style={overlayStyle} aria-live="polite" role="status">
       <div style={boxStyle}>
         <div style={{ ...spinnerStyle, ...spinnerTransform }} />
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Loading assets</div>
-        <div style={{ opacity: 0.9 }}>{'Please wait' + '.'.repeat(dots)}</div>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>
+          Loading assets
+        </div>
+        <div style={{ opacity: 0.9 }}>{"Please wait" + ".".repeat(dots)}</div>
       </div>
     </div>
   );
@@ -1644,7 +1771,10 @@ function BombStrobe({ playerPosRef, isPaused, radius = 1.6 }) {
       }),
     []
   );
-  const geom = useMemo(() => new THREE.SphereGeometry(radius, 20, 20), [radius]);
+  const geom = useMemo(
+    () => new THREE.SphereGeometry(radius, 20, 20),
+    [radius]
+  );
   useFrame(() => {
     if (!ref.current) return;
     const p = playerPosRef.current;
@@ -2705,11 +2835,118 @@ export default function App({ navVisible, setNavVisible } = {}) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+  // Camera shake system
+  const [cameraShake, setCameraShake] = useState({
+    active: false,
+    intensity: 0,
+    duration: 0,
+    startTime: 0,
+  });
+  // Camera shake debug controls
+  const [debugCameraShakeIntensity, setDebugCameraShakeIntensity] = useState(
+    () => {
+      const v = parseFloat(localStorage.getItem("dbgCameraShakeIntensity"));
+      return isFinite(v) ? v : 1.0;
+    }
+  );
+  // Border effects debug controls
+  const [debugBorderEffectsEnabled, setDebugBorderEffectsEnabled] = useState(
+    () => {
+      const v = localStorage.getItem("dbgBorderEffectsEnabled");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugLowHealthBorder, setDebugLowHealthBorder] = useState(() => {
+    const v = localStorage.getItem("dbgLowHealthBorder");
+    return v === "1" || v === "true";
+  });
+  const [debugPickupGlowBorder, setDebugPickupGlowBorder] = useState(() => {
+    const v = localStorage.getItem("dbgPickupGlowBorder");
+    return v === "1" || v === "true";
+  });
+  const [debugLaserChargingBorder, setDebugLaserChargingBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgLaserChargingBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  // Persist camera shake and border effects debug values
   useEffect(() => {
-    try {
-      localStorage.setItem("showDebugUI", showDebugUI ? "1" : "0");
-    } catch {}
-  }, [showDebugUI]);
+    localStorage.setItem(
+      "dbgCameraShakeIntensity",
+      String(debugCameraShakeIntensity)
+    );
+  }, [debugCameraShakeIntensity]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgBorderEffectsEnabled",
+      debugBorderEffectsEnabled ? "1" : "0"
+    );
+  }, [debugBorderEffectsEnabled]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgLowHealthBorder",
+      debugLowHealthBorder ? "1" : "0"
+    );
+  }, [debugLowHealthBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgPickupGlowBorder",
+      debugPickupGlowBorder ? "1" : "0"
+    );
+  }, [debugPickupGlowBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgLaserChargingBorder",
+      debugLaserChargingBorder ? "1" : "0"
+    );
+  }, [debugLaserChargingBorder]);
+  const triggerCameraShake = useCallback(
+    (intensity, duration) => {
+      setCameraShake({
+        active: true,
+        intensity: intensity * debugCameraShakeIntensity,
+        duration,
+        startTime: performance.now(),
+      });
+    },
+    [debugCameraShakeIntensity]
+  );
+  const [cameraPosition, setCameraPosition] = useState([0, 35, 30]);
+  useEffect(() => {
+    if (!cameraShake.active) {
+      setCameraPosition([0, 35, 30]);
+      return;
+    }
+    const interval = setInterval(() => {
+      const elapsed = performance.now() - cameraShake.startTime;
+      const progress = Math.min(elapsed / cameraShake.duration, 1);
+      const intensity = cameraShake.intensity * (1 - progress); // decay over time
+      if (progress >= 1) {
+        setCameraShake({
+          active: false,
+          intensity: 0,
+          duration: 0,
+          startTime: 0,
+        });
+        setCameraPosition([0, 35, 30]);
+        clearInterval(interval);
+        return;
+      }
+      const shakeX = Math.sin(elapsed * 0.02) * intensity;
+      const shakeY = Math.cos(elapsed * 0.015) * intensity * 0.5;
+      const shakeZ = Math.sin(elapsed * 0.025) * intensity;
+      setCameraPosition([0 + shakeX, 35 + shakeY, 30 + shakeZ]);
+    }, 16); // ~60fps
+    return () => clearInterval(interval);
+  }, [cameraShake]);
+  // Border effects system
+  const [borderEffects, setBorderEffects] = useState({
+    lowHealth: false,
+    pickupGlow: false,
+    laserCharging: false,
+    vignetteColor: null,
+  });
   // Debug: Disable enemy spawns (persists)
   const [disableEnemySpawns, setDisableEnemySpawns] = useState(() => {
     try {
@@ -2847,6 +3084,21 @@ export default function App({ navVisible, setNavVisible } = {}) {
   };
   const [enemies, setEnemies] = useState([]); // {id, pos, isBoss, formationTarget, health}
   const [pickups, setPickups] = useState([]);
+  // Check for pickup proximity for glow effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const px = playerPosRef.current.x;
+      const pz = playerPosRef.current.z;
+      const nearbyPickup = pickups.some((pickup) => {
+        const dx = pickup.pos[0] - px;
+        const dz = pickup.pos[2] - pz;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        return dist < 8; // glow when within 8 units
+      });
+      setBorderEffects((prev) => ({ ...prev, pickupGlow: nearbyPickup }));
+    }, 200); // check every 200ms
+    return () => clearInterval(interval);
+  }, [pickups]);
   const [bullets, setBullets] = useState([]);
   // Debug tunables for projectile + FX systems (persisted)
   const [debugBulletSpeed, setDebugBulletSpeed] = useState(() => {
@@ -3040,8 +3292,14 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const [enemySpeedScale, setEnemySpeedScale] = useState(1);
   // Shape Runner feature is now a pickup-only visual; auto-move removed
   const [highContrast, setHighContrast] = useState(false);
-  const [panelPosition, setPanelPosition] = useState({ x: window.innerWidth - 320 - 10, y: 80 }); // initial position: top right
-  const [waveScorePanelPosition, setWaveScorePanelPosition] = useState({ x: 10, y: 80 }); // initial position: top left
+  const [panelPosition, setPanelPosition] = useState({
+    x: window.innerWidth - 320 - 10,
+    y: 80,
+  }); // initial position: top right
+  const [waveScorePanelPosition, setWaveScorePanelPosition] = useState({
+    x: 10,
+    y: 80,
+  }); // initial position: top left
   const [hpEvents, setHpEvents] = useState([]); // floating HP change indicators
   const [armorEvents, setArmorEvents] = useState([]);
   const [powerEffect, setPowerEffect] = useState({ active: false, amount: 0 });
@@ -3056,13 +3314,15 @@ export default function App({ navVisible, setNavVisible } = {}) {
       return 18;
     }
   });
-  const [showPlayerLabelPlaceholder, setShowPlayerLabelPlaceholder] = useState(() => {
-    try {
-      return localStorage.getItem("showPlayerLabelPlaceholder") === "1";
-    } catch {
-      return false;
+  const [showPlayerLabelPlaceholder, setShowPlayerLabelPlaceholder] = useState(
+    () => {
+      try {
+        return localStorage.getItem("showPlayerLabelPlaceholder") === "1";
+      } catch {
+        return false;
+      }
     }
-  });
+  );
 
   useEffect(() => {
     try {
@@ -3082,13 +3342,19 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
 
-  const handlePanelMouseDown = useCallback((e) => {
-    isDraggingRef.current = true;
-    dragStartRef.current = { x: e.clientX - panelPosition.x, y: e.clientY - panelPosition.y };
-    document.addEventListener('mousemove', handlePanelMouseMove);
-    document.addEventListener('mouseup', handlePanelMouseUp);
-    e.preventDefault();
-  }, [panelPosition]);
+  const handlePanelMouseDown = useCallback(
+    (e) => {
+      isDraggingRef.current = true;
+      dragStartRef.current = {
+        x: e.clientX - panelPosition.x,
+        y: e.clientY - panelPosition.y,
+      };
+      document.addEventListener("mousemove", handlePanelMouseMove);
+      document.addEventListener("mouseup", handlePanelMouseUp);
+      e.preventDefault();
+    },
+    [panelPosition]
+  );
 
   const handlePanelMouseMove = useCallback((e) => {
     if (!isDraggingRef.current) return;
@@ -3102,21 +3368,27 @@ export default function App({ navVisible, setNavVisible } = {}) {
 
   const handlePanelMouseUp = useCallback(() => {
     isDraggingRef.current = false;
-    document.removeEventListener('mousemove', handlePanelMouseMove);
-    document.removeEventListener('mouseup', handlePanelMouseUp);
+    document.removeEventListener("mousemove", handlePanelMouseMove);
+    document.removeEventListener("mouseup", handlePanelMouseUp);
   }, []);
 
   // Dragging state for the wave/score panel
   const isWaveScoreDraggingRef = useRef(false);
   const waveScoreDragStartRef = useRef({ x: 0, y: 0 });
 
-  const handleWaveScorePanelMouseDown = useCallback((e) => {
-    isWaveScoreDraggingRef.current = true;
-    waveScoreDragStartRef.current = { x: e.clientX - waveScorePanelPosition.x, y: e.clientY - waveScorePanelPosition.y };
-    document.addEventListener('mousemove', handleWaveScorePanelMouseMove);
-    document.addEventListener('mouseup', handleWaveScorePanelMouseUp);
-    e.preventDefault();
-  }, [waveScorePanelPosition]);
+  const handleWaveScorePanelMouseDown = useCallback(
+    (e) => {
+      isWaveScoreDraggingRef.current = true;
+      waveScoreDragStartRef.current = {
+        x: e.clientX - waveScorePanelPosition.x,
+        y: e.clientY - waveScorePanelPosition.y,
+      };
+      document.addEventListener("mousemove", handleWaveScorePanelMouseMove);
+      document.addEventListener("mouseup", handleWaveScorePanelMouseUp);
+      e.preventDefault();
+    },
+    [waveScorePanelPosition]
+  );
 
   const handleWaveScorePanelMouseMove = useCallback((e) => {
     if (!isWaveScoreDraggingRef.current) return;
@@ -3130,8 +3402,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
 
   const handleWaveScorePanelMouseUp = useCallback(() => {
     isWaveScoreDraggingRef.current = false;
-    document.removeEventListener('mousemove', handleWaveScorePanelMouseMove);
-    document.removeEventListener('mouseup', handleWaveScorePanelMouseUp);
+    document.removeEventListener("mousemove", handleWaveScorePanelMouseMove);
+    document.removeEventListener("mouseup", handleWaveScorePanelMouseUp);
   }, []);
 
   const pushPlayerLabel = useCallback((text, lifetimeMs = 2200) => {
@@ -3140,6 +3412,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
     const U = t.toUpperCase();
     let emoji = "";
     if (U.includes("INVULNERABLE") || U.includes("INVULN")) emoji = "🟨 ";
+    else if (U.includes("ARMOUR")) emoji = "🛡️ ";
     else if (U.includes("SLOWED")) emoji = "🐌 ";
     else if (U.includes("CORROSION")) emoji = "🔥 ";
     else if (U.includes("LASER")) emoji = "🔴 ";
@@ -3307,12 +3580,15 @@ export default function App({ navVisible, setNavVisible } = {}) {
     (pickupInvulnTimeoutsRef.current || []).forEach((id) => clearTimeout(id));
     pickupInvulnTimeoutsRef.current = [];
   }, []);
-  const applyPickupInvulnState = useCallback((s) => {
-    pickupInvulnRef.current = s;
-    setPickupInvulnState(s);
-    // Ensure global invuln marker includes pickup-driven invuln for damage checks
-    invulnActiveRef.current = !!s.invulnerable || !!invulnEffect.active;
-  }, [invulnEffect.active]);
+  const applyPickupInvulnState = useCallback(
+    (s) => {
+      pickupInvulnRef.current = s;
+      setPickupInvulnState(s);
+      // Ensure global invuln marker includes pickup-driven invuln for damage checks
+      invulnActiveRef.current = !!s.invulnerable || !!invulnEffect.active;
+    },
+    [invulnEffect.active]
+  );
   // Test flag to force invulnerability (debug)
   const [invulnTest, setInvulnTest] = useState(() => {
     try {
@@ -3374,7 +3650,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
     if (invulnEffect.active) pushPlayerLabel("INVULNERABLE!");
   }, [invulnEffect.active, pushPlayerLabel]);
   useEffect(() => {
-    if (powerEffect.active) pushPlayerLabel(`POWER +${powerEffect.amount || 0}`);
+    if (powerEffect.active)
+      pushPlayerLabel(`POWER +${powerEffect.amount || 0}`);
   }, [powerEffect.active, powerEffect.amount, pushPlayerLabel]);
   // Carcinogenic Field: reduces healing effectiveness temporarily
   const [regenDebuff, setRegenDebuff] = useState({ active: false });
@@ -3396,7 +3673,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
     const v = parseFloat(localStorage.getItem("topDownSpeedMul") || "");
     return Number.isFinite(v) && v > 0 ? v : 1.8;
   });
-  const camSpeedMul = useMemo(() => (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1), [cameraMode, topDownSpeedMul]);
+  const camSpeedMul = useMemo(
+    () => (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1),
+    [cameraMode, topDownSpeedMul]
+  );
   const cameraSpeedMulRef = useRef(1);
   useEffect(() => {
     localStorage.setItem("topDownSpeedMul", String(topDownSpeedMul));
@@ -3443,7 +3723,11 @@ export default function App({ navVisible, setNavVisible } = {}) {
         dashInvulnUntilRef.current = performance.now() + 250;
       } else if (type === "togglePause") {
         if (!isStartedRef.current) return;
-        if (isGameOverRef.current || (respawnRef.current && respawnRef.current > 0)) return;
+        if (
+          isGameOverRef.current ||
+          (respawnRef.current && respawnRef.current > 0)
+        )
+          return;
         setIsPaused((prev) => !prev);
       } else if (type === "toggleFireMode") {
         setAutoFire((v) => !v);
@@ -3682,9 +3966,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
           ]);
           // Player label for armor change (e.g., -10 AP)
           try {
-            const txt = `${ev.delta < 0 ? "-" : "+"}${Math.abs(
-              ev.delta
-            )} AP`;
+            const txt = `${ev.delta < 0 ? "-" : "+"}${Math.abs(ev.delta)} AP`;
             pushPlayerLabel(txt);
           } catch {}
         } else if (ev.type === "hp") {
@@ -3694,9 +3976,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
           ]);
           // Player label for HP change (e.g., -12 HP)
           try {
-            const txt = `${ev.delta < 0 ? "-" : "+"}${Math.abs(
-              ev.delta
-            )} HP`;
+            const txt = `${ev.delta < 0 ? "-" : "+"}${Math.abs(ev.delta)} HP`;
             pushPlayerLabel(txt);
           } catch {}
         }
@@ -3705,6 +3985,20 @@ export default function App({ navVisible, setNavVisible } = {}) {
       // Apply state updates
       setArmor(res.armor);
       setHealth(res.health);
+
+      // Trigger camera shake on damage
+      if (
+        res.health < (healthRef.current || 0) ||
+        res.armor < (armorRef.current || 0)
+      ) {
+        triggerCameraShake(0.8, 500); // moderate shake for 0.5s
+      }
+
+      // Update border effects for low health
+      setBorderEffects((prev) => ({
+        ...prev,
+        lowHealth: res.health < 30,
+      }));
 
       // Return the computed result for imperative callers
       return res;
@@ -3737,7 +4031,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
         // Auto-detect touch-capable devices when no persisted choice
         const isTouch =
           (typeof window !== "undefined" && "ontouchstart" in window) ||
-          (navigator && navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
+          (navigator &&
+            navigator.maxTouchPoints &&
+            navigator.maxTouchPoints > 0);
         setControlScheme(isTouch ? "touch" : "dpad");
       }
       // shapeRunner persisted flags no longer used
@@ -4612,7 +4908,11 @@ export default function App({ navVisible, setNavVisible } = {}) {
       let flankReserved = 0;
       let backReserved = 0;
       // Only enable behind-player / flank reservation at higher waves
-      if (level >= BEHIND_SPAWN_MIN_WAVE && basicsToSpawn >= 3 && Math.random() < 0.9) {
+      if (
+        level >= BEHIND_SPAWN_MIN_WAVE &&
+        basicsToSpawn >= 3 &&
+        Math.random() < 0.9
+      ) {
         // split into 3:1:1 ratio across a total of 5 units
         const units = 5;
         // base per-unit (at least 1 unit)
@@ -4770,15 +5070,23 @@ export default function App({ navVisible, setNavVisible } = {}) {
         // Place flank portal(s) roughly to the side(s) of the player center
         const sides = Math.max(1, flankReserved);
         for (let si = 0; si < sides; si++) {
-          const sideAngle = baseAngle + (Math.random() < 0.5 ? 1 : -1) * (Math.PI / 2 + (Math.random() - 0.5) * 0.3);
-          const radius = PORTAL_RADIUS_MIN + Math.random() * (PORTAL_RADIUS_MAX - PORTAL_RADIUS_MIN);
+          const sideAngle =
+            baseAngle +
+            (Math.random() < 0.5 ? 1 : -1) *
+              (Math.PI / 2 + (Math.random() - 0.5) * 0.3);
+          const radius =
+            PORTAL_RADIUS_MIN +
+            Math.random() * (PORTAL_RADIUS_MAX - PORTAL_RADIUS_MIN);
           const px = center.x + Math.cos(sideAngle) * radius;
           const pz = center.z + Math.sin(sideAngle) * radius;
           const p = [px, 0.5, pz];
           const extraDelay = 2000 + Math.random() * 1000;
           openPortalAt(p, PORTAL_LIFETIME + extraDelay);
           // spawn 1 per reserved slot
-          scheduleEnemyBatchAt(p, 1, { waveNumber: nextWave, extraDelayMs: extraDelay });
+          scheduleEnemyBatchAt(p, 1, {
+            waveNumber: nextWave,
+            extraDelayMs: extraDelay,
+          });
         }
       }
 
@@ -4789,7 +5097,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
           const mvLen = Math.hypot(m.x || 0, m.z || 0);
           let backAngle = Math.random() * Math.PI * 2;
           if (mvLen > 0.15) backAngle = Math.atan2(m.z, m.x) + Math.PI; // opposite movement
-          const radius = (PORTAL_RADIUS_MIN + PORTAL_RADIUS_MAX) * 0.5 * (0.6 + Math.random() * 0.6);
+          const radius =
+            (PORTAL_RADIUS_MIN + PORTAL_RADIUS_MAX) *
+            0.5 *
+            (0.6 + Math.random() * 0.6);
           const px = center.x + Math.cos(backAngle) * radius;
           const pz = center.z + Math.sin(backAngle) * radius;
           const p = [px, 0.5, pz];
@@ -4797,7 +5108,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
           // open small behind portal and spawn 1-2 minions
           openPortalAt(p, PORTAL_LIFETIME + extraDelay);
           const count = Math.min(backReserved, 2);
-          scheduleEnemyBatchAt(p, count, { waveNumber: nextWave, extraDelayMs: extraDelay });
+          scheduleEnemyBatchAt(p, count, {
+            waveNumber: nextWave,
+            extraDelayMs: extraDelay,
+          });
         } catch {
           /* ignore */
         }
@@ -4904,7 +5218,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
         // Play single shot sound for this fire action
         try {
           if (!lasersActiveRef.current) {
-            const shotId = powerEffect.active ? 'laser-shot' : 'bullet-normal';
+            const shotId = powerEffect.active ? "laser-shot" : "bullet-normal";
             play && play(shotId, { volume: 0.6 });
           }
         } catch {}
@@ -4953,7 +5267,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
           // Play single radial-shot sound for this fire action
           try {
             if (!lasersActiveRef.current) {
-              const shotId = powerEffect.active ? 'laser-shot' : 'bullet-normal';
+              const shotId = powerEffect.active
+                ? "laser-shot"
+                : "bullet-normal";
               play && play(shotId, { volume: 0.6 });
             }
           } catch {}
@@ -4973,7 +5289,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
           // Play single shot sound for this fire action
           try {
             if (!lasersActiveRef.current) {
-              const shotId = powerEffect.active ? 'laser-shot' : 'bullet-normal';
+              const shotId = powerEffect.active
+                ? "laser-shot"
+                : "bullet-normal";
               play && play(shotId, { volume: 0.6 });
             }
           } catch {}
@@ -5671,7 +5989,12 @@ export default function App({ navVisible, setNavVisible } = {}) {
           });
           pickupInvulnTimeoutsRef.current.push(
             setTimeout(() => {
-              applyPickupInvulnState({ invulnerable: false, movementMul: 1, movementLocked: false, source: null });
+              applyPickupInvulnState({
+                invulnerable: false,
+                movementMul: 1,
+                movementLocked: false,
+                source: null,
+              });
             }, BOMB_ABILITY_DURATION_MS)
           );
         } else if (pickup.type === "armour") {
@@ -5701,35 +6024,67 @@ export default function App({ navVisible, setNavVisible } = {}) {
           } catch {}
           // Grant brief invulnerability for armour top-up
           clearPickupInvulnTimeouts();
-          applyPickupInvulnState({ invulnerable: true, movementMul: 1, movementLocked: false, source: "armour" });
+          applyPickupInvulnState({
+            invulnerable: true,
+            movementMul: 1,
+            movementLocked: false,
+            source: "armour",
+          });
           pickupInvulnTimeoutsRef.current.push(
             setTimeout(() => {
-              applyPickupInvulnState({ invulnerable: false, movementMul: 1, movementLocked: false, source: null });
+              applyPickupInvulnState({
+                invulnerable: false,
+                movementMul: 1,
+                movementLocked: false,
+                source: null,
+              });
             }, 3000)
           );
         } else if (pickup.type === "lasers") {
           // Laser array: high damage bullets that also affect cone boss; 10s
           lasersRemainingRef.current = 10000;
           setLasersEffect({ active: true });
-          try { lasersStartRef.current = performance.now(); } catch {}
+          try {
+            lasersStartRef.current = performance.now();
+          } catch {}
           try {
             pushPlayerLabel("LASER ARRAY");
           } catch {}
           try {
             // Play the requested 5s charge then 5s explosion sequence
-            playSequence && playSequence('laser-charge', 5000, 'laser-expl', 5000)
+            playSequence &&
+              playSequence("laser-charge", 5000, "laser-expl", 5000);
           } catch {}
+          // Trigger camera shake for charging phase (5s)
+          triggerCameraShake(0.6, 5000);
+          // Update border effects
+          setBorderEffects((prev) => ({ ...prev, laserCharging: true }));
           // Laser array: staged movement rules
           // First 5s: fully invulnerable and movement locked; next 5s: invulnerable + slow movement (10%)
           clearPickupInvulnTimeouts();
-          applyPickupInvulnState({ invulnerable: true, movementMul: 0, movementLocked: true, source: 'lasers_phase1' });
+          applyPickupInvulnState({
+            invulnerable: true,
+            movementMul: 0,
+            movementLocked: true,
+            source: "lasers_phase1",
+          });
           pickupInvulnTimeoutsRef.current.push(
             setTimeout(() => {
-              applyPickupInvulnState({ invulnerable: true, movementMul: 0.1, movementLocked: false, source: 'lasers_phase2' });
+              applyPickupInvulnState({
+                invulnerable: true,
+                movementMul: 0.1,
+                movementLocked: false,
+                source: "lasers_phase2",
+              });
               // final clear after remaining 5s
               pickupInvulnTimeoutsRef.current.push(
                 setTimeout(() => {
-                  applyPickupInvulnState({ invulnerable: false, movementMul: 1, movementLocked: false, source: null });
+                  applyPickupInvulnState({
+                    invulnerable: false,
+                    movementMul: 1,
+                    movementLocked: false,
+                    source: null,
+                  });
                 }, 5000)
               );
             }, 5000)
@@ -5804,7 +6159,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
                             radius: R * 0.9,
                           },
                         ];
-                        return next.length > 12 ? next.slice(next.length - 12) : next;
+                        return next.length > 12
+                          ? next.slice(next.length - 12)
+                          : next;
                       });
                       // one-shot shimmer on player
                       setShimmers((s) => [
@@ -5830,10 +6187,20 @@ export default function App({ navVisible, setNavVisible } = {}) {
           setTimeout(() => setPulseWaveEffect({ active: false }), 5200);
           // Pulsewave: invulnerable and movement locked for the burst duration
           clearPickupInvulnTimeouts();
-          applyPickupInvulnState({ invulnerable: true, movementMul: 0, movementLocked: true, source: 'pulsewave' });
+          applyPickupInvulnState({
+            invulnerable: true,
+            movementMul: 0,
+            movementLocked: true,
+            source: "pulsewave",
+          });
           pickupInvulnTimeoutsRef.current.push(
             setTimeout(() => {
-              applyPickupInvulnState({ invulnerable: false, movementMul: 1, movementLocked: false, source: null });
+              applyPickupInvulnState({
+                invulnerable: false,
+                movementMul: 1,
+                movementLocked: false,
+                source: null,
+              });
             }, 5200)
           );
         } else if (pickup.type === "life") {
@@ -5914,6 +6281,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
         );
         if (lasersRemainingRef.current <= 0) {
           setLasersEffect({ active: false });
+          setBorderEffects((prev) => ({ ...prev, laserCharging: false }));
           return;
         }
       }
@@ -6308,8 +6676,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
                 debuffRemainingRef.current || 0,
                 500
               );
-                setDebuffEffect({ active: true });
-                try { play && play('debuff') } catch {}
+              setDebuffEffect({ active: true });
+              try {
+                play && play("debuff");
+              } catch {}
             }
             // Damage tick based on tickMs and track last tick per hazard
             if (!h._lastTickAt) h._lastTickAt = now;
@@ -6538,9 +6908,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
     clearPortalTimers();
     clearSpeedBoostTimers();
     clearBouncerTimers();
-  // Restore player state
-  setHealth(100);
-  setArmor(100);
+    // Restore player state
+    setHealth(100);
+    setArmor(100);
     setLives(1);
     setPlayerResetToken((t) => t + 1);
     // Unpause and clear game-over flag
@@ -6620,7 +6990,11 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const [acc, setAcc] = useState(() => getAccessibility());
   useEffect(() => {
     const unsub = onAccessibilityChange((s) => setAcc(s));
-    return () => { try { unsub?.() } catch {} };
+    return () => {
+      try {
+        unsub?.();
+      } catch {}
+    };
   }, []);
 
   // Gizmo toggle for axis preview in 3D scene
@@ -6628,8 +7002,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
 
   // Controller support: Xbox One (PDP) & PS4 via standard mapping
   // derive effective inversion flags by XORing accessibility setting with shared flipControllerY flag
-  const effectiveInvertMoveY = (!!acc?.invertMoveY) !== !!acc?.flipControllerY;
-  const effectiveInvertAimY = (!!acc?.invertAimY) !== !!acc?.flipControllerY;
+  const effectiveInvertMoveY = !!acc?.invertMoveY !== !!acc?.flipControllerY;
+  const effectiveInvertAimY = !!acc?.invertAimY !== !!acc?.flipControllerY;
 
   useGamepadControls({
     moveRef: dpadVecRef,
@@ -6682,16 +7056,26 @@ export default function App({ navVisible, setNavVisible } = {}) {
       <Canvas
         shadows
         dpr={[0.8, Math.min(1.25, window.devicePixelRatio || 1)]}
-        camera={{ position: [0, 35, 30], fov: 50 }}
+        camera={{ position: cameraPosition, fov: 50 }}
         onPointerMove={handlePointerMove}
       >
-  <React.Suspense fallback={<Html fullscreen><LoadingOverlay /></Html>}>
+        <React.Suspense
+          fallback={
+            <Html fullscreen>
+              <LoadingOverlay />
+            </Html>
+          }
+        >
           {/* Dynamically reduce pixel ratio on slow frames */}
           <AdaptiveDpr pixelated />
           {/* HDRI-based lighting, fog, and exposure control */}
           <SceneEnvironment useProcedural={false} />
           {/* 3D debug gizmo (axes + arrows) */}
-          <AxisGizmo moveRef={dpadVecRef} aimRef={aimInputRef} visible={showGizmo} />
+          <AxisGizmo
+            moveRef={dpadVecRef}
+            aimRef={aimInputRef}
+            visible={showGizmo}
+          />
           {/* Performance collectors (no-op unless overlay or marks are read) */}
           <PerfCollector enabled={true} />
           <PerfLongTaskObserver enabled={true} />
@@ -6718,72 +7102,75 @@ export default function App({ navVisible, setNavVisible } = {}) {
           {/* Active laser beam(s): when lasers power-up active, render a rotating array
               that transitions at 6s to a forward beam; otherwise render the short-lived
               beam produced by firing. */}
-          {!isPaused && (lasersEffect.active ? (
-            (() => {
-              const now = performance.now();
-              const start = lasersStartRef.current || 0;
-              const elapsed = Math.max(0, now - start);
-              const phaseTransitionMs = 6000;
-              // If we are before the 6s mark, render a spinning ring of beams
-              if (elapsed < phaseTransitionMs) {
-                const n = 12; // number of beams around the player
-                const rotSpeed = 0.9; // radians per second
-                const baseAngle = ((elapsed / 1000) * rotSpeed) % (Math.PI * 2);
-                const px = playerPosRef.current.x;
-                const py = playerPosRef.current.y + 0.6;
-                const pz = playerPosRef.current.z;
-                return (
-                  <group>
-                    {Array.from({ length: n }).map((_, i) => {
-                      const a = baseAngle + (i * (Math.PI * 2)) / n;
-                      const dx = Math.cos(a);
-                      const dz = Math.sin(a);
-                      return (
-                        <LaserBeam
-                          key={`spin-${i}-${Math.floor(baseAngle*100)}`}
-                          pos={[px, py, pz]}
-                          dir={[dx, 0, dz]}
-                          isPaused={isPaused}
-                          dmgPerSecond={36}
-                          radius={0.6}
-                          length={26}
-                          onDamage={applyLaserDamage}
-                        />
-                      );
-                    })}
-                  </group>
-                );
-              }
-              // After the 6s mark, transition to a forward-focused beam until lasersEffect clears
-              const aim = lastLaserAimRef.current || new THREE.Vector3(0, 0, -1);
-              const forwardPos = new THREE.Vector3().copy(playerPosRef.current).addScaledVector(aim, 1.0);
-              return (
-                <LaserBeam
-                  key={`laser-forward-${Math.floor(elapsed)}`}
-                  pos={[forwardPos.x, forwardPos.y + 0.2, forwardPos.z]}
-                  dir={[aim.x, aim.y, aim.z]}
-                  isPaused={isPaused}
-                  dmgPerSecond={72}
-                  radius={1.1}
-                  length={40}
-                  onDamage={applyLaserDamage}
-                />
-              );
-            })()
-          ) : (
-            laserBeam && (
-              <LaserBeam
-                key={laserBeam.id}
-                pos={laserBeam.pos}
-                dir={laserBeam.dir}
-                isPaused={isPaused}
-                dmgPerSecond={48}
-                radius={0.9}
-                length={28}
-                onDamage={applyLaserDamage}
-              />
-            )
-          ))}
+          {!isPaused &&
+            (lasersEffect.active
+              ? (() => {
+                  const now = performance.now();
+                  const start = lasersStartRef.current || 0;
+                  const elapsed = Math.max(0, now - start);
+                  const phaseTransitionMs = 6000;
+                  // If we are before the 6s mark, render a spinning ring of beams
+                  if (elapsed < phaseTransitionMs) {
+                    const n = 12; // number of beams around the player
+                    const rotSpeed = 0.9; // radians per second
+                    const baseAngle =
+                      ((elapsed / 1000) * rotSpeed) % (Math.PI * 2);
+                    const px = playerPosRef.current.x;
+                    const py = playerPosRef.current.y + 0.6;
+                    const pz = playerPosRef.current.z;
+                    return (
+                      <group>
+                        {Array.from({ length: n }).map((_, i) => {
+                          const a = baseAngle + (i * (Math.PI * 2)) / n;
+                          const dx = Math.cos(a);
+                          const dz = Math.sin(a);
+                          return (
+                            <LaserBeam
+                              key={`spin-${i}-${Math.floor(baseAngle * 100)}`}
+                              pos={[px, py, pz]}
+                              dir={[dx, 0, dz]}
+                              isPaused={isPaused}
+                              dmgPerSecond={36}
+                              radius={0.6}
+                              length={26}
+                              onDamage={applyLaserDamage}
+                            />
+                          );
+                        })}
+                      </group>
+                    );
+                  }
+                  // After the 6s mark, transition to a forward-focused beam until lasersEffect clears
+                  const aim =
+                    lastLaserAimRef.current || new THREE.Vector3(0, 0, -1);
+                  const forwardPos = new THREE.Vector3()
+                    .copy(playerPosRef.current)
+                    .addScaledVector(aim, 1.0);
+                  return (
+                    <LaserBeam
+                      key={`laser-forward-${Math.floor(elapsed)}`}
+                      pos={[forwardPos.x, forwardPos.y + 0.2, forwardPos.z]}
+                      dir={[aim.x, aim.y, aim.z]}
+                      isPaused={isPaused}
+                      dmgPerSecond={72}
+                      radius={1.1}
+                      length={40}
+                      onDamage={applyLaserDamage}
+                    />
+                  );
+                })()
+              : laserBeam && (
+                  <LaserBeam
+                    key={laserBeam.id}
+                    pos={laserBeam.pos}
+                    dir={laserBeam.dir}
+                    isPaused={isPaused}
+                    dmgPerSecond={48}
+                    radius={0.9}
+                    length={28}
+                    onDamage={applyLaserDamage}
+                  />
+                ))}
 
           {/* Bouncer telegraphs and launched bouncers */}
           {!isPaused &&
@@ -6809,9 +7196,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
             autoFire={autoFire}
             fireRateMs={debugFireRateMs}
             resetToken={playerResetToken}
-            basePlayerSpeed={
-                playerBaseSpeed * camSpeedMul
-            }
+            basePlayerSpeed={playerBaseSpeed * camSpeedMul}
             autoAimEnabled={cameraMode === "follow" || cameraMode === "topdown"}
             controlScheme={controlScheme}
             moveInputRef={moveInputRef}
@@ -6822,7 +7207,11 @@ export default function App({ navVisible, setNavVisible } = {}) {
             speedBoosts={speedBoosts}
             bouncers={bouncers}
             boundaryLimit={boundaryLimit ?? BOUNDARY_LIMIT}
-            invulnActive={invulnEffect.active || invulnTest || pickupInvulnState.invulnerable}
+            invulnActive={
+              invulnEffect.active ||
+              invulnTest ||
+              pickupInvulnState.invulnerable
+            }
             pickupInvulnState={pickupInvulnState}
             primaryColor={heroPrimaryColor}
             heroName={selectedHero}
@@ -6941,7 +7330,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
               // Start debuff visualization timer
               debuffRemainingRef.current = SPEED_DEBUFF_DURATION_MS;
               setDebuffEffect({ active: true });
-              try { play && play('debuff') } catch {}
+              try {
+                play && play("debuff");
+              } catch {}
             }}
             onBoost={() => {
               const popupId = Date.now();
@@ -7006,7 +7397,11 @@ export default function App({ navVisible, setNavVisible } = {}) {
           )}
           {/* Bomb kit strobing aura (black -> orange) */}
           {!isPaused && bombEffect.active && (
-            <BombStrobe playerPosRef={playerPosRef} isPaused={isPaused} radius={1.8} />
+            <BombStrobe
+              playerPosRef={playerPosRef}
+              isPaused={isPaused}
+              radius={1.8}
+            />
           )}
 
           {/* World-space FX Orbs follow player via anchor ref */}
@@ -7240,6 +7635,17 @@ export default function App({ navVisible, setNavVisible } = {}) {
                 )
               }
               onExplode={(id, pos) => {
+                // Check if explosion is near player for camera shake
+                const px = playerPosRef.current.x;
+                const pz = playerPosRef.current.z;
+                const dx = pos[0] - px;
+                const dz = pos[2] - pz;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist <= BOMB_AOE_RADIUS + 5) {
+                  // near player
+                  triggerCameraShake(1.2, 800); // stronger shake for 0.8s
+                }
+
                 // AOE stun+damage at detonation
                 const cx = pos[0],
                   cz = pos[2];
@@ -7294,7 +7700,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
                       radius: BOMB_AOE_RADIUS,
                     },
                   ];
-                  return next.length > maxAoes ? next.slice(next.length - maxAoes) : next;
+                  return next.length > maxAoes
+                    ? next.slice(next.length - maxAoes)
+                    : next;
                 });
                 // VFX: scalable bomb explosion (skip in performance mode)
                 if (!performanceMode) {
@@ -7518,6 +7926,77 @@ export default function App({ navVisible, setNavVisible } = {}) {
       {/* Toggle PerfOverlay with F9 */}
       <PerfOverlay enabled={showPerf} />
 
+      {/* Border Effects */}
+      {borderEffects.lowHealth &&
+        debugBorderEffectsEnabled &&
+        debugLowHealthBorder && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              pointerEvents: "none",
+              border: "4px solid rgba(239, 68, 68, 0.8)",
+              borderRadius: "8px",
+              animation: "pulse 1s infinite",
+              zIndex: 1000,
+            }}
+          />
+        )}
+      {borderEffects.pickupGlow &&
+        debugBorderEffectsEnabled &&
+        debugPickupGlowBorder && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              pointerEvents: "none",
+              border: "3px solid rgba(34, 197, 94, 0.6)",
+              borderRadius: "8px",
+              animation: "pulse 1.5s infinite",
+              zIndex: 1000,
+            }}
+          />
+        )}
+      {borderEffects.laserCharging &&
+        debugBorderEffectsEnabled &&
+        debugLaserChargingBorder && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              pointerEvents: "none",
+              border: "5px solid rgba(168, 85, 247, 0.7)",
+              borderRadius: "8px",
+              animation: "pulse 0.8s infinite",
+              zIndex: 1000,
+            }}
+          />
+        )}
+      {borderEffects.vignetteColor && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            pointerEvents: "none",
+            background: `radial-gradient(circle at center, transparent 40%, ${borderEffects.vignetteColor} 100%)`,
+            opacity: 0.3,
+            zIndex: 999,
+          }}
+        />
+      )}
+
       <div
         ref={crosshairRef}
         className={`cursor-crosshair ${highContrast ? "high-contrast" : ""}`}
@@ -7561,46 +8040,47 @@ export default function App({ navVisible, setNavVisible } = {}) {
       )}
       {controlScheme === "gamepad" && (
         <>
-          <GamepadStick
-            side="left"
-            x={gamepadMove.x}
-            z={gamepadMove.z}
-          />
-          <GamepadStick
-            side="right"
-            x={gamepadAim.x}
-            z={gamepadAim.z}
-          />
+          <GamepadStick side="left" x={gamepadMove.x} z={gamepadMove.z} />
+          <GamepadStick side="right" x={gamepadAim.x} z={gamepadAim.z} />
           {/* Gamepad action buttons */}
-          <div style={{
-            position: 'fixed',
-            bottom: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex',
-            flexDirection: window.innerHeight > window.innerWidth ? 'column' : 'row',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: '10px',
-            zIndex: 1000,
-            maxWidth: '90vw',
-            maxHeight: '90vh',
-          }}>
+          <div
+            style={{
+              position: "fixed",
+              bottom: "20px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              display: "flex",
+              flexDirection:
+                window.innerHeight > window.innerWidth ? "column" : "row",
+              flexWrap: "wrap",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: "10px",
+              zIndex: 1000,
+              maxWidth: "90vw",
+              maxHeight: "90vh",
+            }}
+          >
             <button
               style={{
-                width: window.innerHeight > window.innerWidth ? '50px' : '60px',
-                height: window.innerHeight > window.innerWidth ? '50px' : '60px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                color: 'white',
-                border: '2px solid white',
-                fontSize: window.innerHeight > window.innerWidth ? '10px' : '12px',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s',
+                width: window.innerHeight > window.innerWidth ? "50px" : "60px",
+                height:
+                  window.innerHeight > window.innerWidth ? "50px" : "60px",
+                borderRadius: "50%",
+                backgroundColor: "rgba(0, 0, 0, 0.7)",
+                color: "white",
+                border: "2px solid white",
+                fontSize:
+                  window.innerHeight > window.innerWidth ? "10px" : "12px",
+                cursor: "pointer",
+                transition: "background-color 0.2s",
               }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.9)'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'}
+              onMouseEnter={(e) =>
+                (e.target.style.backgroundColor = "rgba(0, 0, 0, 0.9)")
+              }
+              onMouseLeave={(e) =>
+                (e.target.style.backgroundColor = "rgba(0, 0, 0, 0.7)")
+              }
               onClick={() => inputActions.jump()}
               aria-label="Jump Action"
               role="button"
@@ -7610,18 +8090,24 @@ export default function App({ navVisible, setNavVisible } = {}) {
             </button>
             <button
               style={{
-                width: window.innerHeight > window.innerWidth ? '50px' : '60px',
-                height: window.innerHeight > window.innerWidth ? '50px' : '60px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                color: 'white',
-                border: '2px solid white',
-                fontSize: window.innerHeight > window.innerWidth ? '10px' : '12px',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s',
+                width: window.innerHeight > window.innerWidth ? "50px" : "60px",
+                height:
+                  window.innerHeight > window.innerWidth ? "50px" : "60px",
+                borderRadius: "50%",
+                backgroundColor: "rgba(0, 0, 0, 0.7)",
+                color: "white",
+                border: "2px solid white",
+                fontSize:
+                  window.innerHeight > window.innerWidth ? "10px" : "12px",
+                cursor: "pointer",
+                transition: "background-color 0.2s",
               }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.9)'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'}
+              onMouseEnter={(e) =>
+                (e.target.style.backgroundColor = "rgba(0, 0, 0, 0.9)")
+              }
+              onMouseLeave={(e) =>
+                (e.target.style.backgroundColor = "rgba(0, 0, 0, 0.7)")
+              }
               onClick={() => inputActions.dash()}
               aria-label="Dash Action"
               role="button"
@@ -7631,18 +8117,24 @@ export default function App({ navVisible, setNavVisible } = {}) {
             </button>
             <button
               style={{
-                width: window.innerHeight > window.innerWidth ? '50px' : '60px',
-                height: window.innerHeight > window.innerWidth ? '50px' : '60px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                color: 'white',
-                border: '2px solid white',
-                fontSize: window.innerHeight > window.innerWidth ? '10px' : '12px',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s',
+                width: window.innerHeight > window.innerWidth ? "50px" : "60px",
+                height:
+                  window.innerHeight > window.innerWidth ? "50px" : "60px",
+                borderRadius: "50%",
+                backgroundColor: "rgba(0, 0, 0, 0.7)",
+                color: "white",
+                border: "2px solid white",
+                fontSize:
+                  window.innerHeight > window.innerWidth ? "10px" : "12px",
+                cursor: "pointer",
+                transition: "background-color 0.2s",
               }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.9)'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'}
+              onMouseEnter={(e) =>
+                (e.target.style.backgroundColor = "rgba(0, 0, 0, 0.9)")
+              }
+              onMouseLeave={(e) =>
+                (e.target.style.backgroundColor = "rgba(0, 0, 0, 0.7)")
+              }
               onClick={() => inputActions.heavyAttack()}
               aria-label="Heavy Attack"
               role="button"
@@ -7652,18 +8144,24 @@ export default function App({ navVisible, setNavVisible } = {}) {
             </button>
             <button
               style={{
-                width: window.innerHeight > window.innerWidth ? '50px' : '60px',
-                height: window.innerHeight > window.innerWidth ? '50px' : '60px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                color: 'white',
-                border: '2px solid white',
-                fontSize: window.innerHeight > window.innerWidth ? '10px' : '12px',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s',
+                width: window.innerHeight > window.innerWidth ? "50px" : "60px",
+                height:
+                  window.innerHeight > window.innerWidth ? "50px" : "60px",
+                borderRadius: "50%",
+                backgroundColor: "rgba(0, 0, 0, 0.7)",
+                color: "white",
+                border: "2px solid white",
+                fontSize:
+                  window.innerHeight > window.innerWidth ? "10px" : "12px",
+                cursor: "pointer",
+                transition: "background-color 0.2s",
               }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.9)'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'}
+              onMouseEnter={(e) =>
+                (e.target.style.backgroundColor = "rgba(0, 0, 0, 0.9)")
+              }
+              onMouseLeave={(e) =>
+                (e.target.style.backgroundColor = "rgba(0, 0, 0, 0.7)")
+              }
               onClick={() => inputActions.specialAttack()}
               aria-label="Special Attack"
               role="button"
@@ -7706,7 +8204,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
               overflowY: "auto",
             }}
           >
-            {/* Player Statistics - draggable */}
+            {/* Player Statistics/Properties - draggable */}
             <div
               id="fixed-player-stats"
               style={{
@@ -7727,7 +8225,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
             >
               <div className="small" style={{ marginBottom: 6 }}>
                 Hero: <strong>{selectedHero}</strong>
-                 {/* Lives */}
+                {/* Lives */}
                 <div className="small" style={{ marginBottom: 8 }}>
                   Lives: <strong>{lives}</strong>
                 </div>
@@ -7806,7 +8304,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   {Math.max(0, Math.floor(armor))} / {ARMOR_MAX}
                 </div>
               </div>
-             
+
               {/* Dash */}
               <div
                 style={{
@@ -7897,7 +8395,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
               }}
               onMouseDown={handleWaveScorePanelMouseDown}
             >
-              <div className="small" style={{ marginBottom: 6, textAlign: "center" }}>
+              <div
+                className="small"
+                style={{ marginBottom: 6, textAlign: "center" }}
+              >
                 <strong>Wave & Score</strong>
               </div>
               {/* Wave */}
@@ -7915,7 +8416,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
                 >
                   Wave
                 </div>
-                <div style={{ fontSize: 18, color: "#fbbf24", fontWeight: "bold" }}>
+                <div
+                  style={{ fontSize: 18, color: "#fbbf24", fontWeight: "bold" }}
+                >
                   {wave}
                 </div>
               </div>
@@ -7934,11 +8437,15 @@ export default function App({ navVisible, setNavVisible } = {}) {
                 >
                   Score
                 </div>
-                <div style={{ fontSize: 16, color: "#10b981", fontWeight: "bold" }}>
+                <div
+                  style={{ fontSize: 16, color: "#10b981", fontWeight: "bold" }}
+                >
                   {score.toLocaleString()}
                 </div>
               </div>
             </div>
+
+            {/* -------------------------------- */}
 
             {/* Debug header and Accessibility controls (toggle) */}
             {showDebugUI && (
@@ -7977,7 +8484,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                     Auto-Fire: {autoFire ? "On" : "Off"} (F)
                   </button>
                   <div style={{ height: 6 }} />
-                  <label style={{ display: 'block', fontSize: 11 }}>
+                  <label style={{ display: "block", fontSize: 11 }}>
                     <input
                       type="checkbox"
                       checked={showEnemyNames}
@@ -7986,7 +8493,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                     Show Enemy Names
                   </label>
                   <div style={{ height: 6 }} />
-                  <label style={{ display: 'block', fontSize: 11 }}>
+                  <label style={{ display: "block", fontSize: 11 }}>
                     <input
                       type="checkbox"
                       checked={showThumbnails}
@@ -7996,45 +8503,124 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   </label>
 
                   {/* Accessibility: invert movement & aim axes */}
-                  <div style={{ marginTop: 10, padding: '8px 10px', background: 'rgba(0,0,0,0.35)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.08)' }}>
-                    <div style={{ fontSize: 12, color: '#e5e7eb', marginBottom: 6 }}>Accessibility (Axes)</div>
-                    <label style={{ display: 'block', fontSize: 11, marginBottom: 4 }}>
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: "8px 10px",
+                      background: "rgba(0,0,0,0.35)",
+                      borderRadius: 6,
+                      border: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#e5e7eb",
+                        marginBottom: 6,
+                      }}
+                    >
+                      Accessibility (Axes)
+                    </div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 11,
+                        marginBottom: 4,
+                      }}
+                    >
                       <input
                         type="checkbox"
                         checked={!!acc?.invertMoveX}
-                        onChange={(e) => updateAccessibility({ invertMoveX: e.currentTarget.checked })}
-                      /> Invert Move X (Left/Right)
+                        onChange={(e) =>
+                          updateAccessibility({
+                            invertMoveX: e.currentTarget.checked,
+                          })
+                        }
+                      />{" "}
+                      Invert Move X (Left/Right)
                     </label>
-                    <label style={{ display: 'block', fontSize: 11, marginBottom: 4 }}>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 11,
+                        marginBottom: 4,
+                      }}
+                    >
                       <input
                         type="checkbox"
                         checked={!!acc?.invertMoveY}
-                        onChange={(e) => updateAccessibility({ invertMoveY: e.currentTarget.checked })}
-                      /> Invert Move Y (Forward/Back)
+                        onChange={(e) =>
+                          updateAccessibility({
+                            invertMoveY: e.currentTarget.checked,
+                          })
+                        }
+                      />{" "}
+                      Invert Move Y (Forward/Back)
                     </label>
-                    <label style={{ display: 'block', fontSize: 11, marginBottom: 4 }}>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 11,
+                        marginBottom: 4,
+                      }}
+                    >
                       <input
                         type="checkbox"
                         checked={!!acc?.invertAimX}
-                        onChange={(e) => updateAccessibility({ invertAimX: e.currentTarget.checked })}
-                      /> Invert Aim X
+                        onChange={(e) =>
+                          updateAccessibility({
+                            invertAimX: e.currentTarget.checked,
+                          })
+                        }
+                      />{" "}
+                      Invert Aim X
                     </label>
-                    <label style={{ display: 'block', fontSize: 11, marginBottom: 6 }}>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 11,
+                        marginBottom: 6,
+                      }}
+                    >
                       <input
                         type="checkbox"
                         checked={!!acc?.invertAimY}
-                        onChange={(e) => updateAccessibility({ invertAimY: e.currentTarget.checked })}
-                      /> Invert Aim Y
+                        onChange={(e) =>
+                          updateAccessibility({
+                            invertAimY: e.currentTarget.checked,
+                          })
+                        }
+                      />{" "}
+                      Invert Aim Y
                     </label>
                     {/* Live axis preview */}
                     <AxisPreview moveRef={dpadVecRef} aimRef={aimInputRef} />
                     <AccessibilityDebugOverlay />
                     <div style={{ marginTop: 8 }}>
-                      <label style={{ display: 'block', fontSize: 11 }}>
-                        <input type="checkbox" checked={showGizmo} onChange={(e) => setShowGizmo(e.currentTarget.checked)} /> Show 3D Gizmo (axes + arrows)
+                      <label style={{ display: "block", fontSize: 11 }}>
+                        <input
+                          type="checkbox"
+                          checked={showGizmo}
+                          onChange={(e) =>
+                            setShowGizmo(e.currentTarget.checked)
+                          }
+                        />{" "}
+                        Show 3D Gizmo (axes + arrows)
                       </label>
-                      <label style={{ display: 'block', fontSize: 11, marginTop: 6 }}>
-                        <input type="checkbox" checked={!!acc?.flipControllerY} onChange={(e) => updateAccessibility({ flipControllerY: e.currentTarget.checked })} /> Flip Controller Y axes (invert forward/back for both sticks)
+                      <label
+                        style={{ display: "block", fontSize: 11, marginTop: 6 }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!!acc?.flipControllerY}
+                          onChange={(e) =>
+                            updateAccessibility({
+                              flipControllerY: e.currentTarget.checked,
+                            })
+                          }
+                        />{" "}
+                        Flip Controller Y axes (invert forward/back for both
+                        sticks)
                       </label>
                     </div>
                   </div>
@@ -8042,7 +8628,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   <div style={{ height: 10 }} />
                 </CollapsiblePanel>
 
-                {/* Player properties: always visible */}
+                {/* Player properties */}
                 <CollapsiblePanel
                   id="player-props"
                   title="Player"
@@ -8242,6 +8828,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   </div>
                 </CollapsiblePanel>
 
+                {/* accessibility controls */}
                 <div
                   style={{
                     display: "flex",
@@ -8297,461 +8884,500 @@ export default function App({ navVisible, setNavVisible } = {}) {
                         overflowY: "auto",
                       }}
                     >
-                      {/* Enemy renderer mode */}
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <span>Enemy Visuals</span>
-                        <select
-                          value={enemyRenderMode}
-                          onChange={(e) => setEnemyRenderMode(e.target.value)}
-                          style={{
-                            marginLeft: "auto",
-                            background: "#111",
-                            color: "#fff",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            borderRadius: 6,
-                            padding: 2,
-                          }}
-                        >
-                          <option value="factory">Factory (default)</option>
-                          <option value="simple">Simple Shapes</option>
-                        </select>
-                      </label>
-                      {/* Hero renderer mode */}
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <span>Hero Visuals</span>
-                        <select
-                          value={heroRenderMode}
-                          onChange={(e) => setHeroRenderMode(e.target.value)}
-                          style={{
-                            marginLeft: "auto",
-                            background: "#111",
-                            color: "#fff",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            borderRadius: 6,
-                            padding: 2,
-                          }}
-                        >
-                          <option value="factory">Factory</option>
-                          <option value="model">Model (default)</option>
-                        </select>
-                      </label>
-                      {/* Hero quality */}
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <span>Hero Quality</span>
-                        <select
-                          value={heroQuality}
-                          onChange={(e) => setHeroQuality(e.target.value)}
-                          style={{
-                            marginLeft: "auto",
-                            background: "#111",
-                            color: "#fff",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            borderRadius: 6,
-                            padding: 2,
-                          }}
-                        >
-                          <option value="low">Low</option>
-                          <option value="med">Medium</option>
-                          <option value="high">High</option>
-                        </select>
-                      </label>
-
-                      {/* add FX Orb controls here */}
-                      {/* FX Orb Accessibility / Debug Controls */}
-                      <div
-                        style={{
-                          background: "rgba(0,0,0,0.55)",
-                          padding: "8px 10px",
-                          borderRadius: 8,
-                          border: "1px solid rgba(255,255,255,0.08)",
-                        }}
-                      >
+                      {/* Renderer modes */}
+                      <div>
+                        {/* enemy attributes */}
                         <div
                           style={{
-                            fontSize: 12,
-                            color: "#e5e7eb",
-                            marginBottom: 6,
+                            background: "rgba(0,0,0,0.55)",
+                            padding: "8px 10px",
+                            borderRadius: 8,
+                            border: "1px solid rgba(255,255,255,0.08)",
                           }}
                         >
-                          FX Orbs
+                          {/* Enemy renderer mode */}
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <span>Enemy Visuals</span>
+                            <select
+                              value={enemyRenderMode}
+                              onChange={(e) =>
+                                setEnemyRenderMode(e.target.value)
+                              }
+                              style={{
+                                marginLeft: "auto",
+                                background: "#111",
+                                color: "#fff",
+                                border: "1px solid rgba(255,255,255,0.1)",
+                                borderRadius: 6,
+                                padding: 2,
+                              }}
+                            >
+                              <option value="factory">Factory (default)</option>
+                              <option value="simple">Simple Shapes</option>
+                            </select>
+                          </label>
+                          {/* Tentacle Animation Controls */}
+                          <div
+                            style={{
+                              background: "rgba(0,0,0,0.55)",
+                              padding: "8px 10px",
+                              borderRadius: 8,
+                              border: "1px solid rgba(255,255,255,0.08)",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 12,
+                                color: "#e5e7eb",
+                                marginBottom: 6,
+                              }}
+                            >
+                              Tentacle Animation
+                            </div>
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: 6,
+                                flexWrap: "wrap",
+                                marginBottom: 6,
+                              }}
+                            >
+                              <button
+                                className="button"
+                                style={{ padding: "4px 6px" }}
+                                onClick={() => {
+                                  setTentacleStrength(0.6);
+                                  setTentacleSpeed(0.8);
+                                  setTentacleAmpX(0.6);
+                                  setTentacleAmpZ(0.6);
+                                  setTentacleYWobble(0.02);
+                                  setTentacleBendPow(2.2);
+                                }}
+                              >
+                                Calm
+                              </button>
+                              <button
+                                className="button"
+                                style={{ padding: "4px 6px" }}
+                                onClick={() => {
+                                  setTentacleStrength(1.0);
+                                  setTentacleSpeed(1.2);
+                                  setTentacleAmpX(1.0);
+                                  setTentacleAmpZ(1.0);
+                                  setTentacleYWobble(0.06);
+                                  setTentacleBendPow(2.0);
+                                }}
+                              >
+                                Pulsing
+                              </button>
+                              <button
+                                className="button"
+                                style={{ padding: "4px 6px" }}
+                                onClick={() => {
+                                  setTentacleStrength(1.6);
+                                  setTentacleSpeed(2.0);
+                                  setTentacleAmpX(1.3);
+                                  setTentacleAmpZ(1.3);
+                                  setTentacleYWobble(0.12);
+                                  setTentacleBendPow(1.6);
+                                }}
+                              >
+                                Chaotic
+                              </button>
+                              <button
+                                className="button"
+                                style={{ padding: "4px 6px" }}
+                                onClick={() => {
+                                  setTentacleStrength(1.0);
+                                  setTentacleSpeed(1.2);
+                                  setTentacleAmpX(1.0);
+                                  setTentacleAmpZ(1.0);
+                                  setTentacleYWobble(0.05);
+                                  setTentacleBendPow(2.0);
+                                }}
+                              >
+                                Reset
+                              </button>
+                            </div>
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                fontSize: 11,
+                              }}
+                            >
+                              <span style={{ flex: 1 }}>Strength</span>
+                              <input
+                                type="range"
+                                min={0}
+                                max={2.0}
+                                step={0.01}
+                                value={tentacleStrength}
+                                onChange={(e) =>
+                                  setTentacleStrength(
+                                    parseFloat(e.target.value)
+                                  )
+                                }
+                                style={{ flex: 3 }}
+                                aria-label="Tentacle Strength"
+                              />
+                              <span style={{ width: 48, textAlign: "right" }}>
+                                {tentacleStrength.toFixed(2)}
+                              </span>
+                            </label>
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                fontSize: 11,
+                                marginTop: 6,
+                              }}
+                            >
+                              <span style={{ flex: 1 }}>Speed</span>
+                              <input
+                                type="range"
+                                min={0.2}
+                                max={3.0}
+                                step={0.01}
+                                value={tentacleSpeed}
+                                onChange={(e) =>
+                                  setTentacleSpeed(parseFloat(e.target.value))
+                                }
+                                style={{ flex: 3 }}
+                                aria-label="Tentacle Speed"
+                              />
+                              <span style={{ width: 48, textAlign: "right" }}>
+                                {tentacleSpeed.toFixed(2)}x
+                              </span>
+                            </label>
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                fontSize: 11,
+                                marginTop: 6,
+                              }}
+                            >
+                              <span style={{ flex: 1 }}>Tip Emphasis</span>
+                              <input
+                                type="range"
+                                min={1.0}
+                                max={3.0}
+                                step={0.05}
+                                value={tentacleBendPow}
+                                onChange={(e) =>
+                                  setTentacleBendPow(parseFloat(e.target.value))
+                                }
+                                style={{ flex: 3 }}
+                                aria-label="Tentacle Bend Exponent"
+                              />
+                              <span style={{ width: 48, textAlign: "right" }}>
+                                {tentacleBendPow.toFixed(2)}
+                              </span>
+                            </label>
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                fontSize: 11,
+                                marginTop: 6,
+                              }}
+                            >
+                              <span style={{ flex: 1 }}>Axis X</span>
+                              <input
+                                type="range"
+                                min={0}
+                                max={2.0}
+                                step={0.01}
+                                value={tentacleAmpX}
+                                onChange={(e) =>
+                                  setTentacleAmpX(parseFloat(e.target.value))
+                                }
+                                style={{ flex: 3 }}
+                                aria-label="Tentacle X Amplitude"
+                              />
+                              <span style={{ width: 48, textAlign: "right" }}>
+                                {tentacleAmpX.toFixed(2)}
+                              </span>
+                            </label>
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                fontSize: 11,
+                                marginTop: 6,
+                              }}
+                            >
+                              <span style={{ flex: 1 }}>Axis Z</span>
+                              <input
+                                type="range"
+                                min={0}
+                                max={2.0}
+                                step={0.01}
+                                value={tentacleAmpZ}
+                                onChange={(e) =>
+                                  setTentacleAmpZ(parseFloat(e.target.value))
+                                }
+                                style={{ flex: 3 }}
+                                aria-label="Tentacle Z Amplitude"
+                              />
+                              <span style={{ width: 48, textAlign: "right" }}>
+                                {tentacleAmpZ.toFixed(2)}
+                              </span>
+                            </label>
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                fontSize: 11,
+                                marginTop: 6,
+                              }}
+                            >
+                              <span style={{ flex: 1 }}>Vertical Wobble</span>
+                              <input
+                                type="range"
+                                min={0.0}
+                                max={0.25}
+                                step={0.005}
+                                value={tentacleYWobble}
+                                onChange={(e) =>
+                                  setTentacleYWobble(parseFloat(e.target.value))
+                                }
+                                style={{ flex: 3 }}
+                                aria-label="Tentacle Vertical Wobble"
+                              />
+                              <span style={{ width: 48, textAlign: "right" }}>
+                                {tentacleYWobble.toFixed(3)}
+                              </span>
+                            </label>
+                            <div
+                              style={{
+                                fontSize: 10,
+                                opacity: 0.75,
+                                marginTop: 6,
+                              }}
+                            >
+                              Affects spikeStyle "tentacle" only. Strength
+                              multiplies overall bend; Tip Emphasis pushes
+                              motion towards the tip; Axis X/Z shape sideways
+                              sway; Vertical Wobble adds gentle lengthwise
+                              flutter.
+                            </div>
+                          </div>
                         </div>
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            fontSize: 11,
-                          }}
-                        >
-                          <span style={{ flex: 1 }}>Count</span>
-                          <input
-                            type="range"
-                            min={0}
-                            max={40}
-                            step={1}
-                            value={debugFxOrbCount}
-                            onChange={(e) =>
-                              setDebugFxOrbCount(parseInt(e.target.value, 10))
-                            }
-                            style={{ flex: 3 }}
-                            aria-label="FX Orb Count"
-                          />
-                          <span style={{ width: 36, textAlign: "right" }}>
-                            {debugFxOrbCount}
-                          </span>
-                        </label>
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            fontSize: 11,
-                            marginTop: 6,
-                          }}
-                        >
-                          <span style={{ flex: 1 }}>Ring Radius</span>
-                          <input
-                            type="range"
-                            min={0.4}
-                            max={3.0}
-                            step={0.05}
-                            value={debugFxOrbRadius}
-                            onChange={(e) =>
-                              setDebugFxOrbRadius(parseFloat(e.target.value))
-                            }
-                            style={{ flex: 3 }}
-                            aria-label="FX Orb Ring Radius"
-                          />
-                          <span style={{ width: 48, textAlign: "right" }}>
-                            {debugFxOrbRadius.toFixed(2)}
-                          </span>
-                        </label>
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            fontSize: 11,
-                            marginTop: 6,
-                          }}
-                        >
-                          <span style={{ flex: 1 }}>Size</span>
-                          <input
-                            type="range"
-                            min={0.5}
-                            max={3.0}
-                            step={0.05}
-                            value={debugFxOrbSizeMul}
-                            onChange={(e) =>
-                              setDebugFxOrbSizeMul(parseFloat(e.target.value))
-                            }
-                            style={{ flex: 3 }}
-                            aria-label="FX Orb Size Multiplier"
-                          />
-                          <span style={{ width: 48, textAlign: "right" }}>
-                            {debugFxOrbSizeMul.toFixed(2)}x
-                          </span>
-                        </label>
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            fontSize: 11,
-                            marginTop: 6,
-                          }}
-                        >
-                          <span style={{ flex: 1 }}>Follow Smooth</span>
-                          <input
-                            type="range"
-                            min={0}
-                            max={0.95}
-                            step={0.01}
-                            value={debugFxOrbLerp}
-                            onChange={(e) =>
-                              setDebugFxOrbLerp(parseFloat(e.target.value))
-                            }
-                            style={{ flex: 3 }}
-                            aria-label="FX Orb Follow Lerp"
-                          />
-                          <span style={{ width: 48, textAlign: "right" }}>
-                            {(debugFxOrbLerp * 100).toFixed(0)}%
-                          </span>
-                        </label>
+
+                        {/* hero attributes */}
                         <div
-                          style={{ fontSize: 10, opacity: 0.75, marginTop: 6 }}
+                          style={{
+                            background: "rgba(0,0,0,0.55)",
+                            padding: "8px 10px",
+                            borderRadius: 8,
+                            border: "1px solid rgba(255,255,255,0.08)",
+                          }}
                         >
-                          Lower radius pulls ring closer. Increase size for
-                          accessibility. Follow Smooth (%) controls lerp
-                          aggressiveness (0 = snap, 95% = very damped).
+                          {/* Hero renderer mode */}
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <span>Hero Visuals</span>
+                            <select
+                              value={heroRenderMode}
+                              onChange={(e) =>
+                                setHeroRenderMode(e.target.value)
+                              }
+                              style={{
+                                marginLeft: "auto",
+                                background: "#111",
+                                color: "#fff",
+                                border: "1px solid rgba(255,255,255,0.1)",
+                                borderRadius: 6,
+                                padding: 2,
+                              }}
+                            >
+                              <option value="factory">Factory</option>
+                              <option value="model">Model (default)</option>
+                            </select>
+                          </label>
+                          {/* Hero quality */}
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <span>Hero Quality</span>
+                            <select
+                              value={heroQuality}
+                              onChange={(e) => setHeroQuality(e.target.value)}
+                              style={{
+                                marginLeft: "auto",
+                                background: "#111",
+                                color: "#fff",
+                                border: "1px solid rgba(255,255,255,0.1)",
+                                borderRadius: 6,
+                                padding: 2,
+                              }}
+                            >
+                              <option value="low">Low</option>
+                              <option value="med">Medium</option>
+                              <option value="high">High</option>
+                            </select>
+                          </label>
+                        </div>
+                        {/* add FX Orb controls here */}
+                        {/* FX Orb Accessibility / Debug Controls */}
+                        <div
+                          style={{
+                            background: "rgba(0,0,0,0.55)",
+                            padding: "8px 10px",
+                            borderRadius: 8,
+                            border: "1px solid rgba(255,255,255,0.08)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: "#e5e7eb",
+                              marginBottom: 6,
+                            }}
+                          >
+                            FX Orbs
+                          </div>
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              fontSize: 11,
+                            }}
+                          >
+                            <span style={{ flex: 1 }}>Count</span>
+                            <input
+                              type="range"
+                              min={0}
+                              max={40}
+                              step={1}
+                              value={debugFxOrbCount}
+                              onChange={(e) =>
+                                setDebugFxOrbCount(parseInt(e.target.value, 10))
+                              }
+                              style={{ flex: 3 }}
+                              aria-label="FX Orb Count"
+                            />
+                            <span style={{ width: 36, textAlign: "right" }}>
+                              {debugFxOrbCount}
+                            </span>
+                          </label>
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              fontSize: 11,
+                              marginTop: 6,
+                            }}
+                          >
+                            <span style={{ flex: 1 }}>Ring Radius</span>
+                            <input
+                              type="range"
+                              min={0.4}
+                              max={3.0}
+                              step={0.05}
+                              value={debugFxOrbRadius}
+                              onChange={(e) =>
+                                setDebugFxOrbRadius(parseFloat(e.target.value))
+                              }
+                              style={{ flex: 3 }}
+                              aria-label="FX Orb Ring Radius"
+                            />
+                            <span style={{ width: 48, textAlign: "right" }}>
+                              {debugFxOrbRadius.toFixed(2)}
+                            </span>
+                          </label>
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              fontSize: 11,
+                              marginTop: 6,
+                            }}
+                          >
+                            <span style={{ flex: 1 }}>Size</span>
+                            <input
+                              type="range"
+                              min={0.5}
+                              max={3.0}
+                              step={0.05}
+                              value={debugFxOrbSizeMul}
+                              onChange={(e) =>
+                                setDebugFxOrbSizeMul(parseFloat(e.target.value))
+                              }
+                              style={{ flex: 3 }}
+                              aria-label="FX Orb Size Multiplier"
+                            />
+                            <span style={{ width: 48, textAlign: "right" }}>
+                              {debugFxOrbSizeMul.toFixed(2)}x
+                            </span>
+                          </label>
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              fontSize: 11,
+                              marginTop: 6,
+                            }}
+                          >
+                            <span style={{ flex: 1 }}>Follow Smooth</span>
+                            <input
+                              type="range"
+                              min={0}
+                              max={0.95}
+                              step={0.01}
+                              value={debugFxOrbLerp}
+                              onChange={(e) =>
+                                setDebugFxOrbLerp(parseFloat(e.target.value))
+                              }
+                              style={{ flex: 3 }}
+                              aria-label="FX Orb Follow Lerp"
+                            />
+                            <span style={{ width: 48, textAlign: "right" }}>
+                              {(debugFxOrbLerp * 100).toFixed(0)}%
+                            </span>
+                          </label>
+                          <div
+                            style={{
+                              fontSize: 10,
+                              opacity: 0.75,
+                              marginTop: 6,
+                            }}
+                          >
+                            Lower radius pulls ring closer. Increase size for
+                            accessibility. Follow Smooth (%) controls lerp
+                            aggressiveness (0 = snap, 95% = very damped).
+                          </div>
                         </div>
                       </div>
 
-                      {/* Tentacle Animation Controls */}
-                      <div
-                        style={{
-                          background: "rgba(0,0,0,0.55)",
-                          padding: "8px 10px",
-                          borderRadius: 8,
-                          border: "1px solid rgba(255,255,255,0.08)",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#e5e7eb",
-                            marginBottom: 6,
-                          }}
-                        >
-                          Tentacle Animation
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 6,
-                            flexWrap: "wrap",
-                            marginBottom: 6,
-                          }}
-                        >
-                          <button
-                            className="button"
-                            style={{ padding: "4px 6px" }}
-                            onClick={() => {
-                              setTentacleStrength(0.6);
-                              setTentacleSpeed(0.8);
-                              setTentacleAmpX(0.6);
-                              setTentacleAmpZ(0.6);
-                              setTentacleYWobble(0.02);
-                              setTentacleBendPow(2.2);
-                            }}
-                          >
-                            Calm
-                          </button>
-                          <button
-                            className="button"
-                            style={{ padding: "4px 6px" }}
-                            onClick={() => {
-                              setTentacleStrength(1.0);
-                              setTentacleSpeed(1.2);
-                              setTentacleAmpX(1.0);
-                              setTentacleAmpZ(1.0);
-                              setTentacleYWobble(0.06);
-                              setTentacleBendPow(2.0);
-                            }}
-                          >
-                            Pulsing
-                          </button>
-                          <button
-                            className="button"
-                            style={{ padding: "4px 6px" }}
-                            onClick={() => {
-                              setTentacleStrength(1.6);
-                              setTentacleSpeed(2.0);
-                              setTentacleAmpX(1.3);
-                              setTentacleAmpZ(1.3);
-                              setTentacleYWobble(0.12);
-                              setTentacleBendPow(1.6);
-                            }}
-                          >
-                            Chaotic
-                          </button>
-                          <button
-                            className="button"
-                            style={{ padding: "4px 6px" }}
-                            onClick={() => {
-                              setTentacleStrength(1.0);
-                              setTentacleSpeed(1.2);
-                              setTentacleAmpX(1.0);
-                              setTentacleAmpZ(1.0);
-                              setTentacleYWobble(0.05);
-                              setTentacleBendPow(2.0);
-                            }}
-                          >
-                            Reset
-                          </button>
-                        </div>
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            fontSize: 11,
-                          }}
-                        >
-                          <span style={{ flex: 1 }}>Strength</span>
-                          <input
-                            type="range"
-                            min={0}
-                            max={2.0}
-                            step={0.01}
-                            value={tentacleStrength}
-                            onChange={(e) =>
-                              setTentacleStrength(parseFloat(e.target.value))
-                            }
-                            style={{ flex: 3 }}
-                            aria-label="Tentacle Strength"
-                          />
-                          <span style={{ width: 48, textAlign: "right" }}>
-                            {tentacleStrength.toFixed(2)}
-                          </span>
-                        </label>
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            fontSize: 11,
-                            marginTop: 6,
-                          }}
-                        >
-                          <span style={{ flex: 1 }}>Speed</span>
-                          <input
-                            type="range"
-                            min={0.2}
-                            max={3.0}
-                            step={0.01}
-                            value={tentacleSpeed}
-                            onChange={(e) =>
-                              setTentacleSpeed(parseFloat(e.target.value))
-                            }
-                            style={{ flex: 3 }}
-                            aria-label="Tentacle Speed"
-                          />
-                          <span style={{ width: 48, textAlign: "right" }}>
-                            {tentacleSpeed.toFixed(2)}x
-                          </span>
-                        </label>
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            fontSize: 11,
-                            marginTop: 6,
-                          }}
-                        >
-                          <span style={{ flex: 1 }}>Tip Emphasis</span>
-                          <input
-                            type="range"
-                            min={1.0}
-                            max={3.0}
-                            step={0.05}
-                            value={tentacleBendPow}
-                            onChange={(e) =>
-                              setTentacleBendPow(parseFloat(e.target.value))
-                            }
-                            style={{ flex: 3 }}
-                            aria-label="Tentacle Bend Exponent"
-                          />
-                          <span style={{ width: 48, textAlign: "right" }}>
-                            {tentacleBendPow.toFixed(2)}
-                          </span>
-                        </label>
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            fontSize: 11,
-                            marginTop: 6,
-                          }}
-                        >
-                          <span style={{ flex: 1 }}>Axis X</span>
-                          <input
-                            type="range"
-                            min={0}
-                            max={2.0}
-                            step={0.01}
-                            value={tentacleAmpX}
-                            onChange={(e) =>
-                              setTentacleAmpX(parseFloat(e.target.value))
-                            }
-                            style={{ flex: 3 }}
-                            aria-label="Tentacle X Amplitude"
-                          />
-                          <span style={{ width: 48, textAlign: "right" }}>
-                            {tentacleAmpX.toFixed(2)}
-                          </span>
-                        </label>
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            fontSize: 11,
-                            marginTop: 6,
-                          }}
-                        >
-                          <span style={{ flex: 1 }}>Axis Z</span>
-                          <input
-                            type="range"
-                            min={0}
-                            max={2.0}
-                            step={0.01}
-                            value={tentacleAmpZ}
-                            onChange={(e) =>
-                              setTentacleAmpZ(parseFloat(e.target.value))
-                            }
-                            style={{ flex: 3 }}
-                            aria-label="Tentacle Z Amplitude"
-                          />
-                          <span style={{ width: 48, textAlign: "right" }}>
-                            {tentacleAmpZ.toFixed(2)}
-                          </span>
-                        </label>
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            fontSize: 11,
-                            marginTop: 6,
-                          }}
-                        >
-                          <span style={{ flex: 1 }}>Vertical Wobble</span>
-                          <input
-                            type="range"
-                            min={0.0}
-                            max={0.25}
-                            step={0.005}
-                            value={tentacleYWobble}
-                            onChange={(e) =>
-                              setTentacleYWobble(parseFloat(e.target.value))
-                            }
-                            style={{ flex: 3 }}
-                            aria-label="Tentacle Vertical Wobble"
-                          />
-                          <span style={{ width: 48, textAlign: "right" }}>
-                            {tentacleYWobble.toFixed(3)}
-                          </span>
-                        </label>
-                        <div
-                          style={{ fontSize: 10, opacity: 0.75, marginTop: 6 }}
-                        >
-                          Affects spikeStyle "tentacle" only. Strength
-                          multiplies overall bend; Tip Emphasis pushes motion
-                          towards the tip; Axis X/Z shape sideways sway;
-                          Vertical Wobble adds gentle lengthwise flutter.
-                        </div>
-                      </div>
+                      <hr />
 
                       {/* High contrast aiming */}
                       <label
@@ -9233,6 +9859,104 @@ export default function App({ navVisible, setNavVisible } = {}) {
                         F to toggle Auto-Fire • ESC/SPACE to pause
                       </div>
                       <div style={{ height: 10 }} />
+                      <div className="small">
+                        <strong>Visual Effects</strong>
+                      </div>
+                      <div className="small" style={{ marginTop: 4 }}>
+                        Camera Shake Intensity:{" "}
+                        <strong>{debugCameraShakeIntensity.toFixed(1)}x</strong>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={3.0}
+                        step={0.1}
+                        value={debugCameraShakeIntensity}
+                        onChange={(e) =>
+                          setDebugCameraShakeIntensity(
+                            parseFloat(e.target.value)
+                          )
+                        }
+                        style={{ width: "100%" }}
+                        aria-label="Camera shake intensity multiplier"
+                      />
+                      <div className="tiny" style={{ opacity: 0.8 }}>
+                        Multiplies camera shake intensity for damage,
+                        explosions, and laser charging.
+                      </div>
+                      <div style={{ height: 6 }} />
+                      <label
+                        className="small"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={debugBorderEffectsEnabled}
+                          onChange={(e) =>
+                            setDebugBorderEffectsEnabled(e.target.checked)
+                          }
+                        />
+                        Enable Border Effects
+                      </label>
+                      <label
+                        className="small"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={debugLowHealthBorder}
+                          onChange={(e) =>
+                            setDebugLowHealthBorder(e.target.checked)
+                          }
+                        />
+                        Low Health Border (Red)
+                      </label>
+                      <label
+                        className="small"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={debugPickupGlowBorder}
+                          onChange={(e) =>
+                            setDebugPickupGlowBorder(e.target.checked)
+                          }
+                        />
+                        Pickup Proximity Border (Green)
+                      </label>
+                      <label
+                        className="small"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={debugLaserChargingBorder}
+                          onChange={(e) =>
+                            setDebugLaserChargingBorder(e.target.checked)
+                          }
+                        />
+                        Laser Charging Border (Purple)
+                      </label>
+                      <div className="tiny" style={{ opacity: 0.8 }}>
+                        Individual toggles for screen border visual effects.
+                      </div>
+                      <div style={{ height: 10 }} />
                     </div>
                   </CollapsiblePanel>
                 )}
@@ -9246,9 +9970,19 @@ export default function App({ navVisible, setNavVisible } = {}) {
       {!isStarted && (
         <div className="pause-overlay">
           <div className="pause-content accent">
-            <img src={LOGO} alt="Wave Battle Logo" style={{height: 100, width: 'auto'}} />
-            <h2>Battle the forces of Hazard in <b>Wave Battle</b>!</h2>
-            <p>Jump right in. Fight randomized enemy waves and climb the scoreboard. This will grow into a wave-based horde-shooter roguelite.</p>
+            <img
+              src={LOGO}
+              alt="Wave Battle Logo"
+              style={{ height: 100, width: "auto" }}
+            />
+            <h2>
+              Battle the forces of Hazard in <b>Wave Battle</b>!
+            </h2>
+            <p>
+              Jump right in. Fight randomized enemy waves and climb the
+              scoreboard. This will grow into a wave-based horde-shooter
+              roguelite.
+            </p>
             <p>
               Best — Score: <strong>{bestScore}</strong> • Wave:{" "}
               <strong>{bestWave}</strong>
@@ -9384,7 +10118,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
                     }}
                     title="Continue with a 10% total score penalty"
                   >
-                    Continue (<b style={{color: "#a30b0bff"}}>-10%</b> Total Score)
+                    Continue (<b style={{ color: "#a30b0bff" }}>-10%</b> Total
+                    Score)
                   </button>
                 </div>
                 <div
@@ -9554,12 +10289,28 @@ export default function App({ navVisible, setNavVisible } = {}) {
                     max={36}
                     step={1}
                     value={playerLabelSize}
-                    onChange={(e) => setPlayerLabelSize(parseInt(e.target.value, 10))}
+                    onChange={(e) =>
+                      setPlayerLabelSize(parseInt(e.target.value, 10))
+                    }
                     style={{ width: "100%" }}
                   />
                 </label>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, marginTop: 6 }}>
-                  <input type="checkbox" checked={showPlayerLabelPlaceholder} onChange={(e) => setShowPlayerLabelPlaceholder(e.target.checked)} />
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 11,
+                    marginTop: 6,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={showPlayerLabelPlaceholder}
+                    onChange={(e) =>
+                      setShowPlayerLabelPlaceholder(e.target.checked)
+                    }
+                  />
                   <span>Show label placeholder when no enemies</span>
                 </label>
               </div>
@@ -9675,8 +10426,6 @@ function DPad({ onVectorChange }) {
     left: false,
     right: false,
   });
-
-  
 
   const update = useCallback(() => {
     const x = (active.current.right ? 1 : 0) - (active.current.left ? 1 : 0);
@@ -10608,7 +11357,12 @@ function TopDownRig({ playerPosRef, boundaryLimit, zoom = 1.0 }) {
 }
 
 // Aiming reticle that appears at a fixed distance from the player, following manual aim inputs
-function AimReticle({ playerPosRef, aimInputRef, autoAimEnabled, highContrast }) {
+function AimReticle({
+  playerPosRef,
+  aimInputRef,
+  autoAimEnabled,
+  highContrast,
+}) {
   const reticleRef = useRef();
   const { raycaster, pointer, camera } = useThree();
   const plane = useMemo(
@@ -10619,18 +11373,30 @@ function AimReticle({ playerPosRef, aimInputRef, autoAimEnabled, highContrast })
     if (!reticleRef.current || !playerPosRef.current) return;
     let dir = null;
     if (!autoAimEnabled) {
-      if (aimInputRef && (Math.abs(aimInputRef.current.x) > 0.001 || Math.abs(aimInputRef.current.z) > 0.001)) {
-        dir = new THREE.Vector3(aimInputRef.current.x, 0, aimInputRef.current.z).normalize();
+      if (
+        aimInputRef &&
+        (Math.abs(aimInputRef.current.x) > 0.001 ||
+          Math.abs(aimInputRef.current.z) > 0.001)
+      ) {
+        dir = new THREE.Vector3(
+          aimInputRef.current.x,
+          0,
+          aimInputRef.current.z
+        ).normalize();
       } else {
         raycaster.setFromCamera(pointer, camera);
         const hit = raycaster.ray.intersectPlane(plane, new THREE.Vector3());
         if (hit) {
-          dir = new THREE.Vector3().subVectors(hit, playerPosRef.current).normalize();
+          dir = new THREE.Vector3()
+            .subVectors(hit, playerPosRef.current)
+            .normalize();
         }
       }
     }
     if (dir && dir.lengthSq() > 0) {
-      reticleRef.current.position.copy(playerPosRef.current).addScaledVector(dir, RETICLE_DISTANCE);
+      reticleRef.current.position
+        .copy(playerPosRef.current)
+        .addScaledVector(dir, RETICLE_DISTANCE);
       reticleRef.current.visible = true;
     } else {
       reticleRef.current.visible = false;
@@ -10639,7 +11405,11 @@ function AimReticle({ playerPosRef, aimInputRef, autoAimEnabled, highContrast })
   return (
     <mesh ref={reticleRef} position={[0, 0.1, 0]} visible={false}>
       <ringGeometry args={[0.3, 0.5, 16]} />
-      <meshBasicMaterial color={highContrast ? 0xffffff : 0x00ff00} transparent opacity={0.8} />
+      <meshBasicMaterial
+        color={highContrast ? 0xffffff : 0x00ff00}
+        transparent
+        opacity={0.8}
+      />
     </mesh>
   );
 }
