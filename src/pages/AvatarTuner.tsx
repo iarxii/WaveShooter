@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom'
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import { PathogenFromSpec } from '../characters/factory/PathogenFactory';
+import { CreatureFromSpec } from '../characters/factory/CreatureFactory';
+import { CreatureMeshSpec } from '../characters/factory/CreatureSpec';
 import ConeBoss from '../entities/ConeBoss.jsx'
 import TriangleBoss from '../entities/TriangleBoss.jsx'
 import PipeBoss from '../entities/PipeBoss.jsx'
@@ -101,7 +103,8 @@ function estimateShapeHints(file: File){
 
 export default function AvatarTuner() {
   const [file,setFile] = useState<File|null>(null);
-  const [spec,setSpec] = useState<AvatarSpec|null>(null);
+  const [spec,setSpec] = useState<AvatarSpec | CreatureMeshSpec | null>(null);
+  const [mode, setMode] = useState<'pathogen' | 'creature'>('pathogen');
   const [lightingMode, setLightingMode] = useState<'dark'|'light'>('dark');
   const [galleryOpen, setGalleryOpen] = useState<boolean>(true);
   const [pickedImageUrl, setPickedImageUrl] = useState<string | null>(null);
@@ -122,56 +125,152 @@ export default function AvatarTuner() {
     }
   }, []);
 
+  // Set default spec when mode changes
+  useEffect(() => {
+    if (mode === 'pathogen') {
+      const defaultPathogenSpec: AvatarSpec = {
+        id: 'default-pathogen',
+        seed: 12345,
+        baseShape: 'icosahedron',
+        radius: 1.0,
+        height: 2.0,
+        scaleX: 1.0,
+        scaleY: 1.0,
+        detail: 1,
+        spikeCount: 12,
+        spikeLength: 0.5,
+        spikeRadius: 0.11,
+        spikeStyle: 'cone',
+        spikeBaseShift: 0.0,
+        spikePulse: true,
+        spikePulseIntensity: 0.25,
+        nodeCount: 8,
+        arcCount: 6,
+        baseColor: '#B5764C',
+        spikeColor: '#B5764C',
+        nodeColor: '#FFD24A',
+        arcColor: '#FFE9A3',
+        emissive: '#B0774F',
+        emissiveIntensityCore: 0.35,
+        spikeEmissive: '#B5764C',
+        emissiveIntensitySpikes: 0.12,
+        metalnessCore: 0.25, roughnessCore: 0.85,
+        metalnessSpikes: 0.15, roughnessSpikes: 0.9,
+        metalnessNodes: 1.0, roughnessNodes: 0.25,
+        nodeStrobeMode: 'off',
+        nodeStrobeColorA: '#FFD24A',
+        nodeStrobeColorB: '#FFE9A3',
+        nodeStrobeSpeed: 8.0,
+        spin: 0.22, breathe: 0.014, flickerSpeed: 7.5,
+        roll: 0.0,
+        hitboxEnabled: false,
+        hitboxVisible: false,
+        hitboxScaleMin: 1.0,
+        hitboxScaleMax: 1.0,
+        hitboxSpeed: 1.0,
+        hitboxMode: 'sin',
+        quality: 'high'
+      };
+      setSpec(defaultPathogenSpec);
+    } else {
+      const defaultCreatureSpec: CreatureMeshSpec = {
+        id: 'default-creature',
+        seed: 12345,
+        kind: 'insect',
+        body: { length: 1.5, width: 0.5, height: 0.4, segments: 2 },
+        appendages: {
+          limbs: { count: 6, length: 0.8, thickness: 0.08 },
+          wings: { span: 2.0, length: 1.8, flapHz: 10 }
+        },
+        features: {
+          eyes: { size: 0.1, count: 2 },
+          mouth: 'mandibles',
+          texture: 'smooth'
+        },
+        colors: { body: '#5C3A23', accent: '#C4A074', eyes: '#000000' },
+        detail: 1,
+        modelUrl: undefined,
+        animation: { spin: 0, breathe: 0 }
+      };
+      setSpec(defaultCreatureSpec);
+    }
+  }, [mode]);
+
   async function onDrop(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
     setFile(f);
-    const [c1,c2,c3] = await dominantColors(f);
-    const hints = await estimateShapeHints(f);
-    const initial: AvatarSpec = {
-      id: f.name.replace(/\.[^.]+$/,'').toLowerCase(),
-      seed: Math.floor(Math.random()*1e9),
-      baseShape:'icosahedron',
-      radius: 1.0,
-      height: 2.0,
-      scaleX: 1.0,
-      scaleY: 1.0,
-      detail: hints.detail,
-      spikeCount: hints.spikeCount,
-      spikeLength: hints.spikeLength,
-      spikeRadius: 0.11,
-      spikeStyle: 'cone',
+    if (mode === 'pathogen') {
+      const [c1,c2,c3] = await dominantColors(f);
+      const hints = await estimateShapeHints(f);
+      const initial: AvatarSpec = {
+        id: f.name.replace(/\.[^.]+$/,'').toLowerCase(),
+        seed: Math.floor(Math.random()*1e9),
+        baseShape:'icosahedron',
+        radius: 1.0,
+        height: 2.0,
+        scaleX: 1.0,
+        scaleY: 1.0,
+        detail: hints.detail,
+        spikeCount: hints.spikeCount,
+        spikeLength: hints.spikeLength,
+        spikeRadius: 0.11,
+        spikeStyle: 'cone',
   spikeBaseShift: 0.0,
   spikePulse: true,
   spikePulseIntensity: 0.25,
-      nodeCount: hints.nodeCount,
-      arcCount: hints.arcCount,
-      baseColor: c2 ?? '#B5764C',
-      spikeColor: c2 ?? '#B5764C',
-      nodeColor: c1 ?? '#FFD24A',
-      arcColor: c3 ?? '#FFE9A3',
-      emissive: c2 ?? '#B0774F',
-      emissiveIntensityCore: 0.35,
-      spikeEmissive: c2 ?? '#B5764C',
-      emissiveIntensitySpikes: 0.12,
-      metalnessCore: 0.25, roughnessCore: 0.85,
-      metalnessSpikes: 0.15, roughnessSpikes: 0.9,
-      metalnessNodes: 1.0, roughnessNodes: 0.25,
-      nodeStrobeMode: 'off',
-      nodeStrobeColorA: c1 ?? '#FFD24A',
-      nodeStrobeColorB: c3 ?? '#FFE9A3',
-      nodeStrobeSpeed: 8.0,
-      spin: 0.22, breathe: 0.014, flickerSpeed: 7.5,
-      roll: 0.0,
-      hitboxEnabled: false,
-      hitboxVisible: false,
-      hitboxScaleMin: 1.0,
-      hitboxScaleMax: 1.0,
-      hitboxSpeed: 1.0,
-      hitboxMode: 'sin',
-      quality: 'high'
-    };
-    setSpec(initial);
+        nodeCount: hints.nodeCount,
+        arcCount: hints.arcCount,
+        baseColor: c2 ?? '#B5764C',
+        spikeColor: c2 ?? '#B5764C',
+        nodeColor: c1 ?? '#FFD24A',
+        arcColor: c3 ?? '#FFE9A3',
+        emissive: c2 ?? '#B0774F',
+        emissiveIntensityCore: 0.35,
+        spikeEmissive: c2 ?? '#B5764C',
+        emissiveIntensitySpikes: 0.12,
+        metalnessCore: 0.25, roughnessCore: 0.85,
+        metalnessSpikes: 0.15, roughnessSpikes: 0.9,
+        metalnessNodes: 1.0, roughnessNodes: 0.25,
+        nodeStrobeMode: 'off',
+        nodeStrobeColorA: c1 ?? '#FFD24A',
+        nodeStrobeColorB: c3 ?? '#FFE9A3',
+        nodeStrobeSpeed: 8.0,
+        spin: 0.22, breathe: 0.014, flickerSpeed: 7.5,
+        roll: 0.0,
+        hitboxEnabled: false,
+        hitboxVisible: false,
+        hitboxScaleMin: 1.0,
+        hitboxScaleMax: 1.0,
+        hitboxSpeed: 1.0,
+        hitboxMode: 'sin',
+        quality: 'high'
+      };
+      setSpec(initial);
+    } else {
+      // Creature mode
+      const [c1,c2,c3] = await dominantColors(f);
+      const initial: CreatureMeshSpec = {
+        id: f.name.replace(/\.[^.]+$/,'').toLowerCase(),
+        seed: Math.floor(Math.random()*1e9),
+        kind: 'insect', // Default to insect
+        body: { length: 1.5, width: 0.5, height: 0.4, segments: 2 },
+        appendages: {
+          limbs: { count: 6, length: 0.8, thickness: 0.08 },
+          wings: { span: 2.0, length: 1.8, flapHz: 10 }
+        },
+        features: {
+          eyes: { size: 0.1, count: 2 },
+          mouth: 'mandibles',
+          texture: 'smooth'
+        },
+        colors: { body: c2 ?? '#5C3A23', accent: c1 ?? '#C4A074', eyes: '#000000' },
+        detail: 1,
+        modelUrl: undefined,
+        animation: { spin: 0, breathe: 0 }
+      };
+      setSpec(initial);
+    }
     setGalleryOpen(false);
   }
 
@@ -234,6 +333,11 @@ export default function AvatarTuner() {
   function update<K extends keyof AvatarSpec>(k:K, v:AvatarSpec[K]) {
     if (!spec) return;
     setSpec({ ...spec, [k]: v });
+  }
+
+  function updateCreature<K extends keyof CreatureMeshSpec>(k:K, v:CreatureMeshSpec[K]) {
+    if (!spec || mode !== 'creature') return;
+    setSpec({ ...spec, [k]: v } as CreatureMeshSpec);
   }
 
   function exportJson(){
@@ -340,25 +444,51 @@ export default function AvatarTuner() {
     if (s) { setSpec(s); setGalleryOpen(false); }
   }
 
+  function applyCreaturePreset(kind: string){
+    // For now, load from CreatureRoster
+    import('../characters/factory/CreatureRoster').then(({ CreatureRoster }) => {
+      const s = CreatureRoster[kind];
+      if (s) { setSpec(s); setGalleryOpen(false); }
+    });
+  }
+
   return (
     <div style={{display:'grid', gridTemplateColumns:'320px 1fr', height:'100vh',minWidth:'600px'}}>
       <aside style={{padding:'1rem', background:'#0B1220', color:'#E6F0FF', overflow:'auto'}}>
         <h2>Avatar Tuner</h2>
+        <div style={{ marginBottom: 12 }}>
+          <label>Mode: </label>
+          <button onClick={() => setMode('pathogen')} disabled={mode === 'pathogen'}>Pathogen</button>
+          <button onClick={() => setMode('creature')} disabled={mode === 'creature'}>Creature</button>
+        </div>
         <input type="file" accept="image/*" onChange={onDrop}/>
         <div style={{marginTop:12, marginBottom:12}}>
-          <h3>Special Boss Presets</h3>
-          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-            <button onClick={()=>applyBossPreset('influenza')}>Influenza</button>
-            <button onClick={()=>applyBossPreset('hepc')}>Hepatitis C</button>
-            <button onClick={()=>applyBossPreset('rotavirus')}>Rotavirus</button>
-            <button onClick={()=>applyBossPreset('bacteriophage')}>Bacteriophage</button>
-            <button onClick={()=>applyBossPreset('papilloma')}>Papillomavirus</button>
-            <button onClick={()=>applyBossPreset('ebola')}>Ebolavirus</button>
-            <button onClick={()=>applyBossPreset('adeno')}>Adenovirus</button>
-          </div>
+          {mode === 'pathogen' ? (
+            <>
+              <h3>Special Boss Presets</h3>
+              <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+                <button onClick={()=>applyBossPreset('influenza')}>Influenza</button>
+                <button onClick={()=>applyBossPreset('hepc')}>Hepatitis C</button>
+                <button onClick={()=>applyBossPreset('rotavirus')}>Rotavirus</button>
+                <button onClick={()=>applyBossPreset('bacteriophage')}>Bacteriophage</button>
+                <button onClick={()=>applyBossPreset('papilloma')}>Papillomavirus</button>
+                <button onClick={()=>applyBossPreset('ebola')}>Ebolavirus</button>
+                <button onClick={()=>applyBossPreset('adeno')}>Adenovirus</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h3>Creature Presets</h3>
+              <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+                <button onClick={()=>applyCreaturePreset('cockroach_broodmother')}>Cockroach Broodmother</button>
+                <button onClick={()=>applyCreaturePreset('fly_colossus')}>Fly Colossus</button>
+                <button onClick={()=>applyCreaturePreset('bee_medics')}>Bee Medics</button>
+                <button onClick={()=>applyCreaturePreset('rat_king')}>Rat King</button>
+              </div>
+            </>
+          )}
           <div style={{marginTop:10}}>
-            <Link to="/special-boss-viewer">Open Special Boss Viewer →</Link>
-            <div style={{fontSize:12, opacity:0.8}}>Opens a dedicated page to inspect procedural entity meshes.</div>
+            <button onClick={exportJson}>Export JSON</button>
           </div>
         </div>
         <div style={{margin:'8px 0'}}>
@@ -391,19 +521,20 @@ export default function AvatarTuner() {
                 <button onClick={()=>setGalleryOpen(true)}>Change Image</button>
               </div>
             )}
-            <label>ID</label>
-            <input value={spec.id} onChange={e=>update('id', e.target.value)} style={{width:'100%'}}/>
-            <label>Seed</label>
-            <input type="number" value={spec.seed} onChange={e=>update('seed', Number(e.target.value))} style={{width:'100%'}}/>
-
-            <h3>Lighting</h3>
-            <label>Mode</label>
-            <select value={lightingMode} onChange={e=>setLightingMode(e.target.value as any)}>
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-            </select>
-
-            <h3>Shape</h3>
+            {mode === 'pathogen' && spec ? (
+              <>
+                <label>ID</label>
+                <input value={spec.id} onChange={e=>update('id', e.target.value)} style={{width:'100%'}}/>
+                <label>Seed</label>
+                <input type="number" value={spec.seed} onChange={e=>update('seed', Number(e.target.value))} style={{width:'100%'}}/>
+                {/* Pathogen sliders */}
+                <h3>Lighting</h3>
+                <label>Mode</label>
+                <select value={lightingMode} onChange={e=>setLightingMode(e.target.value as any)}>
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                </select>
+                <h3>Shape</h3>
                 <label>Base Shape</label>
                 <select value={spec.baseShape ?? 'icosahedron'} onChange={e=>update('baseShape', e.target.value as any)}>
                   <option value="icosahedron">Icosahedron</option>
@@ -415,148 +546,179 @@ export default function AvatarTuner() {
                   <option value="cube">Cube</option>
                   <option value="snake">Snake (segmented)</option>
                 </select><br/>
-            <label>Detail</label>
-            <input type="range" min={0} max={2} value={spec.detail ?? 1} onChange={e=>update('detail', Number(e.target.value) as 0|1|2)}/><br/>
-            <label>Height (Y scale): {spec.scaleY}</label>
-            <input type="range" step={0.01} min={0.6} max={3.0} value={spec.scaleY ?? 1.0} onChange={e=>update('scaleY', Number(e.target.value))}/><br/>
-            <label>Width (X scale): {spec.scaleX}</label>
-            <input type="range" step={0.01} min={0.5} max={2.5} value={spec.scaleX ?? 1.0} onChange={e=>update('scaleX', Number(e.target.value))}/><br/>
-            {(spec.baseShape === 'cylinder' || spec.baseShape === 'capsule' || spec.baseShape === 'triPrism' || spec.baseShape === 'hexPrism') && (
-              <>
-                <label>Body Length (for {spec.baseShape}): {spec.height}</label>
-                <input type="range" step={0.01} min={0.6} max={3.0} value={spec.height ?? 2.0} onChange={e=>update('height', Number(e.target.value))}/><br/>
-              </>
-            )}
-            <label>Spike Count: {spec.spikeCount}</label>
-            <input type="range" min={12} max={72} value={spec.spikeCount ?? 42} onChange={e=>update('spikeCount', Number(e.target.value))}/><br/>
-            {/* Boxy shape spike clusters */}
-            {(['cube','cylinder','capsule','triPrism','hexPrism'] as any).includes(spec.baseShape ?? '') && (
-              <>
-                <h3>Spike Clusters</h3>
-                <label>
-                  <input type="checkbox" checked={spec.spikeClusterMidEnabled ?? false} onChange={e=>update('spikeClusterMidEnabled', e.target.checked)} /> Mid Ring
-                </label><br/>
-                <label>
-                  <input type="checkbox" checked={spec.spikeClusterEndsEnabled ?? false} onChange={e=>update('spikeClusterEndsEnabled', e.target.checked)} /> End Rings
-                </label><br/>
-                <label>Mid Ring Count: {spec.spikeMidClusterCount ?? 8}</label>
-                <input type="range" min={0} max={48} value={spec.spikeMidClusterCount ?? 8} onChange={e=>update('spikeMidClusterCount', Number(e.target.value))}/><br/>
-                <label>End Ring Count: {spec.spikeEndClusterCount ?? 8}</label>
-                <input type="range" min={0} max={48} value={spec.spikeEndClusterCount ?? 8} onChange={e=>update('spikeEndClusterCount', Number(e.target.value))}/><br/>
-                <small style={{opacity:0.8}}>Note: Cluster spikes are currently additive; we can subtract from random spikes in a later step.</small>
-              </>
-            )}
+                <label>Detail</label>
+                <input type="range" min={0} max={2} value={spec.detail ?? 1} onChange={e=>update('detail', Number(e.target.value) as 0|1|2)}/><br/>
+                <label>Height (Y scale): {spec.scaleY}</label>
+                <input type="range" step={0.01} min={0.6} max={3.0} value={spec.scaleY ?? 1.0} onChange={e=>update('scaleY', Number(e.target.value))}/><br/>
+                <label>Width (X scale): {spec.scaleX}</label>
+                <input type="range" step={0.01} min={0.5} max={2.5} value={spec.scaleX ?? 1.0} onChange={e=>update('scaleX', Number(e.target.value))}/><br/>
+                {(spec.baseShape === 'cylinder' || spec.baseShape === 'capsule' || spec.baseShape === 'triPrism' || spec.baseShape === 'hexPrism') && (
+                  <>
+                    <label>Body Length (for {spec.baseShape}): {spec.height}</label>
+                    <input type="range" step={0.01} min={0.6} max={3.0} value={spec.height ?? 2.0} onChange={e=>update('height', Number(e.target.value))}/><br/>
+                  </>
+                )}
+                <label>Spike Count: {spec.spikeCount}</label>
+                <input type="range" min={12} max={72} value={spec.spikeCount ?? 42} onChange={e=>update('spikeCount', Number(e.target.value))}/><br/>
+                {/* Boxy shape spike clusters */}
+                {(['cube','cylinder','capsule','triPrism','hexPrism'] as any).includes(spec.baseShape ?? '') && (
+                  <>
+                    <h3>Spike Clusters</h3>
+                    <label>
+                      <input type="checkbox" checked={spec.spikeClusterMidEnabled ?? false} onChange={e=>update('spikeClusterMidEnabled', e.target.checked)} /> Mid Ring
+                    </label><br/>
+                    <label>
+                      <input type="checkbox" checked={spec.spikeClusterEndsEnabled ?? false} onChange={e=>update('spikeClusterEndsEnabled', e.target.checked)} /> End Rings
+                    </label><br/>
+                    <label>Mid Ring Count: {spec.spikeMidClusterCount ?? 8}</label>
+                    <input type="range" min={0} max={48} value={spec.spikeMidClusterCount ?? 8} onChange={e=>update('spikeMidClusterCount', Number(e.target.value))}/><br/>
+                    <label>End Ring Count: {spec.spikeEndClusterCount ?? 8}</label>
+                    <input type="range" min={0} max={48} value={spec.spikeEndClusterCount ?? 8} onChange={e=>update('spikeEndClusterCount', Number(e.target.value))}/><br/>
+                    <small style={{opacity:0.8}}>Note: Cluster spikes are currently additive; we can subtract from random spikes in a later step.</small>
+                  </>
+                )}
 
-            {/* Snake shape parameters */}
-            {(spec.baseShape === 'snake') && (
-              <>
-                <h3>Snake Segments</h3>
-                <label>Segments: {spec.segmentCount ?? 8}</label>
-                <input type="range" min={2} max={32} value={spec.segmentCount ?? 8} onChange={e=>update('segmentCount', Number(e.target.value))}/><br/>
-                <label>Spacing: {spec.segmentSpacing ?? 0.6}</label>
-                <input type="range" step={0.01} min={0.2} max={1.5} value={spec.segmentSpacing ?? 0.6} onChange={e=>update('segmentSpacing', Number(e.target.value))}/><br/>
-                <label>Curvature: {spec.snakeCurvature ?? 0.3}</label>
-                <input type="range" step={0.01} min={0} max={1.0} value={spec.snakeCurvature ?? 0.3} onChange={e=>update('snakeCurvature', Number(e.target.value))}/><br/>
-                <label>Twist: {spec.snakeTwist ?? 0.2}</label>
-                <input type="range" step={0.01} min={0} max={1.0} value={spec.snakeTwist ?? 0.2} onChange={e=>update('snakeTwist', Number(e.target.value))}/><br/>
-                <label>Taper Start: {spec.segmentRadiusScaleStart ?? 1.0}</label>
-                <input type="range" step={0.01} min={0.5} max={1.5} value={spec.segmentRadiusScaleStart ?? 1.0} onChange={e=>update('segmentRadiusScaleStart', Number(e.target.value))}/><br/>
-                <label>Taper End: {spec.segmentRadiusScaleEnd ?? 0.6}</label>
-                <input type="range" step={0.01} min={0.2} max={1.5} value={spec.segmentRadiusScaleEnd ?? 0.6} onChange={e=>update('segmentRadiusScaleEnd', Number(e.target.value))}/><br/>
-                <small style={{opacity:0.8}}>Tip: Set spikeStyle to "tentacle" for animated quills along segments.</small>
-              </>
-            )}
-            <label>Spike Length: {spec.spikeLength}</label>
-            <input type="range" step={0.01} min={0.25} max={0.65} value={spec.spikeLength ?? 0.45} onChange={e=>update('spikeLength', Number(e.target.value))}/><br/>
-            <label>Spike Base Shift: {spec.spikeBaseShift}</label>
-            <input type="range" step={0.01} min={-0.6} max={0.6} value={spec.spikeBaseShift ?? 0} onChange={e=>update('spikeBaseShift', Number(e.target.value))}/><br/>
-            <label>Spike Style</label>
-            <select value={spec.spikeStyle ?? 'cone'} onChange={e=>update('spikeStyle', e.target.value as any)}>
-              <option value="cone">Cone</option>
+                {/* Snake shape parameters */}
+                {(spec.baseShape === 'snake') && (
+                  <>
+                    <h3>Snake Segments</h3>
+                    <label>Segments: {spec.segmentCount ?? 8}</label>
+                    <input type="range" min={2} max={32} value={spec.segmentCount ?? 8} onChange={e=>update('segmentCount', Number(e.target.value))}/><br/>
+                    <label>Spacing: {spec.segmentSpacing ?? 0.6}</label>
+                    <input type="range" step={0.01} min={0.2} max={1.5} value={spec.segmentSpacing ?? 0.6} onChange={e=>update('segmentSpacing', Number(e.target.value))}/><br/>
+                    <label>Curvature: {spec.snakeCurvature ?? 0.3}</label>
+                    <input type="range" step={0.01} min={0} max={1.0} value={spec.snakeCurvature ?? 0.3} onChange={e=>update('snakeCurvature', Number(e.target.value))}/><br/>
+                    <label>Twist: {spec.snakeTwist ?? 0.2}</label>
+                    <input type="range" step={0.01} min={0} max={1.0} value={spec.snakeTwist ?? 0.2} onChange={e=>update('snakeTwist', Number(e.target.value))}/><br/>
+                    <label>Taper Start: {spec.segmentRadiusScaleStart ?? 1.0}</label>
+                    <input type="range" step={0.01} min={0.5} max={1.5} value={spec.segmentRadiusScaleStart ?? 1.0} onChange={e=>update('segmentRadiusScaleStart', Number(e.target.value))}/><br/>
+                    <label>Taper End: {spec.segmentRadiusScaleEnd ?? 0.6}</label>
+                    <input type="range" step={0.01} min={0.2} max={1.5} value={spec.segmentRadiusScaleEnd ?? 0.6} onChange={e=>update('segmentRadiusScaleEnd', Number(e.target.value))}/><br/>
+                    <small style={{opacity:0.8}}>Tip: Set spikeStyle to "tentacle" for animated quills along segments.</small>
+                  </>
+                )}
+                <label>Spike Length: {spec.spikeLength}</label>
+                <input type="range" step={0.01} min={0.25} max={0.65} value={spec.spikeLength ?? 0.45} onChange={e=>update('spikeLength', Number(e.target.value))}/><br/>
+                <label>Spike Base Shift: {spec.spikeBaseShift}</label>
+                <input type="range" step={0.01} min={-0.6} max={0.6} value={spec.spikeBaseShift ?? 0} onChange={e=>update('spikeBaseShift', Number(e.target.value))}/><br/>
+                <label>Spike Style</label>
+                <select value={spec.spikeStyle ?? 'cone'} onChange={e=>update('spikeStyle', e.target.value as any)}>
+                  <option value="cone">Cone</option>
                   <option value="inverted">Inverted</option>
                   <option value="disk">Disk</option>
                   <option value="block">Block</option>
                   <option value="tentacle">Tentacle</option>
                 </select><br/>
-            <label>
-              <input type="checkbox" checked={spec.spikePulse ?? true} onChange={e=>update('spikePulse', e.target.checked)} /> Spike Pulse
-            </label><br/>
-            <label>Pulse Intensity: {spec.spikePulseIntensity}</label>
-            <input type="range" step={0.01} min={0} max={0.6} value={spec.spikePulseIntensity ?? 0.25} onChange={e=>update('spikePulseIntensity', Number(e.target.value))}/><br/>
-            <label>Node Count: {spec.nodeCount}</label>
-            <input type="range" min={0} max={12} value={spec.nodeCount ?? 6} onChange={e=>update('nodeCount', Number(e.target.value))}/><br/>
-            <label>Arc Count: {spec.arcCount}</label>
-            <input type="range" min={0} max={12} value={spec.arcCount ?? 5} onChange={e=>update('arcCount', Number(e.target.value))}/><br/>
+                <label>
+                  <input type="checkbox" checked={spec.spikePulse ?? true} onChange={e=>update('spikePulse', e.target.checked)} /> Spike Pulse
+                </label><br/>
+                <label>Pulse Intensity: {spec.spikePulseIntensity}</label>
+                <input type="range" step={0.01} min={0} max={0.6} value={spec.spikePulseIntensity ?? 0.25} onChange={e=>update('spikePulseIntensity', Number(e.target.value))}/><br/>
+                <label>Node Count: {spec.nodeCount}</label>
+                <input type="range" min={0} max={12} value={spec.nodeCount ?? 6} onChange={e=>update('nodeCount', Number(e.target.value))}/><br/>
+                <label>Arc Count: {spec.arcCount}</label>
+                <input type="range" min={0} max={12} value={spec.arcCount ?? 5} onChange={e=>update('arcCount', Number(e.target.value))}/><br/>
 
-            <h3>Colors</h3>
-            <label>Base</label><input type="color" value={spec.baseColor ?? '#B5764C'} onChange={e=>update('baseColor', e.target.value)}/>
-            <label>Spikes</label><input type="color" value={spec.spikeColor ?? '#B5764C'} onChange={e=>update('spikeColor', e.target.value)}/>
-            <label>Nodes</label><input type="color" value={spec.nodeColor ?? '#FFD24A'} onChange={e=>update('nodeColor', e.target.value)}/>
-            <label>Arcs</label><input type="color" value={spec.arcColor ?? '#FFE9A3'} onChange={e=>update('arcColor', e.target.value)}/>
-            <label>Emissive</label><input type="color" value={spec.emissive ?? '#B0774F'} onChange={e=>update('emissive', e.target.value)}/>
+                <h3>Colors</h3>
+                <label>Base</label><input type="color" value={spec.baseColor ?? '#B5764C'} onChange={e=>update('baseColor', e.target.value)}/>
+                <label>Spikes</label><input type="color" value={spec.spikeColor ?? '#B5764C'} onChange={e=>update('spikeColor', e.target.value)}/>
+                <label>Nodes</label><input type="color" value={spec.nodeColor ?? '#FFD24A'} onChange={e=>update('nodeColor', e.target.value)}/>
+                <label>Arcs</label><input type="color" value={spec.arcColor ?? '#FFE9A3'} onChange={e=>update('arcColor', e.target.value)}/>
+                <label>Emissive</label><input type="color" value={spec.emissive ?? '#B0774F'} onChange={e=>update('emissive', e.target.value)}/>
 
-            <h3>Node Strobe</h3>
-            <label>Mode</label>
-            <select value={spec.nodeStrobeMode ?? 'off'} onChange={e=>update('nodeStrobeMode', e.target.value as any)}>
-              <option value="off">Off</option>
-              <option value="unified">Unified</option>
-              <option value="alternating">Alternating</option>
-            </select><br/>
-            <label>Color A</label><input type="color" value={spec.nodeStrobeColorA ?? (spec.nodeColor ?? '#FFD24A')} onChange={e=>update('nodeStrobeColorA', e.target.value)}/>
-            <label>Color B</label><input type="color" value={spec.nodeStrobeColorB ?? (spec.arcColor ?? '#FFE9A3')} onChange={e=>update('nodeStrobeColorB', e.target.value)}/>
-            <label>Speed: {spec.nodeStrobeSpeed ?? 8}</label>
-            <input type="range" step={0.1} min={0} max={20} value={spec.nodeStrobeSpeed ?? 8} onChange={e=>update('nodeStrobeSpeed', Number(e.target.value))}/><br/>
+                <h3>Node Strobe</h3>
+                <label>Mode</label>
+                <select value={spec.nodeStrobeMode ?? 'off'} onChange={e=>update('nodeStrobeMode', e.target.value as any)}>
+                  <option value="off">Off</option>
+                  <option value="unified">Unified</option>
+                  <option value="alternating">Alternating</option>
+                </select><br/>
+                <label>Color A</label><input type="color" value={spec.nodeStrobeColorA ?? (spec.nodeColor ?? '#FFD24A')} onChange={e=>update('nodeStrobeColorA', e.target.value)}/>
+                <label>Color B</label><input type="color" value={spec.nodeStrobeColorB ?? (spec.arcColor ?? '#FFE9A3')} onChange={e=>update('nodeStrobeColorB', e.target.value)}/>
+                <label>Speed: {spec.nodeStrobeSpeed ?? 8}</label>
+                <input type="range" step={0.1} min={0} max={20} value={spec.nodeStrobeSpeed ?? 8} onChange={e=>update('nodeStrobeSpeed', Number(e.target.value))}/><br/>
 
-            <h3>Material</h3>
-            <label>Core Emissive Intensity: {spec.emissiveIntensityCore ?? 0.35}</label>
-            <input type="range" step={0.01} min={0} max={1.5} value={spec.emissiveIntensityCore ?? 0.35} onChange={e=>update('emissiveIntensityCore', Number(e.target.value))}/><br/>
-            <label>Spike Emissive Intensity: {spec.emissiveIntensitySpikes ?? 0.12}</label>
-            <input type="range" step={0.01} min={0} max={1.0} value={spec.emissiveIntensitySpikes ?? 0.12} onChange={e=>update('emissiveIntensitySpikes', Number(e.target.value))}/><br/>
-            <label>Spike Emissive Color</label>
-            <input type="color" value={spec.spikeEmissive ?? (spec.spikeColor ?? '#B5764C')} onChange={e=>update('spikeEmissive', e.target.value)}/>
-            <label>Core Roughness: {spec.roughnessCore ?? 0.85}</label>
-            <input type="range" step={0.01} min={0} max={1} value={spec.roughnessCore ?? 0.85} onChange={e=>update('roughnessCore', Number(e.target.value))}/><br/>
-            <label>Spike Roughness: {spec.roughnessSpikes ?? 0.9}</label>
-            <input type="range" step={0.01} min={0} max={1} value={spec.roughnessSpikes ?? 0.9} onChange={e=>update('roughnessSpikes', Number(e.target.value))}/><br/>
-            <label>Spike Metalness: {spec.metalnessSpikes ?? 0.15}</label>
-            <input type="range" step={0.01} min={0} max={1} value={spec.metalnessSpikes ?? 0.15} onChange={e=>update('metalnessSpikes', Number(e.target.value))}/><br/>
+                <h3>Material</h3>
+                <label>Core Emissive Intensity: {spec.emissiveIntensityCore ?? 0.35}</label>
+                <input type="range" step={0.01} min={0} max={1.5} value={spec.emissiveIntensityCore ?? 0.35} onChange={e=>update('emissiveIntensityCore', Number(e.target.value))}/><br/>
+                <label>Spike Emissive Intensity: {spec.emissiveIntensitySpikes ?? 0.12}</label>
+                <input type="range" step={0.01} min={0} max={1.0} value={spec.emissiveIntensitySpikes ?? 0.12} onChange={e=>update('emissiveIntensitySpikes', Number(e.target.value))}/><br/>
+                <label>Spike Emissive Color</label>
+                <input type="color" value={spec.spikeEmissive ?? (spec.spikeColor ?? '#B5764C')} onChange={e=>update('spikeEmissive', e.target.value)}/>
+                <label>Core Roughness: {spec.roughnessCore ?? 0.85}</label>
+                <input type="range" step={0.01} min={0} max={1} value={spec.roughnessCore ?? 0.85} onChange={e=>update('roughnessCore', Number(e.target.value))}/><br/>
+                <label>Spike Roughness: {spec.roughnessSpikes ?? 0.9}</label>
+                <input type="range" step={0.01} min={0} max={1} value={spec.roughnessSpikes ?? 0.9} onChange={e=>update('roughnessSpikes', Number(e.target.value))}/><br/>
+                <label>Spike Metalness: {spec.metalnessSpikes ?? 0.15}</label>
+                <input type="range" step={0.01} min={0} max={1} value={spec.metalnessSpikes ?? 0.15} onChange={e=>update('metalnessSpikes', Number(e.target.value))}/><br/>
 
-            <h3>Animation</h3>
-            <label>Spin: {spec.spin}</label>
-            <input type="range" step={0.01} min={0} max={1} value={spec.spin ?? 0.22} onChange={e=>update('spin', Number(e.target.value))}/><br/>
-            <label>Roll: {spec.roll ?? 0}</label>
-            <input type="range" step={0.01} min={0} max={1} value={spec.roll ?? 0} onChange={e=>update('roll', Number(e.target.value))}/><br/>
-            <label>Breathe: {spec.breathe}</label>
-            <input type="range" step={0.001} min={0} max={0.03} value={spec.breathe ?? 0.014} onChange={e=>update('breathe', Number(e.target.value))}/><br/>
+                <h3>Animation</h3>
+                <label>Spin: {spec.spin}</label>
+                <input type="range" step={0.01} min={0} max={1} value={spec.spin ?? 0.22} onChange={e=>update('spin', Number(e.target.value))}/><br/>
+                <label>Roll: {spec.roll ?? 0}</label>
+                <input type="range" step={0.01} min={0} max={1} value={spec.roll ?? 0} onChange={e=>update('roll', Number(e.target.value))}/><br/>
+                <label>Breathe: {spec.breathe}</label>
+                <input type="range" step={0.001} min={0} max={0.03} value={spec.breathe ?? 0.014} onChange={e=>update('breathe', Number(e.target.value))}/><br/>
 
-            {/* Add an Attack Animation Section */}
-            <h3>Attack Animation</h3>
-            <label>Attack Speed: {spec.attackSpeed ?? 1.0}</label>
-            <input type="range" step={0.1} min={0} max={5} value={spec.attackSpeed ?? 1.0} onChange={e=>update('attackSpeed', Number(e.target.value))}/><br/>
-            <label>Attack Range: {spec.attackRange ?? 1.0}</label>
-            <input type="range" step={0.1} min={0} max={5} value={spec.attackRange ?? 1.0} onChange={e=>update('attackRange', Number(e.target.value))}/><br/>
+                {/* Add an Attack Animation Section */}
+                <h3>Attack Animation</h3>
+                <label>Attack Speed: {spec.attackSpeed ?? 1.0}</label>
+                <input type="range" step={0.1} min={0} max={5} value={spec.attackSpeed ?? 1.0} onChange={e=>update('attackSpeed', Number(e.target.value))}/><br/>
+                <label>Attack Range: {spec.attackRange ?? 1.0}</label>
+                <input type="range" step={0.1} min={0} max={5} value={spec.attackRange ?? 1.0} onChange={e=>update('attackRange', Number(e.target.value))}/><br/>
 
-            <h3>Hitbox</h3>
-            <label>
-              <input type="checkbox" checked={spec.hitboxEnabled ?? false} onChange={e=>update('hitboxEnabled', e.target.checked)} /> Enabled
-            </label><br/>
-            <label>
-              <input type="checkbox" checked={spec.hitboxVisible ?? false} onChange={e=>update('hitboxVisible', e.target.checked)} /> Show Hitbox
-            </label><br/>
-            <label>Motion</label>
-            <select value={spec.hitboxMode ?? 'sin'} onChange={e=>update('hitboxMode', e.target.value as any)}>
-              <option value="sin">Sin</option>
-              <option value="step">Step</option>
-              <option value="noise">Noise</option>
-            </select><br/>
-            <label>Scale Min: {spec.hitboxScaleMin ?? 1.0}</label>
-            <input type="range" step={0.01} min={0.5} max={2.0} value={spec.hitboxScaleMin ?? 1.0} onChange={e=>update('hitboxScaleMin', Number(e.target.value))}/><br/>
-            <label>Scale Max: {spec.hitboxScaleMax ?? 1.0}</label>
-            <input type="range" step={0.01} min={0.5} max={2.0} value={spec.hitboxScaleMax ?? 1.0} onChange={e=>update('hitboxScaleMax', Number(e.target.value))}/><br/>
-            <label>Speed: {spec.hitboxSpeed ?? 1.0}</label>
-            <input type="range" step={0.1} min={0} max={10} value={spec.hitboxSpeed ?? 1.0} onChange={e=>update('hitboxSpeed', Number(e.target.value))}/><br/>
+                <h3>Hitbox</h3>
+                <label>
+                  <input type="checkbox" checked={spec.hitboxEnabled ?? false} onChange={e=>update('hitboxEnabled', e.target.checked)} /> Enabled
+                </label><br/>
+                <label>
+                  <input type="checkbox" checked={spec.hitboxVisible ?? false} onChange={e=>update('hitboxVisible', e.target.checked)} /> Show Hitbox
+                </label><br/>
+                <label>Motion</label>
+                <select value={spec.hitboxMode ?? 'sin'} onChange={e=>update('hitboxMode', e.target.value as any)}>
+                  <option value="sin">Sin</option>
+                  <option value="step">Step</option>
+                  <option value="noise">Noise</option>
+                </select><br/>
+                <label>Scale Min: {spec.hitboxScaleMin ?? 1.0}</label>
+                <input type="range" step={0.01} min={0.5} max={2.0} value={spec.hitboxScaleMin ?? 1.0} onChange={e=>update('hitboxScaleMin', Number(e.target.value))}/><br/>
+                <label>Scale Max: {spec.hitboxScaleMax ?? 1.0}</label>
+                <input type="range" step={0.01} min={0.5} max={2.0} value={spec.hitboxScaleMax ?? 1.0} onChange={e=>update('hitboxScaleMax', Number(e.target.value))}/><br/>
+                <label>Speed: {spec.hitboxSpeed ?? 1.0}</label>
+                <input type="range" step={0.1} min={0} max={10} value={spec.hitboxSpeed ?? 1.0} onChange={e=>update('hitboxSpeed', Number(e.target.value))}/><br/>
 
-            <button onClick={exportJson} style={{marginTop:'12px'}}>Export JSON</button>
+                <button onClick={exportJson} style={{marginTop:'12px'}}>Export JSON</button>
+              </>
+            ) : mode === 'creature' && spec && 'body' in spec ? (
+              <>
+                <label>ID</label>
+                <input value={(spec as CreatureMeshSpec).id} onChange={e=>updateCreature('id', e.target.value)} style={{width:'100%'}}/>
+                <label>Seed</label>
+                <input type="number" value={(spec as CreatureMeshSpec).seed} onChange={e=>updateCreature('seed', Number(e.target.value))} style={{width:'100%'}}/>
+                <label>Model URL (optional)</label>
+                <input value={(spec as CreatureMeshSpec).modelUrl || ''} onChange={e=>updateCreature('modelUrl', e.target.value || undefined)} style={{width:'100%'}}/>
+                <h3>Body</h3>
+                <label>Length: {(spec as CreatureMeshSpec).body.length}</label>
+                <input type="range" step={0.1} min={0.5} max={3.0} value={(spec as CreatureMeshSpec).body.length} onChange={e=>updateCreature('body', { ...(spec as CreatureMeshSpec).body, length: Number(e.target.value) })}/><br/>
+                <label>Width: {(spec as CreatureMeshSpec).body.width}</label>
+                <input type="range" step={0.1} min={0.2} max={1.0} value={(spec as CreatureMeshSpec).body.width} onChange={e=>updateCreature('body', { ...(spec as CreatureMeshSpec).body, width: Number(e.target.value) })}/><br/>
+                <label>Height: {(spec as CreatureMeshSpec).body.height}</label>
+                <input type="range" step={0.1} min={0.2} max={1.0} value={(spec as CreatureMeshSpec).body.height} onChange={e=>updateCreature('body', { ...(spec as CreatureMeshSpec).body, height: Number(e.target.value) })}/><br/>
+                <label>Segments: {(spec as CreatureMeshSpec).body.segments}</label>
+                <input type="range" min={1} max={5} value={(spec as CreatureMeshSpec).body.segments} onChange={e=>updateCreature('body', { ...(spec as CreatureMeshSpec).body, segments: Number(e.target.value) })}/><br/>
+                <h3>Colors</h3>
+                <label>Body Color</label>
+                <input type="color" value={(spec as CreatureMeshSpec).colors.body} onChange={e=>updateCreature('colors', { ...(spec as CreatureMeshSpec).colors, body: e.target.value })}/><br/>
+                <label>Accent Color</label>
+                <input type="color" value={(spec as CreatureMeshSpec).colors.accent} onChange={e=>updateCreature('colors', { ...(spec as CreatureMeshSpec).colors, accent: e.target.value })}/><br/>
+                <h3>Animation</h3>
+                <label>Spin: {(spec as CreatureMeshSpec).animation.spin}</label>
+                <input type="range" step={0.01} min={0} max={0.1} value={(spec as CreatureMeshSpec).animation.spin} onChange={e=>updateCreature('animation', { ...(spec as CreatureMeshSpec).animation, spin: Number(e.target.value) })}/><br/>
+                <label>Breathe: {(spec as CreatureMeshSpec).animation.breathe}</label>
+                <input type="range" step={0.01} min={0} max={0.1} value={(spec as CreatureMeshSpec).animation.breathe} onChange={e=>updateCreature('animation', { ...(spec as CreatureMeshSpec).animation, breathe: Number(e.target.value) })}/><br/>
+                <button onClick={exportJson} style={{marginTop:'12px'}}>Export JSON</button>
+              </>
+            ) : null}
           </>
         )}
       </aside>
@@ -592,12 +754,12 @@ export default function AvatarTuner() {
                 case 'ClusterBoss': return <ClusterBoss {...commonProps} visualScale={1} />
                 case 'Minion': return <Minion {...commonProps} visualScale={1} />
                 case 'StarBoss': return <StarBoss spec={spec} position={pos} />
-                default: return <PathogenFromSpec spec={spec} />
+                default: return mode === 'creature' && 'body' in spec ? <CreatureFromSpec spec={spec as CreatureMeshSpec} /> : <PathogenFromSpec spec={spec as AvatarSpec} />
               }
             })()
           ) : (
             <group position={[0,0.15,0]}>
-              <PathogenFromSpec spec={spec}/>
+              {mode === 'creature' && 'body' in spec ? <CreatureFromSpec spec={spec as CreatureMeshSpec} /> : <PathogenFromSpec spec={spec as AvatarSpec}/>}
             </group>
           )
         )}

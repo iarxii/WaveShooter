@@ -47,6 +47,7 @@ import {
 } from "./utils/accessibility";
 import { inputActions } from "./utils/inputActions";
 import TouchActionButtons from "./components/TouchActionButtons.jsx";
+import GameDebugUI from "./components/debug/GameDebugUI.jsx";
 
 const LOGO = assetUrl("Healthcare_Heroes_3d_logo.png");
 
@@ -1828,6 +1829,7 @@ function Player({
   onDashStart,
   onDashEnd,
   invulnActive = false,
+  boundaryLimit,
 }) {
   const ref = useRef();
   const lastShot = useRef(0);
@@ -2870,6 +2872,96 @@ export default function App({ navVisible, setNavVisible } = {}) {
       return v === "1" || v === "true";
     }
   );
+  const [debugLaserFiringBorder, setDebugLaserFiringBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgLaserFiringBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugLaserCooldownBorder, setDebugLaserCooldownBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgLaserCooldownBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugLaserReadyBorder, setDebugLaserReadyBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgLaserReadyBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugBombChargingBorder, setDebugBombChargingBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgBombChargingBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugBombCooldownBorder, setDebugBombCooldownBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgBombCooldownBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugBombReadyBorder, setDebugBombReadyBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgBombReadyBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugDashChargingBorder, setDebugDashChargingBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgDashChargingBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugDashCooldownBorder, setDebugDashCooldownBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgDashCooldownBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugDashReadyBorder, setDebugDashReadyBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgDashReadyBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugHeavyChargingBorder, setDebugHeavyChargingBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgHeavyChargingBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugHeavyCooldownBorder, setDebugHeavyCooldownBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgHeavyCooldownBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugHeavyReadyBorder, setDebugHeavyReadyBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgHeavyReadyBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugSpecialChargingBorder, setDebugSpecialChargingBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgSpecialChargingBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugSpecialCooldownBorder, setDebugSpecialCooldownBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgSpecialCooldownBorder");
+      return v === "1" || v === "true";
+    }
+  );
+  const [debugSpecialReadyBorder, setDebugSpecialReadyBorder] = useState(
+    () => {
+      const v = localStorage.getItem("dbgSpecialReadyBorder");
+      return v === "1" || v === "true";
+    }
+  );
   // Persist camera shake and border effects debug values
   useEffect(() => {
     localStorage.setItem(
@@ -2901,6 +2993,96 @@ export default function App({ navVisible, setNavVisible } = {}) {
       debugLaserChargingBorder ? "1" : "0"
     );
   }, [debugLaserChargingBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgLaserFiringBorder",
+      debugLaserFiringBorder ? "1" : "0"
+    );
+  }, [debugLaserFiringBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgLaserCooldownBorder",
+      debugLaserCooldownBorder ? "1" : "0"
+    );
+  }, [debugLaserCooldownBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgLaserReadyBorder",
+      debugLaserReadyBorder ? "1" : "0"
+    );
+  }, [debugLaserReadyBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgBombChargingBorder",
+      debugBombChargingBorder ? "1" : "0"
+    );
+  }, [debugBombChargingBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgBombCooldownBorder",
+      debugBombCooldownBorder ? "1" : "0"
+    );
+  }, [debugBombCooldownBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgBombReadyBorder",
+      debugBombReadyBorder ? "1" : "0"
+    );
+  }, [debugBombReadyBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgDashChargingBorder",
+      debugDashChargingBorder ? "1" : "0"
+    );
+  }, [debugDashChargingBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgDashCooldownBorder",
+      debugDashCooldownBorder ? "1" : "0"
+    );
+  }, [debugDashCooldownBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgDashReadyBorder",
+      debugDashReadyBorder ? "1" : "0"
+    );
+  }, [debugDashReadyBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgHeavyChargingBorder",
+      debugHeavyChargingBorder ? "1" : "0"
+    );
+  }, [debugHeavyChargingBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgHeavyCooldownBorder",
+      debugHeavyCooldownBorder ? "1" : "0"
+    );
+  }, [debugHeavyCooldownBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgHeavyReadyBorder",
+      debugHeavyReadyBorder ? "1" : "0"
+    );
+  }, [debugHeavyReadyBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgSpecialChargingBorder",
+      debugSpecialChargingBorder ? "1" : "0"
+    );
+  }, [debugSpecialChargingBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgSpecialCooldownBorder",
+      debugSpecialCooldownBorder ? "1" : "0"
+    );
+  }, [debugSpecialCooldownBorder]);
+  useEffect(() => {
+    localStorage.setItem(
+      "dbgSpecialReadyBorder",
+      debugSpecialReadyBorder ? "1" : "0"
+    );
+  }, [debugSpecialReadyBorder]);
   const triggerCameraShake = useCallback(
     (intensity, duration) => {
       setCameraShake({
@@ -8204,6 +8386,29 @@ export default function App({ navVisible, setNavVisible } = {}) {
               overflowY: "auto",
             }}
           >
+            {/* Feeds & overlays */}
+            {/* Debug UI toggle */}
+            <div style={{ position: "fixed", top: 50, right: "12px", zIndex: 1001 }}>
+              <label
+                style={{
+                  background: "rgba(0,0,0,0.5)",
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  fontSize: 12,
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={showDebugUI}
+                  onChange={(e) => setShowDebugUI(e.target.checked)}
+                  style={{ marginRight: 6 }}
+                />{" "}
+                Show Debug UI
+              </label>
+            </div>
+
             {/* Player Statistics/Properties - draggable */}
             <div
               id="fixed-player-stats"
@@ -8448,1520 +8653,172 @@ export default function App({ navVisible, setNavVisible } = {}) {
             {/* -------------------------------- */}
 
             {/* Debug header and Accessibility controls (toggle) */}
-            {showDebugUI && (
-              <>
-                {/* game controls */}
-                <CollapsiblePanel
-                  id="advanced-controls"
-                  title="Game Controls"
-                  defaultOpen={false}
-                >
-                  <div className="small">
-                    Wave: <strong>{wave}</strong>
-                  </div>
-                  <div className="small">
-                    Score: <strong>{score}</strong>
-                  </div>
-                  <div className="small">
-                    Best: <strong>{bestScore}</strong> /{" "}
-                    <strong>{bestWave}</strong>
-                  </div>
-                  <div className="small">
-                    Lives: <strong>{lives}</strong>
-                  </div>
-                  <div className="small">
-                    Health: <strong>{health}</strong>
-                  </div>
-                  <div style={{ height: 8 }} />
-                  <button className="button" onClick={restartGame}>
-                    Restart
-                  </button>
-                  <div style={{ height: 6 }} />
-                  <button
-                    className="button"
-                    onClick={() => setAutoFire((a) => !a)}
-                  >
-                    Auto-Fire: {autoFire ? "On" : "Off"} (F)
-                  </button>
-                  <div style={{ height: 6 }} />
-                  <label style={{ display: "block", fontSize: 11 }}>
-                    <input
-                      type="checkbox"
-                      checked={showEnemyNames}
-                      onChange={(e) => setShowEnemyNames(e.target.checked)}
-                    />
-                    Show Enemy Names
-                  </label>
-                  <div style={{ height: 6 }} />
-                  <label style={{ display: "block", fontSize: 11 }}>
-                    <input
-                      type="checkbox"
-                      checked={showThumbnails}
-                      onChange={(e) => setShowThumbnails(e.target.checked)}
-                    />
-                    Show Enemy Thumbnails
-                  </label>
-
-                  {/* Accessibility: invert movement & aim axes */}
-                  <div
-                    style={{
-                      marginTop: 10,
-                      padding: "8px 10px",
-                      background: "rgba(0,0,0,0.35)",
-                      borderRadius: 6,
-                      border: "1px solid rgba(255,255,255,0.08)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#e5e7eb",
-                        marginBottom: 6,
-                      }}
-                    >
-                      Accessibility (Axes)
-                    </div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: 11,
-                        marginBottom: 4,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={!!acc?.invertMoveX}
-                        onChange={(e) =>
-                          updateAccessibility({
-                            invertMoveX: e.currentTarget.checked,
-                          })
-                        }
-                      />{" "}
-                      Invert Move X (Left/Right)
-                    </label>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: 11,
-                        marginBottom: 4,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={!!acc?.invertMoveY}
-                        onChange={(e) =>
-                          updateAccessibility({
-                            invertMoveY: e.currentTarget.checked,
-                          })
-                        }
-                      />{" "}
-                      Invert Move Y (Forward/Back)
-                    </label>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: 11,
-                        marginBottom: 4,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={!!acc?.invertAimX}
-                        onChange={(e) =>
-                          updateAccessibility({
-                            invertAimX: e.currentTarget.checked,
-                          })
-                        }
-                      />{" "}
-                      Invert Aim X
-                    </label>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: 11,
-                        marginBottom: 6,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={!!acc?.invertAimY}
-                        onChange={(e) =>
-                          updateAccessibility({
-                            invertAimY: e.currentTarget.checked,
-                          })
-                        }
-                      />{" "}
-                      Invert Aim Y
-                    </label>
-                    {/* Live axis preview */}
-                    <AxisPreview moveRef={dpadVecRef} aimRef={aimInputRef} />
-                    <AccessibilityDebugOverlay />
-                    <div style={{ marginTop: 8 }}>
-                      <label style={{ display: "block", fontSize: 11 }}>
-                        <input
-                          type="checkbox"
-                          checked={showGizmo}
-                          onChange={(e) =>
-                            setShowGizmo(e.currentTarget.checked)
-                          }
-                        />{" "}
-                        Show 3D Gizmo (axes + arrows)
-                      </label>
-                      <label
-                        style={{ display: "block", fontSize: 11, marginTop: 6 }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={!!acc?.flipControllerY}
-                          onChange={(e) =>
-                            updateAccessibility({
-                              flipControllerY: e.currentTarget.checked,
-                            })
-                          }
-                        />{" "}
-                        Flip Controller Y axes (invert forward/back for both
-                        sticks)
-                      </label>
-                    </div>
-                  </div>
-
-                  <div style={{ height: 10 }} />
-                </CollapsiblePanel>
-
-                {/* Player properties */}
-                <CollapsiblePanel
-                  id="player-props"
-                  title="Player"
-                  defaultOpen={true}
-                >
-                  <div className="small" style={{ marginBottom: 6 }}>
-                    Hero: <strong>{selectedHero}</strong>
-                  </div>
-                  {/* Health */}
-                  <div
-                    style={{
-                      background: "rgba(0,0,0,0.55)",
-                      padding: "8px 10px",
-                      borderRadius: 8,
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#e5e7eb",
-                        marginBottom: 4,
-                      }}
-                    >
-                      Health
-                    </div>
-                    <div
-                      style={{
-                        height: 10,
-                        background: "rgba(255,255,255,0.08)",
-                        borderRadius: 6,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${(healthRatio * 100).toFixed(1)}%`,
-                          height: "100%",
-                          background: "linear-gradient(90deg,#22c55e,#16a34a)",
-                          boxShadow: "0 0 8px rgba(34,197,94,0.5) inset",
-                        }}
-                      />
-                    </div>
-                    <div
-                      style={{ fontSize: 11, color: "#cbd5e1", marginTop: 4 }}
-                    >
-                      {Math.max(0, Math.floor(health))} / {HEALTH_MAX}
-                    </div>
-                  </div>
-                  {/* Armor */}
-                  <div
-                    style={{
-                      background: "rgba(0,0,0,0.55)",
-                      padding: "8px 10px",
-                      borderRadius: 8,
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#e5e7eb",
-                        marginBottom: 4,
-                      }}
-                    >
-                      Armor
-                    </div>
-                    <div
-                      style={{
-                        height: 10,
-                        background: "rgba(255,255,255,0.08)",
-                        borderRadius: 6,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${(armorRatio * 100).toFixed(1)}%`,
-                          height: "100%",
-                          background: "linear-gradient(90deg,#60a5fa,#3b82f6)",
-                          boxShadow: "0 0 8px rgba(96,165,250,0.45) inset",
-                        }}
-                      />
-                    </div>
-                    <div
-                      style={{ fontSize: 11, color: "#cbd5e1", marginTop: 4 }}
-                    >
-                      {Math.max(0, Math.floor(armor))} / {ARMOR_MAX}
-                    </div>
-                  </div>
-                  {/* Lives */}
-                  <div className="small" style={{ marginBottom: 8 }}>
-                    Lives: <strong>{lives}</strong>
-                  </div>
-                  {/* Dash */}
-                  <div
-                    style={{
-                      background: "rgba(0,0,0,0.55)",
-                      padding: "8px 10px",
-                      borderRadius: 8,
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: 4,
-                      }}
-                    >
-                      <div style={{ fontSize: 12, color: "#e5e7eb" }}>Dash</div>
-                      <div style={{ fontSize: 11, color: "#cbd5e1" }}>
-                        {Math.round(dashRatio * 100)}%
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        height: 8,
-                        background: "rgba(255,255,255,0.08)",
-                        borderRadius: 6,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${(dashRatio * 100).toFixed(1)}%`,
-                          height: "100%",
-                          background: "linear-gradient(90deg,#f59e0b,#f97316)",
-                          boxShadow: "0 0 8px rgba(245,158,11,0.45) inset",
-                        }}
-                      />
-                    </div>
-                  </div>
-                  {/* Ability */}
-                  <div
-                    style={{
-                      background: "rgba(0,0,0,0.55)",
-                      padding: "8px 10px",
-                      borderRadius: 8,
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <div style={{ fontSize: 12, color: "#e5e7eb" }}>
-                        Ability
-                      </div>
-                      <div style={{ fontSize: 11, color: "#cbd5e1" }}>
-                        CD: {abilityCooldown}s
-                      </div>
-                    </div>
-                    <div
-                      style={{ fontSize: 13, color: "#f1f5f9", marginTop: 2 }}
-                    >
-                      {abilityName}
-                    </div>
-                  </div>
-                  <div
-                    className="abilities-panel small"
-                    style={{ marginBottom: 8 }}
-                  >
-                    <div className="ability">
-                      <div className="label">
-                        Dash <span className="hint">[3]</span>
-                      </div>
-                      <div className="cooldown">
-                        {(() => {
-                          const pct = dashCount > 0 ? (dashCount / 3) * 100 : 0;
-                          return (
-                            <>
-                              <div
-                                className="fill"
-                                style={{ width: `${Math.round(pct)}%` }}
-                              />
-                              <div className="cd-text">
-                                {dashCount > 0
-                                  ? `${dashCount}/3`
-                                  : dashCooldownMs > 0
-                                  ? `${(dashCooldownMs / 1000).toFixed(1)}s`
-                                  : "Ready"}
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-                </CollapsiblePanel>
-
-                {/* accessibility controls */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                  }}
-                >
-                  <div style={{ fontWeight: 600 }}>Debug Panel</div>
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 10 }}
-                  >
-                    <label
-                      style={{
-                        fontSize: 12,
-                        opacity: 0.9,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={showAccessibilityControls}
-                        onChange={(e) =>
-                          setShowAccessibilityControls(e.target.checked)
-                        }
-                      />
-                      Show Accessibility
-                    </label>
-                    <button
-                      className="button"
-                      onClick={() => setShowDebugUI(false)}
-                      style={{ padding: "4px 8px" }}
-                    >
-                      Hide Panel
-                    </button>
-                  </div>
-                </div>
-
-                {showAccessibilityControls && (
-                  <CollapsiblePanel
-                    id="accessibility"
-                    title="Accessibility Controls"
-                    defaultOpen={true}
-                  >
-                    <div
-                      className="small"
-                      style={{
-                        display: "grid",
-                        gap: 8,
-                        height: "50vh",
-                        overflowY: "auto",
-                      }}
-                    >
-                      {/* Renderer modes */}
-                      <div>
-                        {/* enemy attributes */}
-                        <div
-                          style={{
-                            background: "rgba(0,0,0,0.55)",
-                            padding: "8px 10px",
-                            borderRadius: 8,
-                            border: "1px solid rgba(255,255,255,0.08)",
-                          }}
-                        >
-                          {/* Enemy renderer mode */}
-                          <label
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                            }}
-                          >
-                            <span>Enemy Visuals</span>
-                            <select
-                              value={enemyRenderMode}
-                              onChange={(e) =>
-                                setEnemyRenderMode(e.target.value)
-                              }
-                              style={{
-                                marginLeft: "auto",
-                                background: "#111",
-                                color: "#fff",
-                                border: "1px solid rgba(255,255,255,0.1)",
-                                borderRadius: 6,
-                                padding: 2,
-                              }}
-                            >
-                              <option value="factory">Factory (default)</option>
-                              <option value="simple">Simple Shapes</option>
-                            </select>
-                          </label>
-                          {/* Tentacle Animation Controls */}
-                          <div
-                            style={{
-                              background: "rgba(0,0,0,0.55)",
-                              padding: "8px 10px",
-                              borderRadius: 8,
-                              border: "1px solid rgba(255,255,255,0.08)",
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontSize: 12,
-                                color: "#e5e7eb",
-                                marginBottom: 6,
-                              }}
-                            >
-                              Tentacle Animation
-                            </div>
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: 6,
-                                flexWrap: "wrap",
-                                marginBottom: 6,
-                              }}
-                            >
-                              <button
-                                className="button"
-                                style={{ padding: "4px 6px" }}
-                                onClick={() => {
-                                  setTentacleStrength(0.6);
-                                  setTentacleSpeed(0.8);
-                                  setTentacleAmpX(0.6);
-                                  setTentacleAmpZ(0.6);
-                                  setTentacleYWobble(0.02);
-                                  setTentacleBendPow(2.2);
-                                }}
-                              >
-                                Calm
-                              </button>
-                              <button
-                                className="button"
-                                style={{ padding: "4px 6px" }}
-                                onClick={() => {
-                                  setTentacleStrength(1.0);
-                                  setTentacleSpeed(1.2);
-                                  setTentacleAmpX(1.0);
-                                  setTentacleAmpZ(1.0);
-                                  setTentacleYWobble(0.06);
-                                  setTentacleBendPow(2.0);
-                                }}
-                              >
-                                Pulsing
-                              </button>
-                              <button
-                                className="button"
-                                style={{ padding: "4px 6px" }}
-                                onClick={() => {
-                                  setTentacleStrength(1.6);
-                                  setTentacleSpeed(2.0);
-                                  setTentacleAmpX(1.3);
-                                  setTentacleAmpZ(1.3);
-                                  setTentacleYWobble(0.12);
-                                  setTentacleBendPow(1.6);
-                                }}
-                              >
-                                Chaotic
-                              </button>
-                              <button
-                                className="button"
-                                style={{ padding: "4px 6px" }}
-                                onClick={() => {
-                                  setTentacleStrength(1.0);
-                                  setTentacleSpeed(1.2);
-                                  setTentacleAmpX(1.0);
-                                  setTentacleAmpZ(1.0);
-                                  setTentacleYWobble(0.05);
-                                  setTentacleBendPow(2.0);
-                                }}
-                              >
-                                Reset
-                              </button>
-                            </div>
-                            <label
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                fontSize: 11,
-                              }}
-                            >
-                              <span style={{ flex: 1 }}>Strength</span>
-                              <input
-                                type="range"
-                                min={0}
-                                max={2.0}
-                                step={0.01}
-                                value={tentacleStrength}
-                                onChange={(e) =>
-                                  setTentacleStrength(
-                                    parseFloat(e.target.value)
-                                  )
-                                }
-                                style={{ flex: 3 }}
-                                aria-label="Tentacle Strength"
-                              />
-                              <span style={{ width: 48, textAlign: "right" }}>
-                                {tentacleStrength.toFixed(2)}
-                              </span>
-                            </label>
-                            <label
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                fontSize: 11,
-                                marginTop: 6,
-                              }}
-                            >
-                              <span style={{ flex: 1 }}>Speed</span>
-                              <input
-                                type="range"
-                                min={0.2}
-                                max={3.0}
-                                step={0.01}
-                                value={tentacleSpeed}
-                                onChange={(e) =>
-                                  setTentacleSpeed(parseFloat(e.target.value))
-                                }
-                                style={{ flex: 3 }}
-                                aria-label="Tentacle Speed"
-                              />
-                              <span style={{ width: 48, textAlign: "right" }}>
-                                {tentacleSpeed.toFixed(2)}x
-                              </span>
-                            </label>
-                            <label
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                fontSize: 11,
-                                marginTop: 6,
-                              }}
-                            >
-                              <span style={{ flex: 1 }}>Tip Emphasis</span>
-                              <input
-                                type="range"
-                                min={1.0}
-                                max={3.0}
-                                step={0.05}
-                                value={tentacleBendPow}
-                                onChange={(e) =>
-                                  setTentacleBendPow(parseFloat(e.target.value))
-                                }
-                                style={{ flex: 3 }}
-                                aria-label="Tentacle Bend Exponent"
-                              />
-                              <span style={{ width: 48, textAlign: "right" }}>
-                                {tentacleBendPow.toFixed(2)}
-                              </span>
-                            </label>
-                            <label
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                fontSize: 11,
-                                marginTop: 6,
-                              }}
-                            >
-                              <span style={{ flex: 1 }}>Axis X</span>
-                              <input
-                                type="range"
-                                min={0}
-                                max={2.0}
-                                step={0.01}
-                                value={tentacleAmpX}
-                                onChange={(e) =>
-                                  setTentacleAmpX(parseFloat(e.target.value))
-                                }
-                                style={{ flex: 3 }}
-                                aria-label="Tentacle X Amplitude"
-                              />
-                              <span style={{ width: 48, textAlign: "right" }}>
-                                {tentacleAmpX.toFixed(2)}
-                              </span>
-                            </label>
-                            <label
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                fontSize: 11,
-                                marginTop: 6,
-                              }}
-                            >
-                              <span style={{ flex: 1 }}>Axis Z</span>
-                              <input
-                                type="range"
-                                min={0}
-                                max={2.0}
-                                step={0.01}
-                                value={tentacleAmpZ}
-                                onChange={(e) =>
-                                  setTentacleAmpZ(parseFloat(e.target.value))
-                                }
-                                style={{ flex: 3 }}
-                                aria-label="Tentacle Z Amplitude"
-                              />
-                              <span style={{ width: 48, textAlign: "right" }}>
-                                {tentacleAmpZ.toFixed(2)}
-                              </span>
-                            </label>
-                            <label
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                fontSize: 11,
-                                marginTop: 6,
-                              }}
-                            >
-                              <span style={{ flex: 1 }}>Vertical Wobble</span>
-                              <input
-                                type="range"
-                                min={0.0}
-                                max={0.25}
-                                step={0.005}
-                                value={tentacleYWobble}
-                                onChange={(e) =>
-                                  setTentacleYWobble(parseFloat(e.target.value))
-                                }
-                                style={{ flex: 3 }}
-                                aria-label="Tentacle Vertical Wobble"
-                              />
-                              <span style={{ width: 48, textAlign: "right" }}>
-                                {tentacleYWobble.toFixed(3)}
-                              </span>
-                            </label>
-                            <div
-                              style={{
-                                fontSize: 10,
-                                opacity: 0.75,
-                                marginTop: 6,
-                              }}
-                            >
-                              Affects spikeStyle "tentacle" only. Strength
-                              multiplies overall bend; Tip Emphasis pushes
-                              motion towards the tip; Axis X/Z shape sideways
-                              sway; Vertical Wobble adds gentle lengthwise
-                              flutter.
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* hero attributes */}
-                        <div
-                          style={{
-                            background: "rgba(0,0,0,0.55)",
-                            padding: "8px 10px",
-                            borderRadius: 8,
-                            border: "1px solid rgba(255,255,255,0.08)",
-                          }}
-                        >
-                          {/* Hero renderer mode */}
-                          <label
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                            }}
-                          >
-                            <span>Hero Visuals</span>
-                            <select
-                              value={heroRenderMode}
-                              onChange={(e) =>
-                                setHeroRenderMode(e.target.value)
-                              }
-                              style={{
-                                marginLeft: "auto",
-                                background: "#111",
-                                color: "#fff",
-                                border: "1px solid rgba(255,255,255,0.1)",
-                                borderRadius: 6,
-                                padding: 2,
-                              }}
-                            >
-                              <option value="factory">Factory</option>
-                              <option value="model">Model (default)</option>
-                            </select>
-                          </label>
-                          {/* Hero quality */}
-                          <label
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                            }}
-                          >
-                            <span>Hero Quality</span>
-                            <select
-                              value={heroQuality}
-                              onChange={(e) => setHeroQuality(e.target.value)}
-                              style={{
-                                marginLeft: "auto",
-                                background: "#111",
-                                color: "#fff",
-                                border: "1px solid rgba(255,255,255,0.1)",
-                                borderRadius: 6,
-                                padding: 2,
-                              }}
-                            >
-                              <option value="low">Low</option>
-                              <option value="med">Medium</option>
-                              <option value="high">High</option>
-                            </select>
-                          </label>
-                        </div>
-                        {/* add FX Orb controls here */}
-                        {/* FX Orb Accessibility / Debug Controls */}
-                        <div
-                          style={{
-                            background: "rgba(0,0,0,0.55)",
-                            padding: "8px 10px",
-                            borderRadius: 8,
-                            border: "1px solid rgba(255,255,255,0.08)",
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "#e5e7eb",
-                              marginBottom: 6,
-                            }}
-                          >
-                            FX Orbs
-                          </div>
-                          <label
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              fontSize: 11,
-                            }}
-                          >
-                            <span style={{ flex: 1 }}>Count</span>
-                            <input
-                              type="range"
-                              min={0}
-                              max={40}
-                              step={1}
-                              value={debugFxOrbCount}
-                              onChange={(e) =>
-                                setDebugFxOrbCount(parseInt(e.target.value, 10))
-                              }
-                              style={{ flex: 3 }}
-                              aria-label="FX Orb Count"
-                            />
-                            <span style={{ width: 36, textAlign: "right" }}>
-                              {debugFxOrbCount}
-                            </span>
-                          </label>
-                          <label
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              fontSize: 11,
-                              marginTop: 6,
-                            }}
-                          >
-                            <span style={{ flex: 1 }}>Ring Radius</span>
-                            <input
-                              type="range"
-                              min={0.4}
-                              max={3.0}
-                              step={0.05}
-                              value={debugFxOrbRadius}
-                              onChange={(e) =>
-                                setDebugFxOrbRadius(parseFloat(e.target.value))
-                              }
-                              style={{ flex: 3 }}
-                              aria-label="FX Orb Ring Radius"
-                            />
-                            <span style={{ width: 48, textAlign: "right" }}>
-                              {debugFxOrbRadius.toFixed(2)}
-                            </span>
-                          </label>
-                          <label
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              fontSize: 11,
-                              marginTop: 6,
-                            }}
-                          >
-                            <span style={{ flex: 1 }}>Size</span>
-                            <input
-                              type="range"
-                              min={0.5}
-                              max={3.0}
-                              step={0.05}
-                              value={debugFxOrbSizeMul}
-                              onChange={(e) =>
-                                setDebugFxOrbSizeMul(parseFloat(e.target.value))
-                              }
-                              style={{ flex: 3 }}
-                              aria-label="FX Orb Size Multiplier"
-                            />
-                            <span style={{ width: 48, textAlign: "right" }}>
-                              {debugFxOrbSizeMul.toFixed(2)}x
-                            </span>
-                          </label>
-                          <label
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              fontSize: 11,
-                              marginTop: 6,
-                            }}
-                          >
-                            <span style={{ flex: 1 }}>Follow Smooth</span>
-                            <input
-                              type="range"
-                              min={0}
-                              max={0.95}
-                              step={0.01}
-                              value={debugFxOrbLerp}
-                              onChange={(e) =>
-                                setDebugFxOrbLerp(parseFloat(e.target.value))
-                              }
-                              style={{ flex: 3 }}
-                              aria-label="FX Orb Follow Lerp"
-                            />
-                            <span style={{ width: 48, textAlign: "right" }}>
-                              {(debugFxOrbLerp * 100).toFixed(0)}%
-                            </span>
-                          </label>
-                          <div
-                            style={{
-                              fontSize: 10,
-                              opacity: 0.75,
-                              marginTop: 6,
-                            }}
-                          >
-                            Lower radius pulls ring closer. Increase size for
-                            accessibility. Follow Smooth (%) controls lerp
-                            aggressiveness (0 = snap, 95% = very damped).
-                          </div>
-                        </div>
-                      </div>
-
-                      <hr />
-
-                      {/* High contrast aiming */}
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={highContrast}
-                          onChange={(e) => setHighContrast(e.target.checked)}
-                        />{" "}
-                        High Contrast Aiming
-                      </label>
-
-                      {/* Performance controls: Show FPS and Drei Overlay */}
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={showStats}
-                          onChange={(e) => setShowStats(e.target.checked)}
-                        />{" "}
-                        Show FPS Overlay
-                      </label>
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={showDreiStats}
-                          onChange={(e) => setShowDreiStats(e.target.checked)}
-                        />{" "}
-                        Drei Stats (dev)
-                      </label>
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={performanceMode}
-                          onChange={(e) => setPerformanceMode(e.target.checked)}
-                        />{" "}
-                        Performance Mode
-                      </label>
-                      {/* add an option to disable enemy spawns */}
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={disableEnemySpawns}
-                          onChange={(e) =>
-                            setDisableEnemySpawns(e.target.checked)
-                          }
-                        />{" "}
-                        Disable Enemy Spawns
-                      </label>
-                      {/* add an option to spawn only hazards for testing here */}
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={spawnOnlyHazards}
-                          onChange={(e) =>
-                            setSpawnOnlyHazards(e.target.checked)
-                          }
-                        />{" "}
-                        Spawn Only Hazards (debug)
-                      </label>
-
-                      <hr />
-                      <div style={{ height: 10 }} />
-                      <div className="small">
-                        <strong>Controls (Accessibility)</strong>
-                      </div>
-                      <div className="small" style={{ marginTop: 4 }}>
-                        Control Scheme:
-                      </div>
-                      <select
-                        value={controlScheme}
-                        onChange={(e) => setControlScheme(e.target.value)}
-                        style={{
-                          width: "100%",
-                          padding: "4px",
-                          borderRadius: 6,
-                          background: "#111",
-                          color: "#fff",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                        }}
-                      >
-                        <option value="wasd">WASD Control</option>
-                        <option value="dpad">D-Buttons Control</option>
-                        <option value="touch">Touch (Analogue)</option>
-                        <option value="gamepad">Gamepad</option>
-                      </select>
-                      <div style={{ height: 6 }} />
-                      {/* Shape runner repurposed into a pickup-driven invulnerability effect (no manual toggle) */}
-                      <div style={{ height: 6 }} />
-                      <label
-                        className="small"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={highContrast}
-                          onChange={(e) => setHighContrast(e.target.checked)}
-                        />
-                        High-contrast aim & crosshair
-                      </label>
-                      <div style={{ height: 6 }} />
-                      <label
-                        className="small"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={performanceMode}
-                          onChange={(e) => setPerformanceMode(e.target.checked)}
-                        />
-                        Performance Mode (lower caps)
-                      </label>
-                      <label
-                        className="small"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          marginTop: 4,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={invulnTest}
-                          onChange={(e) => setInvulnTest(e.target.checked)}
-                        />
-                        Invulnerability (Test)
-                      </label>
-                      <div className="tiny" style={{ opacity: 0.8 }}>
-                        Active cap: {getActiveMax(wave || 1, performanceMode)} •
-                        Boss cap: {getBossMax(wave || 1, performanceMode)}
-                      </div>
-                      <div style={{ height: 6 }} />
-                      <div className="small" style={{ marginTop: 4 }}>
-                        Pickup Scale:{" "}
-                        <strong>{pickupScaleGlobal.toFixed(1)}x</strong>
-                      </div>
-                      <input
-                        type="range"
-                        min={0.5}
-                        max={4.0}
-                        step={0.1}
-                        value={pickupScaleGlobal}
-                        onChange={(e) =>
-                          setPickupScaleGlobal(parseFloat(e.target.value))
-                        }
-                        style={{ width: "100%" }}
-                        aria-label="Pickup scale multiplier"
-                      />
-                      <div style={{ height: 10 }} />
-                      <div className="small" style={{ marginTop: 4 }}>
-                        Asset Scale: <strong>{assetScale.toFixed(2)}x</strong>
-                      </div>
-                      <input
-                        type="range"
-                        min={0.5}
-                        max={2.0}
-                        step={0.05}
-                        value={assetScale}
-                        onChange={(e) =>
-                          setAssetScale(parseFloat(e.target.value))
-                        }
-                        style={{ width: "100%" }}
-                        aria-label="Global asset visual scale"
-                      />
-                      <div style={{ height: 6 }} />
-                      <div className="tiny" style={{ opacity: 0.8 }}>
-                        Scales hero, minions, roster enemies & pickups visually
-                        only.
-                      </div>
-                      <div style={{ height: 14 }} />
-                      <div className="small" style={{ marginTop: 4 }}>
-                        Top-Down Zoom (Camera):{" "}
-                        <strong>{topDownZoom.toFixed(2)}x</strong>
-                      </div>
-                      <input
-                        type="range"
-                        min={0.6}
-                        max={1.4}
-                        step={0.02}
-                        value={topDownZoom}
-                        onChange={(e) =>
-                          setTopDownZoom(parseFloat(e.target.value))
-                        }
-                        style={{ width: "100%" }}
-                        aria-label="Top-down camera zoom (lower = closer)"
-                      />
-                      <div style={{ height: 6 }} />
-                      <div className="small" style={{ marginTop: 4 }}>
-                        Static Cam Margin:{" "}
-                        <strong>{staticCamMargin.toFixed(2)}</strong>
-                      </div>
-                      <input
-                        type="range"
-                        min={0.9}
-                        max={1.2}
-                        step={0.01}
-                        value={staticCamMargin}
-                        onChange={(e) =>
-                          setStaticCamMargin(parseFloat(e.target.value))
-                        }
-                        style={{ width: "100%" }}
-                        aria-label="Static camera fit margin"
-                      />
-                      <div style={{ height: 6 }} />
-                      <div className="tiny" style={{ opacity: 0.8 }}>
-                        Lower margin brings static cam closer; may clip extreme
-                        arena growth.
-                      </div>
-                      <div style={{ height: 12 }} />
-                      <button
-                        className="button"
-                        onClick={() => {
-                          setAssetScale(1);
-                          setTopDownZoom(0.85);
-                          setStaticCamMargin(0.95);
-                        }}
-                      >
-                        Reset Camera/View Settings
-                      </button>
-                      <div style={{ height: 10 }} />
-                      <div className="small">
-                        <strong>Arena</strong>
-                      </div>
-                      <label
-                        className="small"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={arenaGrowEnabled}
-                          onChange={(e) =>
-                            setArenaGrowEnabled(e.target.checked)
-                          }
-                        />
-                        Enable arena growth over time
-                      </label>
-                      <div className="tiny" style={{ opacity: 0.8 }}>
-                        Current size: ±
-                        {Number(boundaryLimit ?? BOUNDARY_LIMIT).toFixed(1)} •
-                        Max cap: ±
-                        {Math.min(maxArenaLimit, Math.floor(GROUND_HALF * 0.9))}
-                      </div>
-                      <div className="small" style={{ marginTop: 6 }}>
-                        Growth mode
-                      </div>
-                      <select
-                        value={arenaGrowthMode}
-                        onChange={(e) => setArenaGrowthMode(e.target.value)}
-                        style={{
-                          width: "100%",
-                          padding: "4px",
-                          borderRadius: 6,
-                          background: "#111",
-                          color: "#fff",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                        }}
-                        disabled={!arenaGrowEnabled}
-                      >
-                        <option value="milestone">Every 10 levels</option>
-                        <option value="time">Over time (per second)</option>
-                      </select>
-                      {arenaGrowthMode === "time" ? (
-                        <>
-                          <div className="small" style={{ marginTop: 4 }}>
-                            Growth rate:{" "}
-                            <strong>+{arenaGrowthRate.toFixed(2)}/s</strong>
-                          </div>
-                          <input
-                            type="range"
-                            min={0}
-                            max={0.2}
-                            step={0.01}
-                            value={arenaGrowthRate}
-                            onChange={(e) =>
-                              setArenaGrowthRate(parseFloat(e.target.value))
-                            }
-                            style={{ width: "100%" }}
-                            aria-label="Arena growth rate per second"
-                            disabled={!arenaGrowEnabled}
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <div className="small" style={{ marginTop: 4 }}>
-                            Growth per 10 levels:{" "}
-                            <strong>
-                              +{arenaGrowthPerMilestone.toFixed(1)}
-                            </strong>
-                          </div>
-                          <input
-                            type="range"
-                            min={0}
-                            max={20}
-                            step={0.5}
-                            value={arenaGrowthPerMilestone}
-                            onChange={(e) =>
-                              setArenaGrowthPerMilestone(
-                                parseFloat(e.target.value)
-                              )
-                            }
-                            style={{ width: "100%" }}
-                            aria-label="Arena growth per 10 levels"
-                            disabled={!arenaGrowEnabled}
-                          />
-                        </>
-                      )}
-                      <div className="small" style={{ marginTop: 4 }}>
-                        Max arena size (±limit)
-                      </div>
-                      <input
-                        type="range"
-                        min={30}
-                        max={Math.floor(GROUND_HALF * 0.9)}
-                        step={1}
-                        value={maxArenaLimit}
-                        onChange={(e) =>
-                          setMaxArenaLimit(parseFloat(e.target.value))
-                        }
-                        style={{ width: "100%" }}
-                        aria-label="Max arena half-size limit"
-                      />
-                      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                        <button
-                          className="button"
-                          onClick={() => setBoundaryLimit(BOUNDARY_LIMIT)}
-                        >
-                          Reset Size
-                        </button>
-                        <button
-                          className="button"
-                          onClick={() =>
-                            setBoundaryLimit(
-                              Math.min(
-                                maxArenaLimit,
-                                Math.floor(GROUND_HALF * 0.9)
-                              )
-                            )
-                          }
-                        >
-                          Snap to Max
-                        </button>
-                      </div>
-                      <div style={{ height: 6 }} />
-                      <div className="small">
-                        <strong>Camera & Speed</strong>
-                      </div>
-                      <label
-                        className="small"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={showStats}
-                          onChange={(e) => setShowStats(e.target.checked)}
-                        />
-                        Performance stats (FPS)
-                      </label>
-                      <label
-                        className="small"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={showDreiStats}
-                          onChange={(e) => setShowDreiStats(e.target.checked)}
-                        />
-                        Dev resource overlay (drei Stats)
-                      </label>
-                      {showStats && (
-                        <div className="tiny" style={{ opacity: 0.8 }}>
-                          FPS: {fps.toFixed(1)}
-                        </div>
-                      )}
-                      <div className="small">
-                        Camera Mode: <strong>{cameraMode.toUpperCase()}</strong>
-                      </div>
-                      <div className="small" style={{ marginTop: 4 }}>
-                        Top-down speed multiplier:{" "}
-                        <strong>{topDownSpeedMul.toFixed(2)}x</strong>
-                      </div>
-                      <input
-                        type="range"
-                        min={0.5}
-                        max={3.0}
-                        step={0.1}
-                        value={topDownSpeedMul}
-                        onChange={(e) =>
-                          setTopDownSpeedMul(parseFloat(e.target.value))
-                        }
-                        style={{ width: "100%" }}
-                        aria-label="Top-down camera speed multiplier"
-                      />
-                      <div className="tiny" style={{ opacity: 0.8 }}>
-                        Applies when camera is in Top-Down (8). Enemies and
-                        player move faster.
-                      </div>
-                      <div style={{ height: 6 }} />
-                      <div className="small" style={{ marginTop: 8 }}>
-                        Spawn pressure:{" "}
-                        <strong>{(spawnPressureMul * 100).toFixed(0)}%</strong>
-                      </div>
-                      <input
-                        type="range"
-                        min={0.5}
-                        max={1.2}
-                        step={0.01}
-                        value={spawnPressureMul}
-                        onChange={(e) =>
-                          setSpawnPressureMul(parseFloat(e.target.value))
-                        }
-                        style={{ width: "100%" }}
-                        aria-label="Spawn pressure multiplier"
-                      />
-                      <div className="tiny" style={{ opacity: 0.8 }}>
-                        Lower values spawn fewer basic enemies per wave while
-                        keeping overall pacing.
-                      </div>
-                      <div style={{ height: 6 }} />
-                      <div className="small">
-                        Controls: D-Buttons (default) or WASD • Mouse aim &
-                        click to shoot
-                      </div>
-                      <div className="small">
-                        F to toggle Auto-Fire • ESC/SPACE to pause
-                      </div>
-                      <div style={{ height: 10 }} />
-                      <div className="small">
-                        <strong>Visual Effects</strong>
-                      </div>
-                      <div className="small" style={{ marginTop: 4 }}>
-                        Camera Shake Intensity:{" "}
-                        <strong>{debugCameraShakeIntensity.toFixed(1)}x</strong>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={3.0}
-                        step={0.1}
-                        value={debugCameraShakeIntensity}
-                        onChange={(e) =>
-                          setDebugCameraShakeIntensity(
-                            parseFloat(e.target.value)
-                          )
-                        }
-                        style={{ width: "100%" }}
-                        aria-label="Camera shake intensity multiplier"
-                      />
-                      <div className="tiny" style={{ opacity: 0.8 }}>
-                        Multiplies camera shake intensity for damage,
-                        explosions, and laser charging.
-                      </div>
-                      <div style={{ height: 6 }} />
-                      <label
-                        className="small"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={debugBorderEffectsEnabled}
-                          onChange={(e) =>
-                            setDebugBorderEffectsEnabled(e.target.checked)
-                          }
-                        />
-                        Enable Border Effects
-                      </label>
-                      <label
-                        className="small"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={debugLowHealthBorder}
-                          onChange={(e) =>
-                            setDebugLowHealthBorder(e.target.checked)
-                          }
-                        />
-                        Low Health Border (Red)
-                      </label>
-                      <label
-                        className="small"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={debugPickupGlowBorder}
-                          onChange={(e) =>
-                            setDebugPickupGlowBorder(e.target.checked)
-                          }
-                        />
-                        Pickup Proximity Border (Green)
-                      </label>
-                      <label
-                        className="small"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={debugLaserChargingBorder}
-                          onChange={(e) =>
-                            setDebugLaserChargingBorder(e.target.checked)
-                          }
-                        />
-                        Laser Charging Border (Purple)
-                      </label>
-                      <div className="tiny" style={{ opacity: 0.8 }}>
-                        Individual toggles for screen border visual effects.
-                      </div>
-                      <div style={{ height: 10 }} />
-                    </div>
-                  </CollapsiblePanel>
-                )}
-              </>
-            )}
+            <GameDebugUI
+              showDebugUI={showDebugUI}
+              setShowDebugUI={setShowDebugUI}
+              wave={wave}
+              score={score}
+              bestScore={bestScore}
+              bestWave={bestWave}
+              lives={lives}
+              health={health}
+              HEALTH_MAX={HEALTH_MAX}
+              armor={armor}
+              ARMOR_MAX={ARMOR_MAX}
+              dashRatio={dashRatio}
+              abilityName={abilityName}
+              abilityCooldown={abilityCooldown}
+              dashCount={dashCount}
+              dashCooldownMs={dashCooldownMs}
+              selectedHero={selectedHero}
+              healthRatio={healthRatio}
+              armorRatio={armorRatio}
+              restartGame={restartGame}
+              autoFire={autoFire}
+              setAutoFire={setAutoFire}
+              showEnemyNames={showEnemyNames}
+              setShowEnemyNames={setShowEnemyNames}
+              showThumbnails={showThumbnails}
+              setShowThumbnails={setShowThumbnails}
+              acc={acc}
+              dpadVecRef={dpadVecRef}
+              aimInputRef={aimInputRef}
+              showGizmo={showGizmo}
+              setShowGizmo={setShowGizmo}
+              showAccessibilityControls={showAccessibilityControls}
+              setShowAccessibilityControls={setShowAccessibilityControls}
+              enemies={enemies}
+              pickups={pickups}
+              bullets={bullets}
+              debugBulletSpeed={debugBulletSpeed}
+              setDebugBulletSpeed={setDebugBulletSpeed}
+              debugFireRateMs={debugFireRateMs}
+              setDebugFireRateMs={setDebugFireRateMs}
+              debugFxOrbCount={debugFxOrbCount}
+              setDebugFxOrbCount={setDebugFxOrbCount}
+              playerLabelSize={playerLabelSize}
+              setPlayerLabelSize={setPlayerLabelSize}
+              enemyRenderMode={enemyRenderMode}
+              setEnemyRenderMode={setEnemyRenderMode}
+              heroRenderMode={heroRenderMode}
+              setHeroRenderMode={setHeroRenderMode}
+              heroQuality={heroQuality}
+              setHeroQuality={setHeroQuality}
+              debugFxOrbRadius={debugFxOrbRadius}
+              setDebugFxOrbRadius={setDebugFxOrbRadius}
+              debugFxOrbSizeMul={debugFxOrbSizeMul}
+              setDebugFxOrbSizeMul={setDebugFxOrbSizeMul}
+              debugFxOrbLerp={debugFxOrbLerp}
+              setDebugFxOrbLerp={setDebugFxOrbLerp}
+              tentacleStrength={tentacleStrength}
+              setTentacleStrength={setTentacleStrength}
+              tentacleSpeed={tentacleSpeed}
+              setTentacleSpeed={setTentacleSpeed}
+              tentacleAmpX={tentacleAmpX}
+              setTentacleAmpX={setTentacleAmpX}
+              tentacleAmpZ={tentacleAmpZ}
+              setTentacleAmpZ={setTentacleAmpZ}
+              tentacleYWobble={tentacleYWobble}
+              setTentacleYWobble={setTentacleYWobble}
+              tentacleBendPow={tentacleBendPow}
+              setTentacleBendPow={setTentacleBendPow}
+              highContrast={highContrast}
+              setHighContrast={setHighContrast}
+              showStats={showStats}
+              setShowStats={setShowStats}
+              debugLaserChargingBorder={debugLaserChargingBorder}
+              setDebugLaserChargingBorder={setDebugLaserChargingBorder}
+              debugLaserFiringBorder={debugLaserFiringBorder}
+              setDebugLaserFiringBorder={setDebugLaserFiringBorder}
+              debugLaserCooldownBorder={debugLaserCooldownBorder}
+              setDebugLaserCooldownBorder={setDebugLaserCooldownBorder}
+              debugLaserReadyBorder={debugLaserReadyBorder}
+              setDebugLaserReadyBorder={setDebugLaserReadyBorder}
+              debugBombChargingBorder={debugBombChargingBorder}
+              setDebugBombChargingBorder={setDebugBombChargingBorder}
+              debugBombCooldownBorder={debugBombCooldownBorder}
+              setDebugBombCooldownBorder={setDebugBombCooldownBorder}
+              debugBombReadyBorder={debugBombReadyBorder}
+              setDebugBombReadyBorder={setDebugBombReadyBorder}
+              debugDashChargingBorder={debugDashChargingBorder}
+              setDebugDashChargingBorder={setDebugDashChargingBorder}
+              debugDashCooldownBorder={debugDashCooldownBorder}
+              setDebugDashCooldownBorder={setDebugDashCooldownBorder}
+              debugDashReadyBorder={debugDashReadyBorder}
+              setDebugDashReadyBorder={setDebugDashReadyBorder}
+              debugHeavyChargingBorder={debugHeavyChargingBorder}
+              setDebugHeavyChargingBorder={setDebugHeavyChargingBorder}
+              debugHeavyCooldownBorder={debugHeavyCooldownBorder}
+              setDebugHeavyCooldownBorder={setDebugHeavyCooldownBorder}
+              debugHeavyReadyBorder={debugHeavyReadyBorder}
+              setDebugHeavyReadyBorder={setDebugHeavyReadyBorder}
+              debugSpecialChargingBorder={debugSpecialChargingBorder}
+              setDebugSpecialChargingBorder={setDebugSpecialChargingBorder}
+              debugSpecialCooldownBorder={debugSpecialCooldownBorder}
+              setDebugSpecialCooldownBorder={setDebugSpecialCooldownBorder}
+              debugSpecialReadyBorder={debugSpecialReadyBorder}
+              setDebugSpecialReadyBorder={setDebugSpecialReadyBorder}
+              debugBorderEffectsEnabled={debugBorderEffectsEnabled}
+              setDebugBorderEffectsEnabled={setDebugBorderEffectsEnabled}
+              debugLowHealthBorder={debugLowHealthBorder}
+              setDebugLowHealthBorder={setDebugLowHealthBorder}
+              debugPickupGlowBorder={debugPickupGlowBorder}
+              setDebugPickupGlowBorder={setDebugPickupGlowBorder}
+              showDreiStats={showDreiStats}
+              setShowDreiStats={setShowDreiStats}
+              fps={fps}
+              cameraMode={cameraMode}
+              topDownSpeedMul={topDownSpeedMul}
+              setTopDownSpeedMul={setTopDownSpeedMul}
+              spawnPressureMul={spawnPressureMul}
+              setSpawnPressureMul={setSpawnPressureMul}
+              debugCameraShakeIntensity={debugCameraShakeIntensity}
+              setDebugCameraShakeIntensity={setDebugCameraShakeIntensity}
+              performanceMode={performanceMode}
+              setPerformanceMode={setPerformanceMode}
+              disableEnemySpawns={disableEnemySpawns}
+              setDisableEnemySpawns={setDisableEnemySpawns}
+              spawnOnlyHazards={spawnOnlyHazards}
+              setSpawnOnlyHazards={setSpawnOnlyHazards}
+              controlScheme={controlScheme}
+              setControlScheme={setControlScheme}
+              invulnTest={invulnTest}
+              setInvulnTest={setInvulnTest}
+              getActiveMax={getActiveMax}
+              getBossMax={getBossMax}
+              pickupScaleGlobal={pickupScaleGlobal}
+              setPickupScaleGlobal={setPickupScaleGlobal}
+              assetScale={assetScale}
+              setAssetScale={setAssetScale}
+              topDownZoom={topDownZoom}
+              setTopDownZoom={setTopDownZoom}
+              staticCamMargin={staticCamMargin}
+              setStaticCamMargin={setStaticCamMargin}
+              arenaGrowEnabled={arenaGrowEnabled}
+              setArenaGrowEnabled={setArenaGrowEnabled}
+              boundaryLimit={boundaryLimit}
+              setBoundaryLimit={setBoundaryLimit}
+              maxArenaLimit={maxArenaLimit}
+              setMaxArenaLimit={setMaxArenaLimit}
+              arenaGrowthMode={arenaGrowthMode}
+              setArenaGrowthMode={setArenaGrowthMode}
+              arenaGrowthRate={arenaGrowthRate}
+              setArenaGrowthRate={setArenaGrowthRate}
+              arenaGrowthPerMilestone={arenaGrowthPerMilestone}
+              setArenaGrowthPerMilestone={setArenaGrowthPerMilestone}
+              BOUNDARY_LIMIT={BOUNDARY_LIMIT}
+              GROUND_HALF={GROUND_HALF}
+              isPaused={isPaused}
+              enemySpeedScale={enemySpeedScale}
+              playerBaseSpeed={playerBaseSpeed}
+              formatHMS={formatHMS}
+              totalPlayMsView={totalPlayMsView}
+              pickupFeed={pickupFeed}
+              bossFeed={bossFeed}
+              showPlayerLabelPlaceholder={showPlayerLabelPlaceholder}
+              setShowPlayerLabelPlaceholder={setShowPlayerLabelPlaceholder}
+              LEVEL_CONFIG={LEVEL_CONFIG}
+            />
           </div>
         );
       })()}
@@ -10206,212 +9063,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
         </div>
       )}
 
-      {/* Feeds & overlays */}
-      {/* Top-right stack: HUD + pickup feed (collapsible) */}
-      {/* Debug UI toggle */}
-      <div style={{ position: "fixed", top: 50, right: "12px", zIndex: 1000 }}>
-        <label
-          style={{
-            background: "rgba(0,0,0,0.5)",
-            padding: "6px 10px",
-            borderRadius: 8,
-            border: "1px solid rgba(255,255,255,0.1)",
-            fontSize: 12,
-            cursor: "pointer",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={showDebugUI}
-            onChange={(e) => setShowDebugUI(e.target.checked)}
-            style={{ marginRight: 6 }}
-          />{" "}
-          Show Debug UI
-        </label>
-      </div>
+      
 
-      {showDebugUI && (
-        <div className="hud-stack" style={{ top: 80 }}>
-          <CollapsiblePanel id="debug-hud" title="Debug HUD" defaultOpen={true}>
-            <div className="hud small">
-              <div>Enemies: {enemies.length}</div>
-              <div>Flying: {enemies.filter((e) => e.isFlying).length}</div>
-              <div>Pickups: {pickups.length}</div>
-              <div>Bullets: {bullets.length}</div>
-              <div style={{ marginTop: 6 }}>
-                <label style={{ display: "block", fontSize: 11 }}>
-                  Bullet Speed {debugBulletSpeed.toFixed(1)}
-                  <input
-                    type="range"
-                    min={4}
-                    max={60}
-                    step={0.5}
-                    value={debugBulletSpeed}
-                    onChange={(e) =>
-                      setDebugBulletSpeed(parseFloat(e.target.value))
-                    }
-                    style={{ width: "100%" }}
-                  />
-                </label>
-                <label style={{ display: "block", fontSize: 11 }}>
-                  Fire Rate (ms) {Math.round(debugFireRateMs)}
-                  <input
-                    type="range"
-                    min={50}
-                    max={800}
-                    step={10}
-                    value={debugFireRateMs}
-                    onChange={(e) =>
-                      setDebugFireRateMs(parseFloat(e.target.value))
-                    }
-                    style={{ width: "100%" }}
-                  />
-                </label>
-                <label style={{ display: "block", fontSize: 11 }}>
-                  FX Orb Count {debugFxOrbCount}
-                  <input
-                    type="range"
-                    min={0}
-                    max={40}
-                    step={1}
-                    value={debugFxOrbCount}
-                    onChange={(e) =>
-                      setDebugFxOrbCount(parseInt(e.target.value, 10))
-                    }
-                    style={{ width: "100%" }}
-                  />
-                </label>
-                <label style={{ display: "block", fontSize: 11, marginTop: 8 }}>
-                  Player Label Size {playerLabelSize}px
-                  <input
-                    type="range"
-                    min={12}
-                    max={36}
-                    step={1}
-                    value={playerLabelSize}
-                    onChange={(e) =>
-                      setPlayerLabelSize(parseInt(e.target.value, 10))
-                    }
-                    style={{ width: "100%" }}
-                  />
-                </label>
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    fontSize: 11,
-                    marginTop: 6,
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={showPlayerLabelPlaceholder}
-                    onChange={(e) =>
-                      setShowPlayerLabelPlaceholder(e.target.checked)
-                    }
-                  />
-                  <span>Show label placeholder when no enemies</span>
-                </label>
-              </div>
-              <div>Status: {isPaused ? "PAUSED" : "PLAYING"}</div>
-              <div>Scheme: {controlScheme.toUpperCase()}</div>
-              <div>
-                Speed: Enemies x
-                {(
-                  enemySpeedScale *
-                  (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
-                ).toFixed(2)}{" "}
-                • Player{" "}
-                {(
-                  playerBaseSpeed *
-                  (cameraMode === "topdown" ? topDownSpeedMul || 1 : 1)
-                ).toFixed(1)}
-              </div>
-              <div>Play time: {formatHMS(totalPlayMsView)}</div>
-              <div>Wave Level: {wave}</div>
-              {(() => {
-                const bossUsed = enemies.filter(
-                  (e) => e.isBoss || e.isTriangle || e.isCone || e.isPipe
-                ).length;
-                const bossCap = getBossMax(wave, performanceMode);
-                return (
-                  <div>
-                    Bosses: {bossUsed}/{bossCap}
-                  </div>
-                );
-              })()}
-            </div>
-          </CollapsiblePanel>
-          <CollapsiblePanel
-            id="pickup-feed"
-            title="Pickup Feed"
-            defaultOpen={true}
-          >
-            <div className="feed feed-pickups small">
-              {pickupFeed.map((msg) => (
-                <div
-                  key={msg.id}
-                  className="feed-item"
-                  style={{ "--dot": msg.color }}
-                >
-                  <div className="feed-dot" />
-                  <div style={{ color: msg.color }}>{msg.text}</div>
-                </div>
-              ))}
-            </div>
-          </CollapsiblePanel>
-          {/* Boss sections always visible */}
-          <CollapsiblePanel
-            id="boss-schedule"
-            title="Boss Schedule"
-            defaultOpen={true}
-          >
-            <div className="hudz small" style={{ margin: 0 }}>
-              {(() => {
-                const triIn = wave % 3 === 0 ? 0 : 3 - (wave % 3);
-                return (
-                  <>
-                    <div>
-                      <strong>Level:</strong> {wave}
-                    </div>
-                    <div>Triangle boss: every 3 levels • next in {triIn}</div>
-                    <div>
-                      Cone boss: L{LEVEL_CONFIG.unlocks.cone}+ •{" "}
-                      {Math.round(LEVEL_CONFIG.chances.cone * 100)}% chance
-                    </div>
-                    <div>
-                      Pipe boss: L{LEVEL_CONFIG.unlocks.pipe}+ •{" "}
-                      {Math.round(LEVEL_CONFIG.chances.pipe * 100)}% chance
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-          </CollapsiblePanel>
-
-          <CollapsiblePanel
-            id="boss-feed"
-            title="Boss Spawns"
-            defaultOpen={true}
-          >
-            <div className="feed feed-bosses small">
-              {bossFeed.map((msg) => (
-                <div
-                  key={msg.id}
-                  className="feed-item"
-                  style={{ "--dot": msg.color }}
-                >
-                  <div className="feed-dot" />
-                  <div style={{ color: msg.color }}>{msg.text}</div>
-                </div>
-              ))}
-            </div>
-          </CollapsiblePanel>
-        </div>
-      )}
-
-      {/* Right-bottom stack removed; Boss info moved to left debug panel and tied to debug toggle */}
     </div>
   );
 }

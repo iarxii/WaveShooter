@@ -33,6 +33,13 @@ export const ENEMY_IMAGE_MAP = {
   'Ebolavirus': assetUrl('character_imgs/enemy_avatar/Virus/Ebolavirus_Virus.png'),
   'Adenovirus': assetUrl('character_imgs/enemy_avatar/Virus/Adenovirus_Virus.png'),
   'HIV': assetUrl('character_imgs/enemy_avatar/Virus/HIV_Virus.png'),
+
+  // Infection Vectors (Bosses)
+  'Broodmother Cockroach': assetUrl('character_imgs/enemy_avatar/Infection_Vector/cockroach_broodmother.png'),
+  'Plague Fly Colossus': assetUrl('character_imgs/enemy_avatar/Infection_Vector/fly_colossus.png'),
+  'Mosquito Matriarch': assetUrl('character_imgs/enemy_avatar/Infection_Vector/mosquito_matriarch.png'),
+  'Sewer Rat King': assetUrl('character_imgs/enemy_avatar/Infection_Vector/rat_king.png'),
+  'Carrion Vulture': assetUrl('character_imgs/enemy_avatar/Infection_Vector/vulture_harbinger.png'),
 }
 
 export function getEnemyImageUrl(name){

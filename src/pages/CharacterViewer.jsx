@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ENEMIES, HEROES } from "../data/roster.js";
+import { ENEMIES, HEROES, ALLIES } from "../data/roster.js";
 import { getEnemyImageUrl } from "../data/enemyImages.js";
-import { getHeroImageUrl } from "../data/heroImages.js";
+import { getHeroImageUrl, getAllyImageUrl } from "../data/heroImages.js";
 import { assetUrl } from "../utils/assetPaths";
 
 const colorHex = {
@@ -135,10 +135,21 @@ export default function CharacterViewer() {
         i.src = u;
       }
     });
+    ALLIES.forEach((a) => {
+      const u = getAllyImageUrl(a.name);
+      if (u) {
+        const i = new Image();
+        i.src = u;
+      }
+    });
   }, []);
 
   function selectHero(h) {
     const next = { kind: "hero", item: h };
+    setSelected(next);
+  }
+  function selectAlly(a) {
+    const next = { kind: "ally", item: a };
     setSelected(next);
   }
   function selectEnemy(e) {
@@ -232,6 +243,51 @@ export default function CharacterViewer() {
                 </div>
               </SelectCard>
             ))}
+
+            {ALLIES.map((a) => (
+              <SelectCard
+                key={a.name}
+                title={a.name}
+                subtitle={a.role}
+                selected={
+                  selected.kind === "ally" && selected.item.name === a.name
+                }
+                onClick={() => selectAlly(a)}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "center",
+                    marginTop: 8,
+                  }}
+                >
+                  <img
+                    src={getAllyImageUrl(a.name)}
+                    alt={`${a.name} portrait`}
+                    style={{
+                      width: 48,
+                      height: 48,
+                      objectFit: "cover",
+                      objectPosition: "top center",
+                      borderRadius: 6,
+                      flex: "0 0 auto",
+                    }}
+                  />
+                  <div style={{ fontSize: 12, opacity: 0.9 }}>
+                    <div>
+                      <strong>Effect:</strong> {a.gameplayEffect}{" "}
+                      {a.duration ? `(Duration ${a.duration}s)` : ""}
+                    </div>
+                    {a.notes && (
+                      <div style={{ marginTop: 6, opacity: 0.85 }}>
+                        {a.notes}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </SelectCard>
+            ))}
           </div>
         </div>
 
@@ -253,6 +309,11 @@ export default function CharacterViewer() {
             {selected.kind === "hero" ? (
               <ImageViewer
                 src={getHeroImageUrl(selected.item?.name)}
+                alt={`${selected.item?.name} portrait`}
+              />
+            ) : selected.kind === "ally" ? (
+              <ImageViewer
+                src={getAllyImageUrl(selected.item?.name)}
                 alt={`${selected.item?.name} portrait`}
               />
             ) : (
@@ -286,19 +347,17 @@ export default function CharacterViewer() {
             >
               <h2 style={{ margin: 0 }}>{selected.item?.name}</h2>
               <span style={{ opacity: 0.8, fontSize: 13 }}>
-                {selected.kind === "hero"
+                {selected.kind === "hero" || selected.kind === "ally"
                   ? selected.item?.role
                   : `Tier ${selected.item?.tier}`}
               </span>
             </div>
 
-            {selected.kind === "hero" ? (
+            {selected.kind === "hero" || selected.kind === "ally" ? (
               <div style={{ marginTop: 6, fontSize: 14, opacity: 0.95 }}>
                 <div>
-                  <strong>Ability:</strong> {selected.item.ability}{" "}
-                  {selected.item.cooldown
-                    ? `(CD ${selected.item.cooldown}s)`
-                    : ""}
+                  <strong>{selected.kind === "ally" ? "Effect" : "Ability"}:</strong> {selected.kind === "ally" ? selected.item.gameplayEffect : selected.item.ability}{" "}
+                  {selected.kind === "ally" ? (selected.item.duration ? `(Duration ${selected.item.duration}s)` : "") : (selected.item.cooldown ? `(CD ${selected.item.cooldown}s)` : "")}
                 </div>
                 {selected.item.notes && (
                   <div style={{ marginTop: 6 }}>{selected.item.notes}</div>

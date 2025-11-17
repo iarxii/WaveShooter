@@ -47,14 +47,14 @@ body,
 
 /* Stacked HUD + pickup feed container (top-right) */
 .hud-stack {
-    position: absolute;
+    /* position: fixed;
     right: 16px;
-    top: 16px;
+    top: 16px; */
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     gap: 8px;
-    z-index: 150;
+    z-index: 1001;
 }
 .hud-stack .hud {
     position: static; /* override absolute when stacked */

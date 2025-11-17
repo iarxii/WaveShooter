@@ -373,21 +373,6 @@ export const ALLIES = [
     specId: 'dragonfly_sentinels'
   },
   {
-    name: 'Swallow Sweep',
-    type: 'Ally',
-    role: 'Support Vector',
-    gameplayEffect: 'Lane Dashes — periodic swoops that push back enemies in strips',
-    shape: 'Model',
-    color: '#22324A',
-    stats: { health: 9, speed: 3.4, damage: 4 },
-    duration: 12,
-    maxConcurrent: 1,
-    vfx: {
-      onSpecial: { type: 'laneDash', color: '#EAD088' }
-    },
-    specId: 'swallow_sweep'
-  },
-  {
     name: 'Therapy Dog',
     type: 'Ally',
     role: 'Support Vector',

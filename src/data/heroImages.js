@@ -10,10 +10,28 @@ export const HERO_IMAGE_MAP = {
   'Nthabiseng': assetUrl('character_imgs/Nthabiseng/nthabiseng_full_avatar.png'),
   'Dina': assetUrl('character_imgs/Dina/dina_full_avatar.png'),
   'Ray': assetUrl('character_imgs/Ray/ray_full_avatar.png'),
+
+  // Support Vectors (Allies)
+  'Honeybee Medics': assetUrl('character_imgs/ally_avatar/bee_medics.png'),
+  'Ladybug Sterilizers': assetUrl('character_imgs/ally_avatar/ladybug_sterilizers.png'),
+  'Dragonfly Sentinels': assetUrl('character_imgs/ally_avatar/dragonfly_sentinels.png'),
+  'Therapy Dog': assetUrl('character_imgs/ally_avatar/therapy_dog.png'),
+}
+
+export const ALLY_IMAGE_MAP = {
+  'Honeybee Medics': assetUrl('character_imgs/ally_avatar/bee_medics.png'),
+  'Ladybug Sterilizers': assetUrl('character_imgs/ally_avatar/ladybug_sterilizers.png'),
+  'Dragonfly Sentinels': assetUrl('character_imgs/ally_avatar/dragonfly_sentinels.png'),
+  'Therapy Dog': assetUrl('character_imgs/ally_avatar/therapy_dog.png'),
 }
 
 const HERO_FALLBACK = assetUrl('character_imgs/Hero/heroes_group.jpg')
 
+
 export function getHeroImageUrl(name){
   return HERO_IMAGE_MAP[name] || HERO_FALLBACK
+}
+
+export function getAllyImageUrl(name){
+  return ALLY_IMAGE_MAP[name] || null
 }
