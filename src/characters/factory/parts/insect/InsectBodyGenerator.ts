@@ -181,7 +181,7 @@ export class InsectBodyGenerator {
   private createMouth(): THREE.BufferGeometry {
     const { features } = this.spec;
 
-    if (features.mouth === 'mandibles') {
+    if (features.mouth.type === 'mandibles') {
       // Create simple mandibles as small cones
       const mandibleGeometry = new THREE.ConeGeometry(0.05, 0.1, 4);
       mandibleGeometry.translate(0, -0.05, this.spec.body.length / 2 + 0.05);

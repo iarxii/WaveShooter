@@ -12,7 +12,7 @@ export const CreatureRoster: Record<string, CreatureMeshSpec> = {
     },
     features: {
       eyes: { size: 0.1, count: 2 },
-      mouth: 'mandibles',
+      mouth: { type: 'mandibles' },
       texture: 'smooth'
     },
     colors: { body: '#5C3A23', accent: '#C4A074', eyes: '#000000' },
@@ -31,7 +31,7 @@ export const CreatureRoster: Record<string, CreatureMeshSpec> = {
     },
     features: {
       eyes: { size: 0.16, count: 2 },
-      mouth: 'snout',
+      mouth: { type: 'snout' },
       texture: 'smooth'
     },
     colors: { body: '#2F2F2F', accent: '#8FE1E9', eyes: '#FFFFFF' },
@@ -49,7 +49,7 @@ export const CreatureRoster: Record<string, CreatureMeshSpec> = {
     },
     features: {
       eyes: { size: 0.1, count: 2 },
-      mouth: 'snout',
+      mouth: { type: 'snout' },
       texture: 'smooth'
     },
     colors: { body: '#3D3A38', accent: '#E7B466', eyes: '#000000' },
@@ -67,7 +67,7 @@ export const CreatureRoster: Record<string, CreatureMeshSpec> = {
     },
     features: {
       eyes: { size: 0.08, count: 2 },
-      mouth: 'snout',
+      mouth: { type: 'snout' },
       texture: 'smooth'
     },
     colors: { body: '#2F2B2B', accent: '#FFC93B', eyes: '#000000' },
@@ -85,7 +85,7 @@ export const CreatureRoster: Record<string, CreatureMeshSpec> = {
     },
     features: {
       eyes: { size: 0.06, count: 2 },
-      mouth: 'mandibles',
+      mouth: { type: 'mandibles' },
       texture: 'smooth'
     },
     colors: { body: '#CE2A2A', accent: '#1E1E1E', eyes: '#000000' },
@@ -103,7 +103,7 @@ export const CreatureRoster: Record<string, CreatureMeshSpec> = {
     },
     features: {
       eyes: { size: 0.12, count: 2 },
-      mouth: 'mandibles',
+      mouth: { type: 'mandibles' },
       texture: 'smooth'
     },
     colors: { body: '#2C566E', accent: '#9FE8FF', eyes: '#000000' },
@@ -122,7 +122,7 @@ export const CreatureRoster: Record<string, CreatureMeshSpec> = {
     },
     features: {
       eyes: { size: 0.08, count: 2 },
-      mouth: 'snout',
+      mouth: { type: 'snout' },
       texture: 'fur'
     },
     colors: { body: '#6B5D52', accent: '#8B7355', eyes: '#000000' },
@@ -141,7 +141,7 @@ export const CreatureRoster: Record<string, CreatureMeshSpec> = {
     },
     features: {
       eyes: { size: 0.1, count: 2 },
-      mouth: 'beak',
+      mouth: { type: 'beak' },
       texture: 'feathers'
     },
     colors: { body: '#2B2F3A', accent: '#E5B65D', eyes: '#000000' },
@@ -160,7 +160,7 @@ export const CreatureRoster: Record<string, CreatureMeshSpec> = {
     },
     features: {
       eyes: { size: 0.06, count: 2 },
-      mouth: 'beak',
+      mouth: { type: 'beak' },
       texture: 'feathers'
     },
     colors: { body: '#22324A', accent: '#EAD088', eyes: '#000000' },
@@ -178,7 +178,7 @@ export const CreatureRoster: Record<string, CreatureMeshSpec> = {
     },
     features: {
       eyes: { size: 0.08, count: 2 },
-      mouth: 'snout',
+      mouth: { type: 'snout' },
       texture: 'fur'
     },
     colors: { body: '#7A5D43', accent: '#E9D6C0', eyes: '#000000' },

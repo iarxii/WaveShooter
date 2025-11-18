@@ -1146,6 +1146,7 @@ function Bullet({ bullet, onExpire, isPaused, speed }) {
 function LaserBeam({
   pos = [0, 0, 0],
   dir = [0, 0, -1],
+  bendDir = null, // vector towards which to bend
   length = 28,
   radius = 0.9,
   dmgPerSecond = 36,
@@ -1201,13 +1202,20 @@ function LaserBeam({
       );
       b.position.copy(center);
       const axis = new THREE.Vector3(0, 1, 0);
-      const q = new THREE.Quaternion().setFromUnitVectors(
+      let q = new THREE.Quaternion().setFromUnitVectors(
         axis,
         dirVec.clone().normalize()
       );
+      // Apply bend if bendDir is provided
+      if (bendDir) {
+        const bendAxis = dirVec.clone().cross(bendDir).normalize();
+        const bendAngle = bendDir.length() * 0.3; // adjust factor for bend amount
+        const bendQ = new THREE.Quaternion().setFromAxisAngle(bendAxis, bendAngle);
+        q.multiply(bendQ);
+      }
       b.quaternion.copy(q);
     }
-  }, [pos, dirVec, length]);
+  }, [pos, dirVec, length, bendDir]);
 
   useFrame((_, dt) => {
     if (isPaused) return;
@@ -3631,8 +3639,12 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const [healthEffect, setHealthEffect] = useState({ active: false });
   // Last known aim direction for laser beam visuals
   const lastLaserAimRef = useRef(new THREE.Vector3(0, 0, -1));
+  const lerpedLaserAimRef = useRef(new THREE.Vector3(0, 0, -1));
   useEffect(() => {
     lasersActiveRef.current = !!lasersEffect.active;
+    if (lasersEffect.active) {
+      lerpedLaserAimRef.current.copy(lastLaserAimRef.current);
+    }
   }, [lasersEffect.active]);
 
   // Active laser beam state (single beam from player while firing)
@@ -7323,8 +7335,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
                     );
                   }
                   // After the 6s mark, transition to a forward-focused beam until lasersEffect clears
-                  const aim =
-                    lastLaserAimRef.current || new THREE.Vector3(0, 0, -1);
+                  // Lerp the aim for smooth rotation
+                  lerpedLaserAimRef.current.lerp(lastLaserAimRef.current, 0.1); // gentle lerp
+                  const aim = lerpedLaserAimRef.current.clone();
+                  const bendDir = lastLaserAimRef.current.clone().sub(lerpedLaserAimRef.current);
                   const forwardPos = new THREE.Vector3()
                     .copy(playerPosRef.current)
                     .addScaledVector(aim, 1.0);
@@ -7333,6 +7347,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                       key={`laser-forward-${Math.floor(elapsed)}`}
                       pos={[forwardPos.x, forwardPos.y + 0.2, forwardPos.z]}
                       dir={[aim.x, aim.y, aim.z]}
+                      bendDir={bendDir}
                       isPaused={isPaused}
                       dmgPerSecond={72}
                       radius={1.1}

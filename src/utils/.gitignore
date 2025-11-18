@@ -1,0 +1,26 @@
+# Generated 3D models and test outputs
+# These files are created by image_to_3d scripts and should not be committed
+
+# Model output directories
+**/models/
+**/test/
+
+# Image slicing outputs
+image_to_3d/slice_image_util/split-output/
+
+# Individual model files
+*.obj
+*.ply
+*.glb
+
+# Temporary files
+*.tmp
+*~
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+*.log

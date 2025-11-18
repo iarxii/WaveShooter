@@ -34,7 +34,7 @@ export class BirdBodyGenerator {
     }
 
     // Generate beak if mouth type is beak
-    if (this.spec.features?.mouth === 'beak') {
+    if (this.spec.features?.type === 'beak') {
       const beakGeometry = this.createBeak();
       geometries.push(beakGeometry);
     }
