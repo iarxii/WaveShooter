@@ -58,6 +58,7 @@ function Player({
   shieldStackToken = 0,
   fireRateMs = null,
   fxOrbCount = null,
+  onFxOrbConsume,
   pickupInvulnState = { invulnerable: false, movementMul: 1, movementLocked: false },
   lasersActive = false,
 }) {
@@ -563,6 +564,8 @@ function Player({
 
   // Auto-fire timer
   const autoFireTimerRef = useRef(0);
+  // FX orb shooting timer
+  const fxOrbShootTimerRef = useRef(0);
 
   useFrame((state, dt) => {
     if (!ref.current || isPaused) return;
@@ -606,6 +609,53 @@ function Player({
       }
     } else {
       autoFireTimerRef.current = 0;
+    }
+
+    // FX orb auto-shooting: shoot from orbs towards nearby enemies
+    if (fxOrbCount && fxOrbCount > 0) {
+      fxOrbShootTimerRef.current += dt * 1000;
+      const orbShootRate = 800; // ms between orb shots
+      if (fxOrbShootTimerRef.current >= orbShootRate) {
+        fxOrbShootTimerRef.current = 0;
+        // Find nearby enemies
+        if (window.gameEnemies && window.gameEnemies.length) {
+          const p = ref.current.position;
+          const orbRadius = 1.1; // matches default
+          const orbHeight = 0.45; // matches FXOrbs
+          let shotsFired = 0;
+          const maxShots = Math.min(fxOrbCount, 3); // limit shots per cycle
+          for (const ge of window.gameEnemies) {
+            if (!ge?.ref?.current || shotsFired >= maxShots) continue;
+            const ex = ge.ref.current.position.x;
+            const ez = ge.ref.current.position.z;
+            const dx = ex - p.x;
+            const dz = ez - p.z;
+            const d2 = dx * dx + dz * dz;
+            if (d2 <= 25 * 25) { // within 25 units
+              // Calculate orb position (simplified: shoot from one of the orbs)
+              const angle = (shotsFired / Math.max(fxOrbCount, 1)) * Math.PI * 2;
+              const orbX = p.x + Math.cos(angle) * orbRadius;
+              const orbZ = p.z + Math.sin(angle) * orbRadius;
+              const orbY = p.y + orbHeight;
+              // Direction to enemy
+              const dirX = dx;
+              const dirZ = dz;
+              const len = Math.sqrt(dirX * dirX + dirZ * dirZ);
+              if (len > 0.001) {
+                const shootDir = [dirX / len, 0, dirZ / len];
+                onShoot([orbX, orbY, orbZ], shootDir);
+                shotsFired++;
+              }
+            }
+          }
+          // Decrement fx orb count by number of shots fired
+          if (shotsFired > 0 && onFxOrbConsume) {
+            onFxOrbConsume(shotsFired);
+          }
+        }
+      }
+    } else {
+      fxOrbShootTimerRef.current = 0;
     }
 
     // Aim handling

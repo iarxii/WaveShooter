@@ -4,6 +4,7 @@ import { useEffects } from '../effects/EffectsContext.jsx'
 import { useFrame } from '@react-three/fiber'
 import { Text, Html } from '@react-three/drei'
 import { PathogenFromSpec } from '../characters/factory/PathogenFactory'
+import { CreatureFromSpec } from '../characters/factory/CreatureFactory';
 import { Pathogen } from '../characters/Pathogen';
 import { Mutagen } from '../characters/Mutagen';
 import { InfectionVector } from '../characters/InfectionVector';
@@ -26,6 +27,16 @@ function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth
   const chargeCooldownRef = useRef(0)
   const chargeBoostRef = useRef(0)
   const bombsRef = useRef([]) // enemy-thrown bombs
+  const labelTimerRef = useRef(0) // Timer for enemy label visibility
+  // Cockroach boundary behavior state
+  const boundaryStateRef = useRef('inside') // 'inside', 'exiting', 'outside', 'returning'
+  const boundaryTimerRef = useRef(0) // Timer for boundary behavior
+  const boundaryDirectionRef = useRef(0) // Direction around boundary (0-2π)
+  // Cockroach movement and rotation state
+  const movementDirectionRef = useRef(new THREE.Vector3(0, 0, 1)) // Current movement direction
+  const initialDirectionSetRef = useRef(false) // Whether initial direction has been set
+  const targetRotationRef = useRef(0) // Target rotation angle
+  const portalSpawnTimerRef = useRef(0) // Timer for periodic portal spawning
 
   // Initialize spawn drop position if provided
   useEffect(() => {
@@ -51,6 +62,11 @@ function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth
     // Stun countdown
     if (stunTimer.current > 0) stunTimer.current = Math.max(0, stunTimer.current - dt)
     const stunned = stunTimer.current > 0
+    
+    // Label visibility timer (show for 3 seconds after spawning)
+    if (labelTimerRef.current < 3.0) {
+      labelTimerRef.current += dt
+    }
 
   // Compute dynamic speed buffs (local aura and global mutagen)
     let speedBuff = 1
@@ -128,6 +144,155 @@ function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth
         const mix = 0.55
         const moveDir = dir.clone().multiplyScalar(1-mix).addScaledVector(perp, mix * (Math.random()<0.5?-1:1)).normalize()
         ref.current.position.addScaledVector(moveDir, spd * dt)
+      } else if (pattern.includes('Cockroach')) {
+        // Cockroach behavior: flee from player, random movement, boundary exploration with rotation
+        const fleeDist = 8.0; // Start fleeing when player is within this distance
+        const boundaryLimit = 45; // Arena boundary
+        const outsideLimit = 60; // How far outside boundary they can go
+        const boundaryWalkDuration = 4.0; // How long to walk around boundary when outside
+        
+        // Set initial movement direction on spawn (towards +z)
+        if (!initialDirectionSetRef.current) {
+          movementDirectionRef.current.set(0, 0, 1); // Start moving towards +z
+          initialDirectionSetRef.current = true;
+          // Set target rotation to face +z direction
+          targetRotationRef.current = 0; // 0 radians = +z direction
+          // Special adjustment for cockroach model - it might face -z by default
+          if (pattern.includes('Cockroach') && factorySpec?.modelUrl?.includes('cockroach')) {
+            ref.current.rotation.y = Math.PI; // Face +z direction initially
+          }
+        }
+        
+        // Update boundary state
+        const currentPos = ref.current.position;
+        const isOutsideBoundary = Math.abs(currentPos.x) > boundaryLimit || Math.abs(currentPos.z) > boundaryLimit;
+        const isFarOutside = Math.abs(currentPos.x) > outsideLimit || Math.abs(currentPos.z) > outsideLimit;
+        
+        if (boundaryStateRef.current === 'inside' && !isOutsideBoundary) {
+          // Occasionally decide to exit boundary (reduced frequency)
+          if (Math.random() < 0.002 * dt * 60) { // ~0.12% chance per second
+            boundaryStateRef.current = 'exiting';
+            boundaryTimerRef.current = 0;
+          }
+        } else if (boundaryStateRef.current === 'exiting' && isOutsideBoundary) {
+          boundaryStateRef.current = 'outside';
+          boundaryTimerRef.current = 0;
+          // Choose a random direction around the boundary for exploration
+          boundaryDirectionRef.current = Math.random() * Math.PI * 2;
+        } else if (boundaryStateRef.current === 'outside') {
+          boundaryTimerRef.current += dt;
+          if (boundaryTimerRef.current >= boundaryWalkDuration || isFarOutside) {
+            boundaryStateRef.current = 'returning';
+            boundaryTimerRef.current = 0;
+          }
+        } else if (boundaryStateRef.current === 'returning' && !isOutsideBoundary) {
+          boundaryStateRef.current = 'inside';
+          boundaryTimerRef.current = 0;
+        }
+        
+        // Movement logic based on state
+        let moveDirection = movementDirectionRef.current.clone();
+        let shouldUpdateMovementDirection = false;
+        
+        if (dist < fleeDist) {
+          // Always flee from player when close - maintain consistent fleeing direction
+          const fleeDir = dir.clone().negate().normalize();
+          
+          // If we're not already fleeing, start fleeing in this direction
+          if (!movementDirectionRef.current.equals(fleeDir)) {
+            moveDirection.copy(fleeDir);
+            shouldUpdateMovementDirection = true;
+          }
+          
+          // Allow fleeing to go outside boundary if in exiting state
+          const newPos = currentPos.clone().addScaledVector(fleeDir, spd * dt);
+          if (boundaryStateRef.current === 'exiting' || boundaryStateRef.current === 'outside' || 
+              (Math.abs(newPos.x) <= boundaryLimit && Math.abs(newPos.z) <= boundaryLimit)) {
+            ref.current.position.copy(newPos);
+          } else {
+            // Redirect to stay within bounds but maintain fleeing intent
+            const boundaryDir = new THREE.Vector3(
+              newPos.x > boundaryLimit ? -1 : newPos.x < -boundaryLimit ? 1 : 0,
+              0,
+              newPos.z > boundaryLimit ? -1 : newPos.z < -boundaryLimit ? 1 : 0
+            ).normalize();
+            // Blend fleeing direction with boundary avoidance
+            moveDirection.copy(fleeDir).add(boundaryDir).normalize();
+            shouldUpdateMovementDirection = true;
+            ref.current.position.addScaledVector(moveDirection, spd * dt);
+          }
+        } else {
+          // Non-fleeing behavior
+          if (boundaryStateRef.current === 'outside') {
+            // Walk around the boundary to explore for re-entry points
+            boundaryDirectionRef.current += dt * 1.5; // Slower rotation for exploration
+            const boundaryRadius = boundaryLimit + 8; // Walk outside boundary
+            const targetX = Math.cos(boundaryDirectionRef.current) * boundaryRadius;
+            const targetZ = Math.sin(boundaryDirectionRef.current) * boundaryRadius;
+            const boundaryPos = new THREE.Vector3(targetX, 0, targetZ);
+            moveDirection.copy(boundaryPos).sub(currentPos).normalize();
+            shouldUpdateMovementDirection = true;
+            ref.current.position.addScaledVector(moveDirection, spd * 0.7 * dt);
+          } else if (boundaryStateRef.current === 'returning') {
+            // Move back toward center, but try to find gaps in boundary
+            const toCenter = new THREE.Vector3(0, 0, 0).sub(currentPos).normalize();
+            // Add some perpendicular movement to explore for re-entry
+            const perpAngle = Math.sin(boundaryTimerRef.current * 2) * 0.5;
+            const perpDir = new THREE.Vector3(-toCenter.z, 0, toCenter.x).multiplyScalar(perpAngle);
+            moveDirection.copy(toCenter).add(perpDir).normalize();
+            shouldUpdateMovementDirection = true;
+            ref.current.position.addScaledVector(moveDirection, spd * 0.8 * dt);
+          } else {
+            // Random movement within bounds with occasional direction changes
+            if (Math.random() < 0.008 * dt * 60) { // ~0.48% chance per second to change direction (reduced frequency)
+              const randomAngle = Math.random() * Math.PI * 2; // Full 360° random direction
+              movementDirectionRef.current.set(Math.cos(randomAngle), 0, Math.sin(randomAngle));
+            }
+            moveDirection.copy(movementDirectionRef.current);
+            
+            const newPos = currentPos.clone().addScaledVector(moveDirection, spd * 0.5 * dt);
+            
+            // Only move if it keeps us within bounds (unless exiting)
+            if (boundaryStateRef.current === 'exiting' || 
+                (Math.abs(newPos.x) <= boundaryLimit && Math.abs(newPos.z) <= boundaryLimit)) {
+              ref.current.position.copy(newPos);
+            } else {
+              // Hit boundary, choose new random direction
+              const randomAngle = Math.random() * Math.PI * 2;
+              movementDirectionRef.current.set(Math.cos(randomAngle), 0, Math.sin(randomAngle));
+            }
+          }
+        }
+        
+        // Update movement direction if needed
+        if (shouldUpdateMovementDirection) {
+          movementDirectionRef.current.copy(moveDirection);
+        }
+        
+        // Update rotation to face movement direction
+        if (moveDirection.lengthSq() > 0.1) { // Only rotate if actually moving
+          targetRotationRef.current = Math.atan2(moveDirection.x, moveDirection.z);
+          
+          // Special adjustment for cockroach model - it might face -z by default
+          if (pattern.includes('Cockroach') && factorySpec?.modelUrl?.includes('cockroach')) {
+            targetRotationRef.current += Math.PI; // Add 180 degrees for correct orientation
+          }
+          
+          // Smooth rotation interpolation
+          let currentRotation = ref.current.rotation.y;
+          let rotationDiff = targetRotationRef.current - currentRotation;
+          
+          // Normalize angle difference to [-π, π]
+          while (rotationDiff > Math.PI) rotationDiff -= 2 * Math.PI;
+          while (rotationDiff < -Math.PI) rotationDiff += 2 * Math.PI;
+          
+          // Smooth interpolation
+          const rotationSpeed = 3.0; // Radians per second
+          const maxRotationStep = rotationSpeed * dt;
+          const clampedDiff = Math.max(-maxRotationStep, Math.min(maxRotationStep, rotationDiff));
+          
+          ref.current.rotation.y += clampedDiff;
+        }
       } else {
         // Default chase
         if (dist > 0.6) {
@@ -259,6 +424,37 @@ function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth
       if (enemyMetaRef.current) enemyMetaRef.current.enzymeShieldActive = false
     }
 
+    // Cockroach: Periodic Pathogen Portal spawning when outside arena walls
+    if (!stunned && label && label.includes('Cockroach')) {
+      const ARENA_LIMIT = 48; // Same as boundary limit
+      const pos = ref.current.position;
+      const outsideArena = Math.abs(pos.x) > ARENA_LIMIT || Math.abs(pos.z) > ARENA_LIMIT;
+      
+      if (outsideArena) {
+        // Periodic portal spawning every 15-20 seconds
+        portalSpawnTimerRef.current += dt;
+        const PORTAL_SPAWN_INTERVAL = 15 + Math.random() * 5; // 15-20 seconds
+        
+        if (portalSpawnTimerRef.current >= PORTAL_SPAWN_INTERVAL) {
+          portalSpawnTimerRef.current = 0;
+          
+          // Spawn a single pathogen portal that will create enemies
+          onHazard && onHazard({ 
+            type: 'portal', 
+            pos: [pos.x, 0.5, pos.z], 
+            radius: 2.0, 
+            tickMs: 1000, 
+            durationMs: 8000, 
+            color: '#B36A2E',
+            portalType: 'pathogen' // Custom property to identify pathogen portals
+          });
+        }
+      } else {
+        // Reset timer when inside arena
+        portalSpawnTimerRef.current = 0;
+      }
+    }
+
     // Apply knockback with decay
     if (knockback.current.lengthSq() > 1e-6) {
       if (!stunned) ref.current.position.addScaledVector(knockback.current, dt)
@@ -362,7 +558,11 @@ function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth
             }
           }
           return factorySpec ? (
-            <PathogenFromSpec spec={factorySpec} />
+            factorySpec.modelUrl ? (
+              <CreatureFromSpec spec={factorySpec} />
+            ) : (
+              <PathogenFromSpec spec={factorySpec} />
+            )
           ) : (
             <mesh material={mat}>
               <primitive object={geom} attach="geometry" />
@@ -371,7 +571,7 @@ function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth
         })()}
       </group>
       {/* Enemy name label */}
-      {showEnemyNames && (enemyData?.name || label) && (
+      {showEnemyNames && (enemyData?.name || label) && labelTimerRef.current < 3.0 && (
         <Html position={[pos[0] + ((id % 5) - 2) * 0.3, pos[1] + 5 + (Math.floor(id / 5) % 3) * 0.3, pos[2]]} center>
           <div style={{ background: 'rgba(0,0,0,0.6)', padding: '2px 4px', borderRadius: '4px', fontSize: '14px', color: `rgb(${((color >> 16) & 255)}, ${((color >> 8) & 255)}, ${(color & 255)})`, fontFamily: 'Arial, sans-serif', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
             {showThumbnails && (

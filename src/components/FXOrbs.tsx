@@ -1,6 +1,7 @@
 import React, { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
+import { useTexture } from '@react-three/drei'
 import * as perf from '../perf'
 import type { HeroSpec } from '../heroes/factory/HeroSpec'
 
@@ -37,17 +38,22 @@ export default function FXOrbs({ spec, quality = 'high', forceShow=false, follow
         const r = Math.max(0.005, 0.04 * H * sizeMul)
         return new THREE.SphereGeometry(r, 12, 12)
     }, [H, (s as any).fxOrbSizeMul])
+    const texture = useTexture('/hero_spritesheets/blue_glowing_orb_spritesheet.png')
     const mat = useMemo(() => new THREE.MeshStandardMaterial({
         color: s.accentColor ?? '#FFD54F',
         emissive: s.accentColor ?? '#FFD54F',
         emissiveIntensity: s.fxRingIntensity ?? 0.5,
         roughness: 0.25,
         metalness: 0.0,
-    }), [s.accentColor, s.fxRingIntensity])
+        map: texture,
+    }), [s.accentColor, s.fxRingIntensity, texture])
 
     useFrame(({ clock }) => {
         perf.start('fx_orbs_update')
         const t = clock.getElapsedTime()
+        // Animate texture
+        const frame = Math.floor(performance.now() / 30) % 48;
+        texture.offset.x = frame * (320 / 15360);
         // Follow target if provided
         if (followRef.current && followTarget) {
             followTarget.updateMatrixWorld()

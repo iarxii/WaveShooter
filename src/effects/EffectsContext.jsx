@@ -147,12 +147,15 @@ function BulletHit({ id, position = [0,0,0], color = '#ffffff', count = 48, onDo
 
 function BombExplosion({ id, position=[0,0,0], power=1, color='#ffaa33', onDone, ttl=900, createdAt }){
   const meshRef = useRef()
+  const ringRef = useRef()
   const start = createdAt ?? performance.now()
   const mat = useMemo(() => new THREE.MeshStandardMaterial({ color, emissive: new THREE.Color(color).multiplyScalar(0.4), transparent: true, opacity: 0.9 }), [color])
+  const ringMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#ff6600', emissive: new THREE.Color('#ff6600').multiplyScalar(0.6), transparent: true, opacity: 0.7 }), [])
   const geom = useMemo(() => new THREE.SphereGeometry(0.4, 16, 12), [])
+  const ringGeom = useMemo(() => new THREE.TorusGeometry(0.8, 0.1, 8, 32), [])
 
   useFrame(() => {
-    if (!meshRef.current) return
+    if (!meshRef.current || !ringRef.current) return
     const life = performance.now() - start
     if (life >= ttl){ onDone(id); return }
     const t = life / ttl
@@ -160,10 +163,20 @@ function BombExplosion({ id, position=[0,0,0], power=1, color='#ffaa33', onDone,
     meshRef.current.scale.setScalar(s)
     mat.opacity = 0.9 * (1 - t)
     mat.emissiveIntensity = 0.8 + 0.6 * Math.sin(t * 10)
+
+    // Ring expansion effect
+    const ringScale = 1 + (power * 2.5) * easeOutCubic(t)
+    ringRef.current.scale.setScalar(ringScale)
+    ringRef.current.rotation.z += 0.05
+    ringMat.opacity = 0.7 * (1 - t)
+    ringMat.emissiveIntensity = 1.2 + 0.8 * (1 - t)
   })
 
   return (
-    <mesh ref={meshRef} position={position} geometry={geom} material={mat} />
+    <group position={position}>
+      <mesh ref={meshRef} geometry={geom} material={mat} />
+      <mesh ref={ringRef} geometry={ringGeom} material={ringMat} rotation={[-Math.PI/2, 0, 0]} />
+    </group>
   )
 }
 

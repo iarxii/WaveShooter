@@ -34,6 +34,10 @@ export const ENEMY_IMAGE_MAP = {
   'Adenovirus': assetUrl('character_imgs/enemy_avatar/Virus/Adenovirus_Virus.png'),
   'HIV': assetUrl('character_imgs/enemy_avatar/Virus/HIV_Virus.png'),
 
+  // standard vectors
+  'Housefly': assetUrl('character_imgs/enemy_avatar/Infection_Vector/housefly.png'),
+  'Cockroach': assetUrl('character_imgs/enemy_avatar/Infection_Vector/cockroach.png'),
+
   // Infection Vectors (Bosses)
   'Broodmother Cockroach': assetUrl('character_imgs/enemy_avatar/Infection_Vector/cockroach_broodmother.png'),
   'Plague Fly Colossus': assetUrl('character_imgs/enemy_avatar/Infection_Vector/fly_colossus.png'),

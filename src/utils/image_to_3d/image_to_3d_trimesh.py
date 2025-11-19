@@ -152,18 +152,82 @@ def depth_to_point_cloud(depth, img, max_depth=None):
     return np.array(points), np.array(colors)
 
 def create_mesh_from_point_cloud(points, colors):
-    """Create a mesh from combined point cloud."""
+    """Create a mesh from combined point cloud using better reconstruction."""
     try:
-        # Create point cloud and try convex hull
-        cloud = trimesh.PointCloud(points)
+        # Create point cloud
+        cloud = trimesh.PointCloud(points, colors=colors)
+
+        # Try different reconstruction methods
+
+        # Method 1: Alpha shape (if available)
+        try:
+            mesh = trimesh.creation.alpha_shape(points, alpha=0.05)
+            if mesh.is_watertight and len(mesh.faces) > 10:
+                print(f"Created alpha shape mesh with {len(mesh.vertices)} vertices and {len(mesh.faces)} faces")
+                return mesh
+        except:
+            pass
+
+        # Method 2: Convex hull as fallback
         mesh = cloud.convex_hull
         print(f"Created convex hull mesh with {len(mesh.vertices)} vertices and {len(mesh.faces)} faces")
+
+        # Method 3: If convex hull is too simple, try to create a more detailed mesh
+        if len(mesh.faces) < 50:
+            print("Convex hull too simple, creating detailed surface mesh...")
+            # Create a more detailed mesh by connecting nearby points
+            mesh = create_surface_mesh_from_points(points, colors)
+
+        return mesh
+
     except Exception as e:
         print(f"Mesh creation failed: {e}, exporting point cloud only")
-        # Create empty mesh
-        mesh = trimesh.Trimesh(vertices=points, faces=[])
-    
-    return mesh
+        return trimesh.Trimesh(vertices=points, faces=[])
+
+def create_surface_mesh_from_points(points, colors):
+    """Create a surface mesh by triangulating nearby points."""
+    try:
+        # Use Delaunay triangulation in 3D
+        from scipy.spatial import Delaunay
+
+        # Simplify point cloud for triangulation
+        if len(points) > 1000:
+            # Random sampling
+            indices = np.random.choice(len(points), 1000, replace=False)
+            points_subset = points[indices]
+            colors_subset = colors[indices]
+        else:
+            points_subset = points
+            colors_subset = colors
+
+        # Create 2D projection for triangulation (simple projection onto XY plane)
+        points_2d = points_subset[:, :2]  # Use X,Y coordinates
+
+        # Triangulate
+        tri = Delaunay(points_2d)
+        faces = tri.simplices
+
+        # Filter faces to avoid degenerate triangles
+        valid_faces = []
+        for face in faces:
+            # Check triangle quality
+            p0, p1, p2 = points_subset[face]
+            # Compute triangle area
+            area = 0.5 * np.linalg.norm(np.cross(p1 - p0, p2 - p0))
+            if area > 1e-6:  # Filter very small triangles
+                valid_faces.append(face)
+
+        mesh = trimesh.Trimesh(vertices=points_subset, faces=valid_faces)
+        print(f"Created triangulated mesh with {len(mesh.vertices)} vertices and {len(mesh.faces)} faces")
+
+        return mesh
+
+    except ImportError:
+        print("scipy not available for advanced triangulation, using basic mesh")
+        return trimesh.Trimesh(vertices=points, faces=[])
+    except Exception as e:
+        print(f"Surface mesh creation failed: {e}")
+        return trimesh.Trimesh(vertices=points, faces=[])
 
 def images_to_3d(image_dir, output_dir=None, output_prefix="model"):
     """Process multiple images from different views to create 3D model."""

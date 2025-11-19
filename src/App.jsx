@@ -13,6 +13,7 @@ import {
   Text,
   AdaptiveDpr,
   Html,
+  useTexture,
 } from "@react-three/drei";
 import { SceneEnvironment } from "./contexts/EnvironmentContext.tsx";
 import * as THREE from "three";
@@ -284,8 +285,8 @@ const PLAYER_SPEED = 24; // faster than minions to keep mobility advantage
 const PLAYER_SPEED_CAP = 50; // cap player base speed for control stability
 const SPEED_DEBUFF_FACTOR = 0.9;
 const SPEED_DEBUFF_DURATION_MS = 4000;
-const BOUNDARY_LIMIT = 50;
-const GROUND_SIZE = 200; // planeGeometry args
+const BOUNDARY_LIMIT = 100;
+const GROUND_SIZE = 300; // planeGeometry args
 const GROUND_HALF = GROUND_SIZE / 2;
 // Decoupled shape path radius for invulnerability runner (independent of arena boundary)
 const SHAPE_PATH_RADIUS = 24;
@@ -767,6 +768,9 @@ function randomFactorySpecFromRoster(
     .replace(/[^a-z0-9]+/g, "_");
   const base = baseHex || colorHex(picked?.color || "Red");
   const seed = (Math.random() * 1e9) | 0;
+  
+  // If roster has modelUrl, use it for model loading
+  const modelUrl = picked?.modelUrl ? assetUrl(picked.modelUrl) : undefined;
   // Map roster shape loosely to base shapes; otherwise randomize
   const shapeName = (picked?.shape || "").toLowerCase();
   const baseShapes = [
@@ -836,6 +840,46 @@ function randomFactorySpecFromRoster(
 
   const quality = Math.random() < 0.5 ? "med" : "high";
 
+  // If modelUrl is present, return a CreatureMeshSpec for CreatureFromSpec
+  if (modelUrl) {
+    return {
+      id,
+      seed,
+      kind: 'insect',
+      body: { 
+        length: radius * 2, 
+        width: radius * 2 * (scaleX || 1), 
+        height: height || radius * 2 * (scaleY || 1),
+        segments: detail + 1,
+        orientation: 'vertical'
+      },
+      appendages: {
+        limbs: { count: 6, length: spikeLength, thickness: spikeRadius, joints: 2 },
+        antennae: { count: 2, length: spikeLength * 0.5, curvature: 0.2 },
+        tail: { length: spikeLength * 0.8, type: 'curved', thickness: spikeRadius }
+      },
+      features: {
+        eyes: { size: 0.1, count: 2, relativeScale: true },
+        mouth: 'mandibles',
+        texture: 'smooth',
+        textureDetail: detail
+      },
+      colors: {
+        body: baseColor,
+        accent: spikeColor,
+        eyes: nodeColor
+      },
+      detail,
+      modelUrl,
+      animation: {
+        spin: rand(0.12, 0.35),
+        breathe: rand(0.008, 0.02),
+        wingFlapAmplitude: 0
+      }
+    };
+  }
+
+  // Return the original spec structure for procedural generation
   return {
     id,
     seed,
@@ -883,6 +927,7 @@ function randomFactorySpecFromRoster(
     hitboxSpeed: rand(0.5, 2.0),
     hitboxMode: "sin",
     quality,
+    modelUrl,
   };
 }
 
@@ -932,7 +977,7 @@ function PickupPopup({ pickup, onComplete }) {
       : pickup.type === "pulsewave"
       ? {
           name: "Pulse Wave",
-          effect: "3 bursts launch enemies (5s)",
+          effect: "3 bursts stun & launch enemies (5s)",
           color: "#f97316",
         }
       : pickup.type === "power"
@@ -945,6 +990,8 @@ function PickupPopup({ pickup, onComplete }) {
       ? { name: "Invulnerability", effect: "Immune (5s)", color: "#facc15" }
       : pickup.type === "bombs"
       ? { name: "Bomb Kit", effect: "4/s bombs for 6s", color: "#111827" }
+      : pickup.type === "elemental"
+      ? { name: "Elemental Orbs", effect: "+3 FX Orbs", color: "#8b5cf6" }
       : pickup.type === "speedboost"
       ? { name: "Speed Boost", effect: "Speed +10% (4s)", color: "#22c55e" }
       : pickup.type === "dmgscale"
@@ -1133,8 +1180,8 @@ function Bullet({ bullet, onExpire, isPaused, speed }) {
     bullet.timeAlive += dt * 1000;
     const outOfBounds =
       bullet.timeAlive > BULLET_LIFETIME ||
-      Math.abs(ref.current.position.x) > 50 ||
-      Math.abs(ref.current.position.z) > 50;
+      Math.abs(ref.current.position.x) > BOUNDARY_LIMIT ||
+      Math.abs(ref.current.position.z) > BOUNDARY_LIMIT;
     perf.end("bullet_update");
     if (outOfBounds) onExpire(bullet.id);
   });
@@ -1366,6 +1413,8 @@ function Pickup({
   const isDiamond = amount >= 90 && type === "power";
   const lifeLabelRef = useRef();
   const collectedRef = useRef(false);
+  // Texture for elemental pickups
+  const texture = type === "elemental" ? useTexture('/hero_spritesheets/blue_glowing_orb_spritesheet.png') : null;
   // Heart geometry for life pickups (extruded 2D heart)
   const heartGeom = useMemo(() => {
     if (type !== "life") return null;
@@ -1409,6 +1458,11 @@ function Pickup({
     if (elapsedRef.current >= lifetimeMaxSec) {
       onExpire && onExpire(id);
       return;
+    }
+    // Animate elemental texture
+    if (texture) {
+      const frame = Math.floor(performance.now() / 30) % 48;
+      texture.offset.x = frame * (320 / 15360);
     }
     // Scaling per type with pulses
     if (type === "life") {
@@ -1484,11 +1538,13 @@ function Pickup({
       ) : type === "shield" ? (
         <sphereGeometry args={[0.45, 16, 12]} />
       ) : type === "pulsewave" ? (
-        <ringGeometry args={[0.4, 0.52, 32]} />
+        <ringGeometry args={[1.2, 1.56, 32]} />
       ) : type === "invuln" ? (
         <capsuleGeometry args={[0.25, 0.6, 4, 8]} />
       ) : type === "bombs" ? (
         <sphereGeometry args={[0.32, 12, 12]} />
+      ) : type === "elemental" ? (
+        <sphereGeometry args={[0.4, 16, 12]} />
       ) : isDiamond ? (
         <octahedronGeometry args={[0.5, 0]} />
       ) : (
@@ -1527,6 +1583,8 @@ function Pickup({
               ? 0xfacc15
               : type === "bombs"
               ? 0x000000
+              : type === "elemental"
+              ? 0xffffff
               : 0xa855f7 /* power (fallback) */
           }
           emissive={
@@ -1544,6 +1602,8 @@ function Pickup({
               ? 0x331400
               : type === "armour"
               ? 0x001d40
+              : type === "elemental"
+              ? 0x000000
               : 0x1d0033
           }
           emissiveIntensity={
@@ -1557,6 +1617,7 @@ function Pickup({
               ? 0.8
               : 0.45
           }
+          map={type === "elemental" ? texture : null}
         />
       )}
     </mesh>
@@ -2793,21 +2854,27 @@ export default function App({ navVisible, setNavVisible } = {}) {
   // Global visual asset scale & camera view settings (persisted)
   const [assetScale, setAssetScale] = useState(() => {
     try {
-      return parseFloat(localStorage.getItem("assetScale") || "1");
+      const raw = localStorage.getItem("assetScale") ?? "1.45";
+      const val = parseFloat(raw);
+      return Number.isFinite(val) ? val : 1.45;
     } catch {
-      return 1;
+      return 1.45;
     }
   });
   const [topDownZoom, setTopDownZoom] = useState(() => {
     try {
-      return parseFloat(localStorage.getItem("topDownZoom") || "0.85");
+      const raw = localStorage.getItem("topDownZoom") ?? "0.85";
+      const val = parseFloat(raw);
+      return Number.isFinite(val) ? val : 0.85;
     } catch {
       return 0.85;
     }
   });
   const [staticCamMargin, setStaticCamMargin] = useState(() => {
     try {
-      return parseFloat(localStorage.getItem("staticCamMargin") || "0.95");
+      const raw = localStorage.getItem("staticCamMargin") ?? "0.95";
+      const val = parseFloat(raw);
+      return Number.isFinite(val) ? val : 0.95;
     } catch {
       return 0.95;
     }
@@ -3301,23 +3368,23 @@ export default function App({ navVisible, setNavVisible } = {}) {
   });
   const [debugFxOrbCount, setDebugFxOrbCount] = useState(() => {
     const v = parseInt(localStorage.getItem("dbgFxOrbCount"), 10);
-    return isFinite(v) ? v : 8;
+    return isFinite(v) ? v : 0;
   });
   // FX Orb debug controls (persisted)
   const [debugFxOrbRadius, setDebugFxOrbRadius] = useState(() => {
     const v = parseFloat(localStorage.getItem("dbgFxOrbRadius"));
-    // Closer to player than previous default (1.8)
-    return isFinite(v) ? v : 0.6;
+    // Ring radius
+    return isFinite(v) ? v : 1.10;
   });
   const [debugFxOrbSizeMul, setDebugFxOrbSizeMul] = useState(() => {
     const v = parseFloat(localStorage.getItem("dbgFxOrbSizeMul"));
-    // Make orbs bigger by default (1.0 = previous base)
-    return isFinite(v) ? v : 1.2;
+    // Orb size multiplier
+    return isFinite(v) ? v : 1.80;
   });
   const [debugFxOrbLerp, setDebugFxOrbLerp] = useState(() => {
     const v = parseFloat(localStorage.getItem("dbgFxOrbLerp"));
-    // Lerp alpha for smoother follow; 0 = snap disabled, 1 = snap immediately
-    return isFinite(v) ? v : 1.0;
+    // Follow smooth lerp (95%)
+    return isFinite(v) ? v : 0.95;
   });
   // Tentacle animation debug (global window shim for shader uniforms)
   const [tentacleSpeed, setTentacleSpeed] = useState(() => {
@@ -4660,6 +4727,18 @@ export default function App({ navVisible, setNavVisible } = {}) {
     };
   }, [clearSpeedBoostTimers, clearBouncerTimers]);
 
+  const getTierWeights = useCallback((level) => {
+    const config = LEVEL_CONFIG.tierWeights.find(r => level >= r.range[0] && level <= r.range[1]);
+    return config ? config.weights : { T1: 1.0 };
+  }, []);
+
+  const pickRosterByTier = useCallback((level, tierNum) => {
+    const candidates = ROSTER.filter(e => e.unlock <= level && e.tier === tierNum);
+    if (candidates.length === 0) return null;
+    const picked = candidates[Math.floor(Math.random() * candidates.length)];
+    return { kind: picked.name, tier: picked.tier, ...picked };
+  }, []);
+
   const scheduleEnemyBatchAt = useCallback((pos, count, options = {}) => {
     const {
       isTriangle = false,
@@ -4785,6 +4864,22 @@ export default function App({ navVisible, setNavVisible } = {}) {
                 waveNumber,
                 health: 1,
                 maxHealth: 1,
+                spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2,
+              },
+            ]);
+          } else if (ROSTER.find(e => e.name === kind)) {
+            const enemyData = ROSTER.find(e => e.name === kind);
+            setEnemies((prev) => [
+              ...prev,
+              {
+                id,
+                pos: spawnPos,
+                isRoster: true,
+                rosterData: enemyData,
+                tier: enemyData.tier,
+                waveNumber,
+                health: enemyData.stats.health,
+                maxHealth: enemyData.stats.health,
                 spawnHeight: DROP_SPAWN_HEIGHT + Math.random() * 2,
               },
             ]);
@@ -4938,6 +5033,36 @@ export default function App({ navVisible, setNavVisible } = {}) {
         Math.max(PORTALS_PER_WAVE_MIN, 2 + Math.floor(nextWave / 4))
       );
       const baseAngle = Math.random() * Math.PI * 2;
+
+      // Spawn roster enemies first
+      const tierWeights = getTierWeights(level);
+      const portals = [];
+      for (let p = 0; p < portalsCount; p++) {
+        const angle = baseAngle + (p * 2 * Math.PI) / portalsCount;
+        const dist = PORTAL_RADIUS_MIN + (p * (PORTAL_RADIUS_MAX - PORTAL_RADIUS_MIN)) / Math.max(1, portalsCount - 1);
+        const pos = [center.x + Math.cos(angle) * dist, 0.5, center.z + Math.sin(angle) * dist];
+        portals.push(pos);
+        openPortalAt(pos);
+      }
+      // Spawn roster enemies
+      for (const tier of ['T1', 'T2', 'T3', 'T4']) {
+        if (!tierWeights[tier]) continue;
+        const tierBudget = Math.floor(budgetLeft * tierWeights[tier]);
+        if (tierBudget <= 0) continue;
+        budgetLeft -= tierBudget;
+        const picked = pickRosterByTier(level, parseInt(tier.slice(1)));
+        if (!picked) continue;
+        // Distribute tierBudget across portals evenly
+        const countPerPortal = Math.floor(tierBudget / portalsCount);
+        const remainder = tierBudget % portalsCount;
+        for (let p = 0; p < portalsCount; p++) {
+          const pos = portals[p];
+          const count = countPerPortal + (p < remainder ? 1 : 0);
+          if (count > 0) {
+            scheduleEnemyBatchAt(pos, count, { kind: picked.kind, waveNumber: nextWave });
+          }
+        }
+      }
 
       // Helper to place a portal and schedule one enemy with kind and delay
       const scheduleOneAt = (p, idx, kind) => {
@@ -5111,7 +5236,6 @@ export default function App({ navVisible, setNavVisible } = {}) {
         const units = 5;
         // base per-unit (at least 1 unit)
         const perUnit = Math.max(1, Math.floor(basicsToSpawn / units));
-        const mainUnits = 3 * perUnit;
         const flankUnits = 1 * perUnit;
         const backUnits = 1 * perUnit;
         flankReserved = Math.min(2, flankUnits);
@@ -5193,6 +5317,16 @@ export default function App({ navVisible, setNavVisible } = {}) {
             const picked = pickRosterByTier(level, tierNum);
             const ecolor = colorHex(picked.color);
             const eid = enemyId.current++;
+            
+            // Check cockroach limit (max 5 at any time)
+            if (picked.name.includes('Cockroach')) {
+              const currentCockroaches = enemies.filter(e => e.rosterName && e.rosterName.includes('Cockroach')).length;
+              if (currentCockroaches >= 5) {
+                // Skip spawning this cockroach
+                continue;
+              }
+            }
+            
             const spawnPos = [p[0], 0.5, p[2]];
             const sp = Math.max(
               2.0,
@@ -5244,6 +5378,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   ? 0.8
                   : picked.name.includes("VRE")
                   ? 0.5
+                  : picked.name.includes("Cockroach")
+                  ? 0.1
                   : 1,
                 moveSpeed,
                 enemyData: picked,
@@ -5600,6 +5736,11 @@ export default function App({ navVisible, setNavVisible } = {}) {
           if (p.length >= MAX_PICKUPS) return p;
           return [...p, { id, pos, type: "bombs", lifetimeMaxSec: 20 }];
         });
+      } else if (type === "elemental") {
+        setPickups((p) => {
+          if (p.length >= MAX_PICKUPS) return p;
+          return [...p, { id, pos, type: "elemental", lifetimeMaxSec: 15 }];
+        });
       } else if (type === "life") {
         setPickups((p) => {
           // Ensure only one life pickup exists concurrently
@@ -5694,8 +5835,9 @@ export default function App({ navVisible, setNavVisible } = {}) {
             const wLasers = 0.08 + 0.12 * scale; // laser array
             const wShield = 0.07 + 0.1 * scale; // shield bubble
             const wPulse = 0.06 + 0.08 * scale; // pulse wave
+            const wElemental = 0.05; // elemental orbs
             const wCommon =
-              1.0 - (wInv + wBomb + wArmor + wLasers + wShield + wPulse);
+              1.0 - (wInv + wBomb + wArmor + wLasers + wShield + wPulse + wElemental);
             // Cumulative thresholds
             const tInv = wInv;
             const tBomb = tInv + wBomb;
@@ -5703,6 +5845,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
             const tLasers = tArmor + wLasers;
             const tShield = tLasers + wShield;
             const tPulse = tShield + wPulse;
+            const tElemental = tPulse + wElemental;
 
             if (r2 < tInv) {
               spawnPickup("invuln");
@@ -5716,6 +5859,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
               spawnPickup("shield");
             } else if (r2 < tPulse) {
               spawnPickup("pulsewave");
+            } else if (r2 < tElemental) {
+              spawnPickup("elemental");
             } else {
               // common pool
               spawnPickup(Math.random() < 0.7 ? "power" : "health");
@@ -6293,6 +6438,15 @@ export default function App({ navVisible, setNavVisible } = {}) {
           try {
             play("invuln-on");
           } catch {}
+        } else if (pickup.type === "elemental") {
+          // Elemental pickup: adds 3 fx orbs to the stack
+          setDebugFxOrbCount((prev) => Math.min(40, prev + 3));
+          try {
+            pushPlayerLabel("ELEMENTAL ORBS +3");
+          } catch {}
+          try {
+            play("powerup");
+          } catch {}
         } else if (pickup.type === "pulsewave") {
           // Pulse Wave: 3 bursts over ~5s that launch enemies and spawn air-bombs on them
           setPulseWaveEffect({ active: true });
@@ -6307,7 +6461,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
             setTimeout(() => {
               if (isPausedRef.current) return; // skip if paused (best-effort)
               // PulseWave: large blast radius pushing enemies away and spawning air-bombs
-              const R = 16.0; // large radius
+              const R = 48.0; // large radius (increased to 3x)
               const now = performance.now();
               const p = playerPosRef.current;
               if (!window.gameEnemies) return;
@@ -6326,6 +6480,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
                     const nz = dz / d;
                     // immediate outward impulse (strong)
                     ge.impulse?.(nx, nz, 48);
+                    // stun the enemy for 2 seconds
+                    ge.stun?.(2000);
                     // spawn an air-bomb at enemy location that will land & explode like player bombs
                     const speed = 6 + Math.random() * 6;
                     const idb = Date.now() + Math.random();
@@ -7420,6 +7576,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
             lasersActive={lasersEffect.active}
             shieldStackToken={lifeShieldToken}
             fxOrbCount={debugFxOrbCount}
+            onFxOrbConsume={(num) => setDebugFxOrbCount(prev => Math.max(0, prev - num))}
             autoFollow={autoFollowSpec}
             arcTriggerToken={arcTriggerToken}
             dashTriggerToken={dashTriggerToken}
@@ -7632,7 +7789,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
               showLabels={true}
             />
           )}
-          {!isPaused && heroQuality !== "low" && debugFxOrbCount > 0 && (
+          {(true || (!isPaused && heroQuality !== "low")) && (
             <FXOrbs
               spec={{
                 id: "player_fx_global",
@@ -7643,8 +7800,8 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   (heroQuality === "low" ? 2 : 3) *
                   assetScale,
                 fxRingIntensity: 0.65,
-                fxCount: debugFxOrbCount,
-                fxMode: "wave",
+                fxCount: debugFxOrbCount > 0 ? debugFxOrbCount : (pulseWaveEffect?.active ? 12 : 0),
+                fxMode: pulseWaveEffect?.active ? "atom" : "wave",
                 fxAmplitude: 0.45,
                 fxSpeed: 1.0,
                 fxDirectionDeg: 0,
@@ -7777,7 +7934,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                   shape={e.rosterShape || "Circle"}
                   factorySpec={e.factorySpec || null}
                   visualScale={assetScale}
-                  enemyData={e.enemyData}
+                  enemyData={e.rosterData}
                   showEnemyNames={showEnemyNames}
                   showThumbnails={showThumbnails}
                   onHazard={(hz) => {
@@ -7901,16 +8058,15 @@ export default function App({ navVisible, setNavVisible } = {}) {
                     ? next.slice(next.length - maxAoes)
                     : next;
                 });
-                // VFX: scalable bomb explosion (skip in performance mode)
-                if (!performanceMode) {
-                  try {
-                    triggerEffect &&
-                      triggerEffect("bombExplosion", {
-                        position: [cx, 0.2, cz],
-                        power: 1.0,
-                      });
-                  } catch {}
-                }
+                // VFX: scalable bomb explosion (always show but simplified in performance mode)
+                try {
+                  triggerEffect &&
+                    triggerEffect("bombExplosion", {
+                      position: [cx, 0.2, cz],
+                      power: performanceMode ? 0.6 : 1.0, // Reduced power in performance mode
+                      ttl: performanceMode ? 600 : 900, // Shorter duration in performance mode
+                    });
+                } catch {}
                 // SFX: bomb explosion
                 try {
                   play("bomb");
@@ -8396,7 +8552,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
               display: "flex",
               flexDirection: "column",
               gap: 10,
-              width: 320,
+              width: 400,
               maxHeight: "calc(100vh - 100px)",
               overflowY: "auto",
             }}
@@ -9671,7 +9827,8 @@ function Bomb({ data, isPaused, onUpdate, onExplode, onHitEnemy }) {
     () =>
       new THREE.MeshStandardMaterial({
         color: 0x000000,
-        emissive: 0x111111,
+        emissive: 0x331100, // Add orange emissive glow
+        emissiveIntensity: 0.3,
         roughness: 0.8,
       }),
     []
@@ -9700,7 +9857,12 @@ function Bomb({ data, isPaused, onUpdate, onExplode, onHitEnemy }) {
       } else {
         onUpdate(id, { pos: [x, y, z], vel: [vx, vy, vz] });
       }
-      if (ref.current) ref.current.position.set(x, y, z);
+      if (ref.current) {
+        ref.current.position.set(x, y, z);
+        // Add pulsing glow effect while in air
+        const time = performance.now() * 0.005;
+        mat.emissiveIntensity = 0.3 + 0.2 * Math.sin(time);
+      }
     } else if (state === "ground") {
       const now = performance.now();
       if (now >= (data.explodeAt || 0)) {
@@ -9725,8 +9887,13 @@ function Bomb({ data, isPaused, onUpdate, onExplode, onHitEnemy }) {
           }
         });
       }
-      if (ref.current)
+      if (ref.current) {
         ref.current.position.set(data.pos[0], data.pos[1], data.pos[2]);
+        // Intensify glow when on ground and about to explode
+        const timeToExplode = (data.explodeAt - now) / 1000;
+        const intensity = 0.5 + 0.5 * (1 - timeToExplode);
+        mat.emissiveIntensity = Math.max(0.3, intensity);
+      }
     }
   });
   return <mesh ref={ref} position={data.pos} geometry={geom} material={mat} />;

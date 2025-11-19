@@ -8,6 +8,17 @@
 # Image slicing outputs
 image_to_3d/slice_image_util/split-output/
 
+# Meshroom outputs
+image_to_3d/meshroom_*/
+**/meshroom_output/
+
+# COLMAP outputs
+image_to_3d/colmap_*/
+**/colmap_output/
+*.db
+**/sparse/
+**/dense/
+
 # Individual model files
 *.obj
 *.ply

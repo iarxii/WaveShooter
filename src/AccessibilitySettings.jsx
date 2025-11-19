@@ -152,7 +152,7 @@ export default function AccessibilitySettings({
             style={{
               display: "grid",
               gap: 8,
-              height: "50vh",
+              maxHeight: "80vh",
               overflowY: "auto",
             }}
           >
