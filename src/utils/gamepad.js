@@ -31,6 +31,8 @@ export default function useGamepadControls(opts) {
     onShapeRunCW,
     onShapeRunCCW,
     onSpecialAttack,
+    onLeftTrigger,
+    onRightTrigger,
     deadzone = 0.18,
     aimDeadzone = 0.18,
     aimSensitivity = 1.0,
@@ -104,6 +106,8 @@ export default function useGamepadControls(opts) {
             if (onShapeRunCW && pressedOnce(4)) onShapeRunCW() // LB/L1 = clockwise
             // Triggers
             if (onPickupHold) onPickupHold(!!now[6]) // LT/L2 hold => pickup
+            if (onLeftTrigger) onLeftTrigger(!!now[6]) // LT/L2 => left trigger callback
+            if (onRightTrigger) onRightTrigger(!!now[7]) // RT/R2 => right trigger callback
             // Special: LB + RB pressed together
             if (onSpecialAttack && now[4] === 1 && now[5] === 1 && (prev[4] === 0 || prev[5] === 0)) onSpecialAttack()
             prevButtonsRef.current = now
@@ -135,6 +139,8 @@ export default function useGamepadControls(opts) {
     onShapeRunCW,
     onShapeRunCCW,
     onSpecialAttack,
+    onLeftTrigger,
+    onRightTrigger,
     deadzone,
     aimDeadzone,
     aimSensitivity,

@@ -2251,6 +2251,34 @@ function Player({
     }
   }, [arcTriggerToken]);
 
+  // Special items keyboard controls: 7,8,9,0 for slot selection
+  useEffect(() => {
+    if (isPaused) return;
+    const onKey = (e) => {
+      let slotIndex = -1;
+      switch (e.key) {
+        case "7":
+          slotIndex = 0;
+          break;
+        case "8":
+          slotIndex = 1;
+          break;
+        case "9":
+          slotIndex = 2;
+          break;
+        case "0":
+          slotIndex = 3;
+          break;
+        default:
+          return;
+      }
+      e.preventDefault();
+      handleSelectItem(slotIndex);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isPaused, handleSelectItem]);
+
   // Auto-fire using the render loop for reliability instead of setInterval
   const autoFireTimerRef = useRef(0);
 
@@ -7373,6 +7401,24 @@ export default function App({ navVisible, setNavVisible } = {}) {
     onShapeRunCW: () => inputActions.shapeRunCW(),
     onShapeRunCCW: () => inputActions.shapeRunCCW(),
     onSpecialAttack: () => inputActions.specialAttack(),
+    onLeftTrigger: (pressed) => {
+      if (pressed && selectedItemSlot !== null) {
+        setIsPlacingHazard(true);
+      }
+    },
+    onRightTrigger: (pressed) => {
+      if (pressed && isPlacingHazard && selectedItemSlot !== null) {
+        // Trigger placement at current aim position
+        const aimDir = aimDirRef.current;
+        const heroPos = ref.current?.position;
+        if (heroPos && aimDir) {
+          const placePos = new THREE.Vector3()
+            .copy(heroPos)
+            .addScaledVector(aimDir, 3); // Place 3 units ahead
+          handlePlaceHazard(selectedHazardType, placePos);
+        }
+      }
+    },
     deadzone: 0.18,
     aimDeadzone: 0.18,
     aimSensitivity: 1.0,

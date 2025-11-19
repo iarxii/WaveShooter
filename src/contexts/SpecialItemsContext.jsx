@@ -51,9 +51,19 @@ export function SpecialItemsProvider({ children }) {
   const [inventory, setInventory] = useState(() => {
     try {
       const saved = localStorage.getItem("specialItemsInventory");
-      return saved ? JSON.parse(saved) : [null, null, null, null];
+      return saved ? JSON.parse(saved) : [
+        SPECIAL_ITEM_TYPES.VACUUM_PORTAL,
+        SPECIAL_ITEM_TYPES.BLEACH_BLOCKS,
+        SPECIAL_ITEM_TYPES.ANTIBIOTIC_BOMB,
+        SPECIAL_ITEM_TYPES.SUPPORT_VECTORS
+      ];
     } catch {
-      return [null, null, null, null];
+      return [
+        SPECIAL_ITEM_TYPES.VACUUM_PORTAL,
+        SPECIAL_ITEM_TYPES.BLEACH_BLOCKS,
+        SPECIAL_ITEM_TYPES.ANTIBIOTIC_BOMB,
+        SPECIAL_ITEM_TYPES.SUPPORT_VECTORS
+      ];
     }
   });
 

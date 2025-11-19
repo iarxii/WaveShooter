@@ -62,38 +62,42 @@ This document outlines the special items mechanic for the player in the Healthca
 
 ### Vacuum Portal
 - [x] Create portal placement logic
-- [x] Implement enemy attraction mechanics
+- [👎] Implement enemy attraction mechanics (framework exists, needs full implementation)
 - [ ] Add enemy detection and avoidance AI
-- [x] Implement void kill zone
-- [x] Add visual effects for portal
+- [ ] Implement void kill zone
+- [ ] Add visual effects for portal
 
 ### Bleach Blocks
 - [x] Create block placement and rendering
 - [ ] Implement collision detection
-- [x] Add contact damage system
-- [x] Implement block lifetime/destruction
-- [x] Add visual effects for blocks
+- [ ] Add contact damage system
+- [ ] Implement block lifetime/destruction
+- [ ] Add visual effects for blocks
 
 ### Anti-biotic Bomb
 - [x] Create bomb placement and physics
 - [ ] Implement explosion mechanics
-- [x] Add AOE damage system
-- [x] Implement damage-over-time effect
-- [x] Add explosion and lingering visual effects
+- [ ] Add AOE damage system
+- [ ] Implement damage-over-time effect
+- [ ] Add explosion and lingering visual effects
 
 ### Support Vectors
 - [x] Implement kill counter system
 - [x] Add charge percentage tracking
-- [x] Create support vector summoning logic
+- [ ] Create support vector summoning logic
 - [x] Add charge reset on use
 - [x] Implement UI for charge display
 
 ### UI/UX
 - [x] Create inventory UI with item slots
-- [x] Add item selection and equipping interface
-- [x] Implement cooldown/recharge visual indicators
+- [ ] Add item selection and equipping interface (items equipped by default)
+- [👎] Implement cooldown/recharge visual indicators (basic "Wait" text, needs dynamic progress bars)
 - [x] Add placement preview for voxel painter
-- [x] Create item tooltips and descriptions
+- [ ] Create item tooltips and descriptions
+
+### Controls
+- [x] Add keyboard mappings (7,8,9,0 for slot selection)
+- [x] Add gamepad trigger controls (left trigger for aim indicator, right trigger for placement)
 
 ### Balance & Testing
 - [ ] Determine appropriate cooldown times for items 1-3
@@ -104,7 +108,7 @@ This document outlines the special items mechanic for the player in the Healthca
 
 ### Integration
 - [x] Integrate with existing game systems (player, enemies, UI)
-- [x] Add to game save/load system
+- [x] Add to game save/load system (localStorage persistence)
 - [ ] Implement tutorial or help system for new mechanics
 - [ ] Add sound effects for item usage
 - [ ] Create particle effects for hazards
