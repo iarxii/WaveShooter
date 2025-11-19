@@ -655,14 +655,22 @@ function colorHex(name) {
 // Choose a roster enemy by tier and level unlock
 function pickRosterByTier(level, tierNum) {
   if (!ROSTER || !Array.isArray(ROSTER) || ROSTER.length === 0) return null;
-  const candidates = ROSTER.filter(
-    (e) => (e.unlock || 1) <= level && (e.tier || 1) === tierNum
-  );
+  const candidates = ROSTER.filter(e => {
+    if (e.levelRange) {
+      return level >= e.levelRange[0] && level <= e.levelRange[1];
+    } else {
+      return (e.unlock || 1) <= level && (e.tier || 1) === tierNum;
+    }
+  });
   if (candidates.length === 0) {
     // fallback: nearest lower tier, else any
-    const lower = ROSTER.filter((e) => (e.unlock || 1) <= level).sort(
-      (a, b) => (a.tier || 1) - (b.tier || 1)
-    );
+    const lower = ROSTER.filter(e => {
+      if (e.levelRange) {
+        return level >= e.levelRange[0] && level <= e.levelRange[1];
+      } else {
+        return (e.unlock || 1) <= level;
+      }
+    }).sort((a, b) => (a.tier || 1) - (b.tier || 1));
     return lower[0] || ROSTER[0];
   }
   return candidates[Math.floor(Math.random() * candidates.length)];
@@ -4734,7 +4742,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
   }, []);
 
   const pickRosterByTier = useCallback((level, tierNum) => {
-    const candidates = ROSTER.filter(e => e.unlock <= level && e.tier === tierNum);
+    const candidates = ROSTER.filter(e => {
+      const inRange = e.levelRange ? (level >= e.levelRange[0] && level <= e.levelRange[1]) : (e.unlock && e.unlock <= level);
+      return inRange && e.tier === tierNum;
+    });
     if (candidates.length === 0) return null;
     const picked = candidates[Math.floor(Math.random() * candidates.length)];
     return { kind: picked.name, tier: picked.tier, ...picked };
@@ -5036,7 +5047,6 @@ export default function App({ navVisible, setNavVisible } = {}) {
       const baseAngle = Math.random() * Math.PI * 2;
 
       // Spawn roster enemies first
-      const tierWeights = getTierWeights(level);
       const portals = [];
       for (let p = 0; p < portalsCount; p++) {
         const angle = baseAngle + (p * 2 * Math.PI) / portalsCount;
@@ -5046,42 +5056,27 @@ export default function App({ navVisible, setNavVisible } = {}) {
         openPortalAt(pos);
       }
       // Spawn roster enemies
-      for (const tier of ['T1', 'T2', 'T3', 'T4']) {
-        if (!tierWeights[tier]) continue;
-        const tierBudget = Math.floor(budgetLeft * tierWeights[tier]);
-        if (tierBudget <= 0) continue;
-        budgetLeft -= tierBudget;
-        const picked = pickRosterByTier(level, parseInt(tier.slice(1)));
-        if (!picked) continue;
-        // Distribute tierBudget across portals evenly
-        const countPerPortal = Math.floor(tierBudget / portalsCount);
-        const remainder = tierBudget % portalsCount;
+      const picked = pickRosterByTier(level, 1); // Get enemy for this level
+      if (picked) {
+        const count = Math.min(budgetLeft, picked.maxConcurrent || 10);
+        budgetLeft -= count;
+        // Distribute count across portals evenly
+        const countPerPortal = Math.floor(count / portalsCount);
+        const remainder = count % portalsCount;
         for (let p = 0; p < portalsCount; p++) {
           const pos = portals[p];
-          const count = countPerPortal + (p < remainder ? 1 : 0);
-          if (count > 0) {
-            scheduleEnemyBatchAt(pos, count, { kind: picked.kind, waveNumber: nextWave });
+          const c = countPerPortal + (p < remainder ? 1 : 0);
+          if (c > 0) {
+            scheduleEnemyBatchAt(pos, c, { kind: picked.name, waveNumber: nextWave });
           }
         }
       }
-
-      // Helper to place a portal and schedule one enemy with kind and delay
-      const scheduleOneAt = (p, idx, kind) => {
-        const extraDelay = 2000 + Math.random() * 2000;
-        openPortalAt(p, PORTAL_LIFETIME + extraDelay);
-        scheduleEnemyBatchAt(p, 1, {
-          waveNumber: nextWave,
-          extraDelayMs: extraDelay + idx * PORTAL_STAGGER_MS,
-          kind,
-        });
-      };
 
       // Plan bosses: Triangle (every 3), Cone (chance), Pipe (chance), respecting unlocks and bossSlots
       let expectedAdds = 0;
       // Triangle boss
       if (
-        level >= LEVEL_CONFIG.unlocks.triangle &&
-        level % 3 === 0 &&
+        level % 10 === 0 && level > 0 &&
         bossSlotsRem > 0 &&
         remainingSlots - expectedAdds > 0
       ) {
@@ -5117,8 +5112,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
 
       // Cone boss
       if (
-        level >= LEVEL_CONFIG.unlocks.cone &&
-        Math.random() < LEVEL_CONFIG.chances.cone &&
+        level % 10 === 0 && level >= 20 &&
         bossSlotsRem > 0 &&
         remainingSlots - expectedAdds > 0
       ) {
@@ -5154,8 +5148,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
 
       // Pipe boss
       if (
-        level >= LEVEL_CONFIG.unlocks.pipe &&
-        Math.random() < LEVEL_CONFIG.chances.pipe &&
+        level % 10 === 0 && level >= 30 &&
         bossSlotsRem > 0 &&
         remainingSlots - expectedAdds > 0
       ) {
@@ -5316,6 +5309,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
                 ? 3
                 : 4;
             const picked = pickRosterByTier(level, tierNum);
+            if (!picked) continue;
             const ecolor = colorHex(picked.color);
             const eid = enemyId.current++;
             
