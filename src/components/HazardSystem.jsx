@@ -101,11 +101,18 @@ export function HazardPlacementSystem({ isActive, selectedItemType, onPlaceHazar
   const [isPlacing, setIsPlacing] = useState(false);
 
   const cubeGeo = new THREE.BoxGeometry(2, 2, 2);
-  const rollOverMaterial = new THREE.MeshBasicMaterial({
-    color: 0xff0000,
+  const rollOverMaterialRef = useRef(new THREE.MeshBasicMaterial({
+    color: selectedItemType ? 0x00ff00 : 0xff0000,
     opacity: 0.5,
     transparent: true
-  });
+  }));
+
+  // Update material color based on selected item
+  useEffect(() => {
+    if (rollOverMaterialRef.current) {
+      rollOverMaterialRef.current.color.setHex(selectedItemType ? 0x00ff00 : 0xff0000);
+    }
+  }, [selectedItemType]);
 
   const planeGeo = new THREE.PlaneGeometry(1000, 1000);
   planeGeo.rotateX(-Math.PI / 2);
@@ -197,7 +204,7 @@ export function HazardPlacementSystem({ isActive, selectedItemType, onPlaceHazar
 
       {/* Roll-over preview */}
       {isPlacing && (
-        <mesh ref={rollOverMeshRef} geometry={cubeGeo} material={rollOverMaterial} />
+        <mesh ref={rollOverMeshRef} geometry={cubeGeo} material={rollOverMaterialRef.current} />
       )}
     </>
   );

@@ -50,6 +50,8 @@ export function SpecialItemsInventory({ onSelectItem, selectedSlot }) {
     };
   };
 
+  const slotKeys = ['U', 'I', 'O', 'P'];
+
   return (
     <div style={{
       position: 'fixed',
@@ -85,7 +87,7 @@ export function SpecialItemsInventory({ onSelectItem, selectedSlot }) {
               opacity: display.available ? 1 : 0.6,
               transition: 'all 0.2s',
             }}
-            title={`${display.name}: ${display.description}`}
+            title={`${display.name}: ${display.description} (${slotKeys[index]})`}
           >
             <div style={{ fontSize: 24, marginBottom: 2 }}>
               {display.icon}
@@ -95,7 +97,7 @@ export function SpecialItemsInventory({ onSelectItem, selectedSlot }) {
               color: display.available ? '#4ade80' : '#ef4444',
               textAlign: 'center',
             }}>
-              {display.cooldownText || (display.available ? 'Ready' : 'Wait')}
+              {display.cooldownText || (display.available ? slotKeys[index] : 'Wait')}
             </div>
           </div>
         );
@@ -109,6 +111,46 @@ export function HazardPlacementUI({ isPlacing, onCancel, selectedItem }) {
   if (!isPlacing) return null;
 
   const item = SPECIAL_ITEMS[selectedItem];
+
+  if (!item) {
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 20,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        background: 'rgba(0, 0, 0, 0.9)',
+        padding: '10px 20px',
+        borderRadius: 8,
+        color: 'white',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 15,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 20 }}>⚠️</span>
+          <span>Select an item first</span>
+        </div>
+        <div style={{ fontSize: 12, color: '#ccc' }}>
+          Use keys U,I,O,P to select a special item
+        </div>
+        <button
+          onClick={onCancel}
+          style={{
+            padding: '5px 10px',
+            background: '#ef4444',
+            color: 'white',
+            border: 'none',
+            borderRadius: 4,
+            cursor: 'pointer',
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{

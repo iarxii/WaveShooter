@@ -90,13 +90,13 @@ This document outlines the special items mechanic for the player in the Healthca
 
 ### UI/UX
 - [x] Create inventory UI with item slots
-- [ ] Add item selection and equipping interface (items equipped by default)
+- [x] Add item selection and equipping interface (items equipped by default)
 - [👎] Implement cooldown/recharge visual indicators (basic "Wait" text, needs dynamic progress bars)
 - [x] Add placement preview for voxel painter
-- [ ] Create item tooltips and descriptions
+- [x] Create item tooltips and descriptions (basic placement UI with instructions)
 
 ### Controls
-- [x] Add keyboard mappings (7,8,9,0 for slot selection)
+- [x] Add keyboard mappings (U,I,O,P for slot selection)
 - [x] Add gamepad trigger controls (left trigger for aim indicator, right trigger for placement)
 
 ### Balance & Testing

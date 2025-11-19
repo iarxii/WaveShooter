@@ -49,22 +49,13 @@ const SpecialItemsContext = createContext(null);
 export function SpecialItemsProvider({ children }) {
   // Inventory: array of 4 slots, each can hold an item type or null
   const [inventory, setInventory] = useState(() => {
-    try {
-      const saved = localStorage.getItem("specialItemsInventory");
-      return saved ? JSON.parse(saved) : [
-        SPECIAL_ITEM_TYPES.VACUUM_PORTAL,
-        SPECIAL_ITEM_TYPES.BLEACH_BLOCKS,
-        SPECIAL_ITEM_TYPES.ANTIBIOTIC_BOMB,
-        SPECIAL_ITEM_TYPES.SUPPORT_VECTORS
-      ];
-    } catch {
-      return [
-        SPECIAL_ITEM_TYPES.VACUUM_PORTAL,
-        SPECIAL_ITEM_TYPES.BLEACH_BLOCKS,
-        SPECIAL_ITEM_TYPES.ANTIBIOTIC_BOMB,
-        SPECIAL_ITEM_TYPES.SUPPORT_VECTORS
-      ];
-    }
+    // Always start with default items for now
+    return [
+      SPECIAL_ITEM_TYPES.VACUUM_PORTAL,
+      SPECIAL_ITEM_TYPES.BLEACH_BLOCKS,
+      SPECIAL_ITEM_TYPES.ANTIBIOTIC_BOMB,
+      SPECIAL_ITEM_TYPES.SUPPORT_VECTORS
+    ];
   });
 
   // Cooldowns: maps item type to end time (timestamp)

@@ -2251,22 +2251,22 @@ function Player({
     }
   }, [arcTriggerToken]);
 
-  // Special items keyboard controls: 7,8,9,0 for slot selection
+  // Special items keyboard controls: U,I,O,P for slot selection
   useEffect(() => {
     if (isPaused) return;
     const onKey = (e) => {
       let slotIndex = -1;
-      switch (e.key) {
-        case "7":
+      switch (e.key.toLowerCase()) {
+        case "u":
           slotIndex = 0;
           break;
-        case "8":
+        case "i":
           slotIndex = 1;
           break;
-        case "9":
+        case "o":
           slotIndex = 2;
           break;
-        case "0":
+        case "p":
           slotIndex = 3;
           break;
         default:
@@ -2881,7 +2881,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const { play, playSequence } = useSound();
   const { addRun } = useHistoryLog();
   const { selectedHero, setSelectedHero } = useGame();
-  const { addKills } = useSpecialItems();
+  const { addKills, getItemInSlot, useItem, SPECIAL_ITEM_TYPES } = useSpecialItems();
   const navigate = useNavigate();
   // Dev-only: verify registered assets (via assetUrl/publicAsset) are reachable to catch 404s early
   useEffect(() => {
@@ -3384,7 +3384,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const [pickups, setPickups] = useState([]);
   const [placedHazards, setPlacedHazards] = useState([]); // Player-placed special hazards
   const [isPlacingHazard, setIsPlacingHazard] = useState(false);
-  const [selectedItemSlot, setSelectedItemSlot] = useState(null);
+  const [selectedItemSlot, setSelectedItemSlot] = useState(0);
   const [selectedHazardType, setSelectedHazardType] = useState(null);
   // Check for pickup proximity for glow effect
   useEffect(() => {
@@ -7402,9 +7402,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
     onShapeRunCCW: () => inputActions.shapeRunCCW(),
     onSpecialAttack: () => inputActions.specialAttack(),
     onLeftTrigger: (pressed) => {
-      if (pressed && selectedItemSlot !== null) {
-        setIsPlacingHazard(true);
-      }
+      setIsPlacingHazard(pressed);
     },
     onRightTrigger: (pressed) => {
       if (pressed && isPlacingHazard && selectedItemSlot !== null) {
@@ -7453,7 +7451,6 @@ export default function App({ navVisible, setNavVisible } = {}) {
 
   // Hazard system functions
   const handleSelectItem = useCallback((slotIndex) => {
-    const { getItemInSlot, useItem, SPECIAL_ITEM_TYPES } = useSpecialItems();
     const itemType = getItemInSlot(slotIndex);
 
     if (!itemType) return;
@@ -7464,7 +7461,25 @@ export default function App({ navVisible, setNavVisible } = {}) {
       setSelectedHazardType(itemType);
       setIsPlacingHazard(true);
     }
-  }, []);
+  }, [getItemInSlot, useItem]);
+
+  // Function to select an item without starting placement (for initial selection)
+  const handleSelectItemOnly = useCallback((slotIndex) => {
+    const itemType = getItemInSlot(slotIndex);
+
+    if (!itemType) return;
+
+    setSelectedItemSlot(slotIndex);
+    setSelectedHazardType(itemType);
+    // Don't start placement mode for initial selection
+  }, [getItemInSlot]);
+
+  // Initialize default selection
+  useEffect(() => {
+    if (selectedItemSlot === 0) {
+      handleSelectItemOnly(0);
+    }
+  }, [selectedItemSlot, handleSelectItemOnly]);
 
   const handlePlaceHazard = useCallback((hazardType, position) => {
     const hazardId = Date.now() + Math.random();
@@ -10333,6 +10348,7 @@ function AimReticle({
 }) {
   const reticleRef = useRef();
   const { raycaster, pointer, camera } = useThree();
+  const RETICLE_DISTANCE = 12;
   const plane = useMemo(
     () => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
     []
@@ -10381,5 +10397,3 @@ function AimReticle({
     </mesh>
   );
 }
-
-const RETICLE_DISTANCE = 12;
