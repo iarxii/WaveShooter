@@ -384,7 +384,7 @@ const CONTACT_DAMAGE = {
 // Leveling configuration (data-driven)
 const LEVEL_CONFIG = {
   levelIsWave: true,
-  budget: { base: 8, perLevel: 2, over10: 3 },
+  budget: { base: 4, perLevel: 1, over10: 2 },
   caps: {
     activeBase: 16, // ActiveMax(L) = min(activeBase + floor(L/2), activeMax)
     activePer2Levels: 1,
@@ -654,6 +654,7 @@ function colorHex(name) {
 
 // Choose a roster enemy by tier and level unlock
 function pickRosterByTier(level, tierNum) {
+  if (!ROSTER || !Array.isArray(ROSTER) || ROSTER.length === 0) return null;
   const candidates = ROSTER.filter(
     (e) => (e.unlock || 1) <= level && (e.tier || 1) === tierNum
   );

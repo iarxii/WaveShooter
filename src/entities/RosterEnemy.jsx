@@ -431,9 +431,9 @@ function RosterEnemy({ id, pos, playerPosRef, onDie, isPaused, health, maxHealth
       const outsideArena = Math.abs(pos.x) > ARENA_LIMIT || Math.abs(pos.z) > ARENA_LIMIT;
       
       if (outsideArena) {
-        // Periodic portal spawning every 15-20 seconds
+        // Periodic portal spawning every 25-35 seconds
         portalSpawnTimerRef.current += dt;
-        const PORTAL_SPAWN_INTERVAL = 15 + Math.random() * 5; // 15-20 seconds
+        const PORTAL_SPAWN_INTERVAL = 25 + Math.random() * 10; // 25-35 seconds
         
         if (portalSpawnTimerRef.current >= PORTAL_SPAWN_INTERVAL) {
           portalSpawnTimerRef.current = 0;

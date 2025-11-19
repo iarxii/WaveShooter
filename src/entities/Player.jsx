@@ -614,7 +614,7 @@ function Player({
     // FX orb auto-shooting: shoot from orbs towards nearby enemies
     if (fxOrbCount && fxOrbCount > 0) {
       fxOrbShootTimerRef.current += dt * 1000;
-      const orbShootRate = 800; // ms between orb shots
+      const orbShootRate = 1000; // ms between orb shots
       if (fxOrbShootTimerRef.current >= orbShootRate) {
         fxOrbShootTimerRef.current = 0;
         // Find nearby enemies
@@ -623,7 +623,7 @@ function Player({
           const orbRadius = 1.1; // matches default
           const orbHeight = 0.45; // matches FXOrbs
           let shotsFired = 0;
-          const maxShots = Math.min(fxOrbCount, 3); // limit shots per cycle
+          const maxShots = Math.min(fxOrbCount, 2); // limit shots per cycle
           for (const ge of window.gameEnemies) {
             if (!ge?.ref?.current || shotsFired >= maxShots) continue;
             const ex = ge.ref.current.position.x;
