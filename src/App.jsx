@@ -19,6 +19,9 @@ import { SceneEnvironment } from "./contexts/EnvironmentContext.tsx";
 import * as THREE from "three";
 import { useHistoryLog } from "./contexts/HistoryContext.jsx";
 import { useGame } from "./contexts/GameContext.jsx";
+import { useSpecialItems } from "./contexts/SpecialItemsContext.jsx";
+import { HazardPlacementSystem, ActiveHazards, HAZARD_TYPES } from "./components/HazardSystem.jsx";
+import { SpecialItemsInventory, HazardPlacementUI } from "./components/SpecialItemsUI.jsx";
 import PlayerEntity from "./entities/Player.jsx";
 import MinionEntity from "./entities/Minion.jsx";
 import TriangleBossEntity from "./entities/TriangleBoss.jsx";
@@ -2850,6 +2853,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
   const { play, playSequence } = useSound();
   const { addRun } = useHistoryLog();
   const { selectedHero, setSelectedHero } = useGame();
+  const { addKills } = useSpecialItems();
   const navigate = useNavigate();
   // Dev-only: verify registered assets (via assetUrl/publicAsset) are reachable to catch 404s early
   useEffect(() => {
@@ -3350,6 +3354,10 @@ export default function App({ navVisible, setNavVisible } = {}) {
   };
   const [enemies, setEnemies] = useState([]); // {id, pos, isBoss, formationTarget, health}
   const [pickups, setPickups] = useState([]);
+  const [placedHazards, setPlacedHazards] = useState([]); // Player-placed special hazards
+  const [isPlacingHazard, setIsPlacingHazard] = useState(false);
+  const [selectedItemSlot, setSelectedItemSlot] = useState(null);
+  const [selectedHazardType, setSelectedHazardType] = useState(null);
   // Check for pickup proximity for glow effect
   useEffect(() => {
     const interval = setInterval(() => {
@@ -5794,6 +5802,7 @@ export default function App({ navVisible, setNavVisible } = {}) {
           // Enemy died from non-player collision or damage; award score and remove
           const points = enemy?.isTriangle ? 100 : enemy?.isBoss ? 50 : 10;
           setScore((s) => s + points);
+          addKills(1); // Track kill for special items recharge
           // SFX: enemy destroyed or major boss defeated
           try {
             if (
@@ -7396,6 +7405,62 @@ export default function App({ navVisible, setNavVisible } = {}) {
     });
   }, []);
 
+  // Hazard system functions
+  const handleSelectItem = useCallback((slotIndex) => {
+    const { getItemInSlot, useItem, SPECIAL_ITEM_TYPES } = useSpecialItems();
+    const itemType = getItemInSlot(slotIndex);
+
+    if (!itemType) return;
+
+    // Try to use the item
+    if (useItem(itemType)) {
+      setSelectedItemSlot(slotIndex);
+      setSelectedHazardType(itemType);
+      setIsPlacingHazard(true);
+    }
+  }, []);
+
+  const handlePlaceHazard = useCallback((hazardType, position) => {
+    const hazardId = Date.now() + Math.random();
+
+    let mappedType;
+    switch (hazardType) {
+      case SPECIAL_ITEM_TYPES.VACUUM_PORTAL:
+        mappedType = HAZARD_TYPES.VACUUM_PORTAL;
+        break;
+      case SPECIAL_ITEM_TYPES.BLEACH_BLOCKS:
+        mappedType = HAZARD_TYPES.BLEACH_BLOCK;
+        break;
+      case SPECIAL_ITEM_TYPES.ANTIBIOTIC_BOMB:
+        mappedType = HAZARD_TYPES.ANTIBIOTIC_BOMB;
+        break;
+      default:
+        return;
+    }
+
+    const newHazard = {
+      id: hazardId,
+      type: mappedType,
+      position: position.clone(),
+      createdAt: Date.now(),
+    };
+
+    setPlacedHazards(prev => [...prev, newHazard]);
+    setIsPlacingHazard(false);
+    setSelectedItemSlot(null);
+    setSelectedHazardType(null);
+  }, []);
+
+  const handleCancelPlacement = useCallback(() => {
+    setIsPlacingHazard(false);
+    setSelectedItemSlot(null);
+    setSelectedHazardType(null);
+  }, []);
+
+  const handleHazardExpire = useCallback((hazardId) => {
+    setPlacedHazards(prev => prev.filter(h => h.id !== hazardId));
+  }, []);
+
   return (
     <div className="canvas-wrap">
       <Canvas
@@ -7959,6 +8024,20 @@ export default function App({ navVisible, setNavVisible } = {}) {
                 />
               )
             )}
+
+          {/* Active Placed Hazards */}
+          <ActiveHazards
+            hazards={placedHazards}
+            onHazardExpire={handleHazardExpire}
+          />
+
+          {/* Hazard Placement System */}
+          <HazardPlacementSystem
+            isActive={isPlacingHazard}
+            selectedItemType={selectedHazardType}
+            onPlaceHazard={handlePlaceHazard}
+            playerPosRef={playerPosRef}
+          />
 
           {!isPaused &&
             bullets.length > 0 &&
@@ -9228,6 +9307,19 @@ export default function App({ navVisible, setNavVisible } = {}) {
           </button>
         </div>
       )}
+
+      {/* Special Items Inventory */}
+      <SpecialItemsInventory
+        onSelectItem={handleSelectItem}
+        selectedSlot={selectedItemSlot}
+      />
+
+      {/* Hazard Placement UI */}
+      <HazardPlacementUI
+        isPlacing={isPlacingHazard}
+        onCancel={handleCancelPlacement}
+        selectedItem={selectedHazardType}
+      />
 
       
 

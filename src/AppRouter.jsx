@@ -13,6 +13,7 @@ const RandomizerMode = React.lazy(() => import('./pages/RandomizerMode.jsx'))
 const EnvironmentFactoryPage = React.lazy(() => import('./pages/EnvironmentFactory.tsx'))
 import { GameProvider } from './contexts/GameContext.jsx'
 import { HistoryProvider } from './contexts/HistoryContext.jsx'
+import { SpecialItemsProvider } from './contexts/SpecialItemsContext.jsx'
 import NavBar from './components/NavBar.jsx'
 import { EffectsProvider } from './effects/EffectsContext.jsx'
 import { SoundProvider, UISoundLayer, useSound } from './contexts/SoundContext.jsx'
@@ -40,6 +41,7 @@ export default function AppRouter() {
     <BrowserRouter>
       <HistoryProvider>
         <GameProvider>
+          <SpecialItemsProvider>
           <EffectsProvider>
           <SoundProvider>
           <EnvironmentBuilderProvider>
@@ -77,6 +79,7 @@ export default function AppRouter() {
           </EnvironmentBuilderProvider>
           </SoundProvider>
           </EffectsProvider>
+          </SpecialItemsProvider>
         </GameProvider>
       </HistoryProvider>
     </BrowserRouter>
