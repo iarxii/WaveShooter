@@ -1,0 +1,464 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>p5.js + three.js Integration — Dynamic Example</title>
+  <style>
+    html,body { height: 100%; margin: 0; }
+    body { overflow: hidden; background: #111; }
+    canvas { display: block; width: 100%; height: 100%; }
+    #info { position: absolute; left: 12px; top: 12px; color: #eee; font-family: sans-serif; font-size: 13px; z-index: 10; }
+    a { color: #7ad; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <!-- loader: fall back to local three.js files if CDN fails -->
+  <script>
+    function loadLocalThreeAndControls() {
+      // safe-guard: only load local three if global THREE is missing
+      function loadOrbitLocal() {
+        if (typeof THREE !== 'undefined' && typeof THREE.OrbitControls === 'undefined') {
+          // Try several likely local UMD paths for OrbitControls (legacy/examples build)
+          var candidates = [
+            'three-js-79.0.0/package/examples/js/controls/OrbitControls.js',
+            'three-js-79.0.0/package/addons/OrbitControls.js',
+            'three-js-79.0.0/package/OrbitControls.js'
+          ];
+          var loaded = false;
+          candidates.forEach(function(path){
+            if (loaded) return;
+            var s = document.createElement('script');
+
+            // Set up a lightweight CommonJS shim in the current scope (avoid injecting a script element with complex quoting)
+            // only set if not already present to avoid stomping other modules
+            var createdShim = false;
+            if (typeof window.module === 'undefined') {
+              window.__cjs_shim_module = { exports: {} };
+              window.module = window.__cjs_shim_module;
+              window.exports = window.__cjs_shim_module.exports;
+              window.require = function(name){ if (name === 'three' || name === 'THREE') return window.THREE; console.warn('shim require("' + name + '") returning undefined'); return undefined; };
+              createdShim = true;
+            }
+
+            s.src = path;
+            s.onload = function(){
+              // if the shim populated exports, try to attach to THREE
+              try {
+                if (window.__cjs_shim_module && window.__cjs_shim_module.exports) {
+                  var exported = window.__cjs_shim_module.exports;
+                  if (typeof exported === 'function') {
+                    THREE.OrbitControls = exported;
+                    console.log('Attached OrbitControls from CommonJS export (function) from', path);
+                  } else if (exported && (exported.OrbitControls || exported.default)) {
+                    THREE.OrbitControls = exported.OrbitControls || exported.default;
+                    console.log('Attached OrbitControls from CommonJS export (object) from', path);
+                  }
+                }
+              } catch (err) {
+                console.warn('Error attaching CommonJS OrbitControls from', path, err);
+              }
+
+              // cleanup shim if we created it
+              if (createdShim) {
+                try { delete window.module; delete window.exports; delete window.require; delete window.__cjs_shim_module; } catch(e){}
+              }
+              loaded = true; console.log('Loaded local OrbitControls from', path);
+            };
+            s.onerror = function(){
+              if (createdShim) {
+                try { delete window.module; delete window.exports; delete window.require; delete window.__cjs_shim_module; } catch(e){}
+              }
+              console.warn('Failed to load local OrbitControls from', path);
+            };
+            document.head.appendChild(s);
+          });
+        }
+      }
+
+      if (typeof THREE === 'undefined') {
+        // try primary local three.js then fall back to build/three.min.js
+        var s = document.createElement('script');
+        s.src = 'three-js-79.0.0/package/three.js';
+        s.onload = function(){ console.log('Loaded local three.js'); loadOrbitLocal(); };
+        s.onerror = function(){
+          console.error('Failed to load local three.js, trying build/three.min.js');
+          var alt = document.createElement('script');
+          alt.src = 'three-js-79.0.0/package/build/three.min.js';
+          alt.onload = function(){ console.log('Loaded local three.min.js'); loadOrbitLocal(); };
+          alt.onerror = function(){ console.error('Failed to load any local three.js'); };
+          document.head.appendChild(alt);
+        };
+        document.head.appendChild(s);
+      } else {
+        loadOrbitLocal();
+      }
+    }
+  </script>
+  <!-- Official three.js UMD build (use matching examples controls) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.min.js" onerror="loadLocalThreeAndControls()"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.180.0/examples/js/controls/OrbitControls.js" onerror="loadLocalThreeAndControls()"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+  <script>
+    // If a local OrbitControls file is an ES/CommonJS module it may throw "module is not defined".
+    // Listen for that error and try additional UMD OrbitControls locations.
+    (function(){
+      window._orbitFallbackTried = false;
+      window.addEventListener('error', function(e){
+        try {
+          var msg = e && e.message ? e.message : '';
+          var file = e && e.filename ? e.filename : (e && e.target && e.target.src ? e.target.src : '');
+          if (!window._orbitFallbackTried && msg.indexOf && msg.indexOf('module is not defined') !== -1 && file.indexOf('OrbitControls') !== -1) {
+            window._orbitFallbackTried = true;
+            console.warn('OrbitControls local script failed (module undefined). Trying alternate local UMD builds...');
+            var altPaths = [
+              'three-js-79.0.0/package/examples/js/controls/OrbitControls.js',
+              'three-js-79.0.0/package/OrbitControls.js'
+            ];
+            altPaths.forEach(function(p){
+              var s = document.createElement('script');
+              s.src = p;
+              s.onload = function(){ console.log('Loaded alternate OrbitControls from', p); };
+              s.onerror = function(){ console.warn('Failed to load alternate OrbitControls from', p); };
+              document.head.appendChild(s);
+            });
+            e.preventDefault && e.preventDefault();
+          }
+        } catch (err) {
+          /* ignore */
+        }
+      });
+    })();
+  </script>
+</head>
+<body>
+<div id="info">p5 → three.js texture demo — press <strong>R</strong> to toggle throttling</div>
+<script>
+// Dynamic three.js scene using p5 canvas as a texture.
+// - p5 renders an animated procedural texture (noise + ripples)
+// - three.js uses that canvas on multiple meshes with different transforms
+// - Texture updates are throttled to balance CPU/GPU work (toggle with R)
+
+let p5Canvas, p5Instance;
+let scene, camera, renderer, controls, controlsGroup, clock;
+let texture, groundTexture, materials = [];
+let diamondMat, groundMat;
+let diamondMesh, groundMesh;
+let throttle = true;
+let throttleRate = 2; // update texture every N frames when throttling
+let canvasSize = 512;
+
+// -------------------- p5 sketch --------------------
+function createP5Sketch(size = 512) {
+  // create a new p5 instance drawing to a square canvas of `size`
+  p5Instance = new p5((p) => {
+    p.setup = () => {
+      p.createCanvas(size, size);
+      p.noStroke();
+      p.pixelDensity(1);
+      p5Canvas = p.canvas;
+        // keep p5 canvas in DOM but move it offscreen so it doesn't cover the three.js canvas
+        p5Canvas.id = 'p5-canvas';
+        p5Canvas.style.position = 'absolute';
+        p5Canvas.style.left = '-9999px';
+        p5Canvas.style.top = '0';
+    };
+
+    p.draw = () => {
+      // Animated background: moving radial ripples + subtle noise
+      const t = p.millis() * 0.001;
+      p.background(12, 18, 30);
+
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 + t * 0.05;
+        p.fill(30 + 20 * Math.sin(a * 6.28 + i), 60 + 40 * Math.cos(a * 3.14), 120 + 80 * Math.sin(a * 2));
+        const r = 60 + 40 * Math.sin(t * (0.5 + i * 0.1) + i);
+        p.ellipse(p.width * 0.5 + Math.sin(t * 0.6 + i) * 30, p.height * 0.5 + Math.cos(t * 0.4 + i) * 30, r + i * 20, r + i * 20);
+      }
+
+      // Add a moving translucent overlay using perlin noise for organic look
+      p.loadPixels();
+      for (let y = 0; y < p.height; y += 4) {
+        for (let x = 0; x < p.width; x += 4) {
+          const n = p.noise(x * 0.01, y * 0.01, t * 0.2);
+          const idx = 4 * (y * p.width + x);
+          // tint existing color with noise
+          p.pixels[idx] = Math.min(255, p.pixels[idx] + n * 32);
+          p.pixels[idx+1] = Math.min(255, p.pixels[idx+1] + n * 20);
+          p.pixels[idx+2] = Math.min(255, p.pixels[idx+2] + n * 10);
+          p.pixels[idx+3] = 255 * Math.min(1, 0.8 + n * 0.4);
+        }
+      }
+      p.updatePixels();
+    };
+  });
+}
+
+// initialize p5 with the current canvasSize
+createP5Sketch(canvasSize);
+
+// -------------------- three.js setup --------------------
+function initThree() {
+  scene = new THREE.Scene();
+  // lighter fog so nearby objects remain visible
+  scene.fog = new THREE.FogExp2(0x080A0F, 0.02);
+
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 1.2, 3);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  // color management for canvas textures and more pleasing output
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  // make three.js canvas explicit and full-viewport
+  renderer.domElement.id = 'three-canvas';
+  renderer.domElement.style.position = 'absolute';
+  renderer.domElement.style.top = '0';
+  renderer.domElement.style.left = '0';
+  renderer.domElement.style.width = '100%';
+  renderer.domElement.style.height = '100%';
+  renderer.domElement.style.zIndex = 1;
+  document.body.appendChild(renderer.domElement);
+
+  clock = new THREE.Clock();
+
+  // Lights
+  const ambient = new THREE.AmbientLight(0xffffff, 0.35);
+  scene.add(ambient);
+  const hemi = new THREE.HemisphereLight(0x99bbff, 0x220022, 0.9);
+  scene.add(hemi);
+  const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+  dir.position.set(5, 10, 7);
+  scene.add(dir);
+  // register lights so we can toggle them from keyboard; ensure array exists
+  window._demoLights = window._demoLights || [];
+  window._demoLights.push(ambient, hemi, dir);
+
+  // Use p5 canvas as two textures (diamond/material and ground material)
+  texture = new THREE.CanvasTexture(p5Canvas);
+  texture.encoding = THREE.sRGBEncoding;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+
+  groundTexture = new THREE.CanvasTexture(p5Canvas);
+  groundTexture.encoding = THREE.sRGBEncoding;
+  groundTexture.minFilter = THREE.LinearFilter;
+  groundTexture.magFilter = THREE.LinearFilter;
+  groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
+
+  // Diamond material and a slightly different ground material instance
+  // lower metalness and slightly higher emissive so the procedural texture reads well
+  diamondMat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.35, metalness: 0.45, emissive: 0x072334, emissiveIntensity: 0.45 });
+  groundMat = new THREE.MeshStandardMaterial({ map: groundTexture, color: 0xffffff, roughness: 1.0, metalness: 0.0 });
+  materials.push(diamondMat, groundMat);
+
+  // Diamond mesh (octahedron scaled to look like a gem)
+  diamondMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.6, 0), diamondMat);
+  diamondMesh.scale.set(1.0, 1.4, 1.0);
+  diamondMesh.position.set(0, 0.7, 0);
+  scene.add(diamondMesh);
+
+  // Ground plane using its own p5-based material instance
+  groundMesh = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), groundMat);
+  groundMesh.rotation.x = -Math.PI/2;
+  groundMesh.position.y = 0;
+  groundMesh.receiveShadow = true;
+  scene.add(groundMesh);
+
+  controlsGroup = new THREE.Group();
+  scene.add(controlsGroup);
+
+  // Orbit controls (interactive camera)
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.07;
+  controls.screenSpacePanning = false;
+  controls.minDistance = 1.2;
+  controls.maxDistance = 8;
+  controls.target.set(0, 0.6, 0);
+  controls.update();
+
+  // Lighting references for toggling
+  window._demoLights = window._demoLights || [];
+
+  window.addEventListener('resize', onWindowResize);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'r' || e.key === 'R') throttle = !throttle;
+    // Toggle lighting with 'L'
+    if (e.key === 'l' || e.key === 'L') {
+      window._demoLights.forEach(light => light.visible = !light.visible);
+    }
+  });
+}
+
+function onWindowResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// -------------------- animation / render --------------------
+let frameCounter = 0;
+function render() {
+  requestAnimationFrame(render);
+  const dt = clock.getDelta();
+  frameCounter++;
+
+  // rotate objects in different ways
+  scene.traverse((o) => {
+    if (o.isMesh && o.geometry) {
+      o.rotation.y += 0.2 * dt;
+      o.rotation.x += 0.05 * dt;
+    }
+  });
+
+  // update orbit controls
+  if (controls) controls.update();
+
+  // Update texture only when p5 has produced a new frame and throttling allows.
+  if (!throttle || (frameCounter % throttleRate === 0)) {
+    texture.needsUpdate = true;
+    if (groundTexture) groundTexture.needsUpdate = true;
+  }
+
+  // slowly pan texture for additional motion
+  texture.offset.x += 0.0008;
+  texture.offset.y += 0.0004;
+  if (groundTexture) {
+    groundTexture.offset.x += 0.00045;
+    groundTexture.offset.y += 0.0002;
+  }
+
+  renderer.render(scene, camera);
+}
+
+// -------------------- startup --------------------
+function showErrorOverlay(msg) {
+  const overlay = document.createElement('div');
+  overlay.style.position = 'fixed';
+  overlay.style.left = '0';
+  overlay.style.top = '0';
+  overlay.style.right = '0';
+  overlay.style.bottom = '0';
+  overlay.style.background = 'rgba(0,0,0,0.85)';
+  overlay.style.color = '#fff';
+  overlay.style.display = 'flex';
+  overlay.style.alignItems = 'center';
+  overlay.style.justifyContent = 'center';
+  overlay.style.zIndex = 9999;
+  overlay.style.fontFamily = 'sans-serif';
+  overlay.style.padding = '20px';
+  overlay.innerHTML = `<div style="max-width:720px;text-align:center;"><h2>Three.js not loaded</h2><p>${msg}</p><p>Check your network or open the page with internet access.</p></div>`;
+  document.body.appendChild(overlay);
+}
+
+function startDemo() {
+  if (typeof THREE === 'undefined') {
+    console.error('THREE is not defined. three.js failed to load.');
+    showErrorOverlay('three.js library failed to load. The demo requires three.js from a CDN or local copy.');
+    return;
+  }
+
+  // initialize three.js and start render loop
+  initThree();
+  render();
+
+  // start UI after three.js is ready
+  addGui();
+
+  // Expose simple status in the DOM
+  const info = document.getElementById('info');
+  setInterval(() => {
+    info.innerHTML = `p5 → three.js texture demo — throttling: <strong>${throttle ? 'ON' : 'OFF'}</strong> (press <strong>R</strong>) — lighting: <strong>L</strong> toggles lights`;
+  }, 400);
+}
+
+// Start after DOM ready to reduce race conditions
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  startDemo();
+} else {
+  window.addEventListener('DOMContentLoaded', startDemo);
+}
+
+// Optional: provide a small helper to reset p5 sketch (for debugging)
+window.resetP5 = () => {
+  if (p5Instance) p5Instance.remove();
+  // recreate with current canvasSize
+  createP5Sketch(canvasSize);
+  // ensure three.js textures reference the new canvas
+  if (texture) {
+    texture.image = p5Canvas;
+    texture.needsUpdate = true;
+  }
+  if (groundTexture) {
+    groundTexture.image = p5Canvas;
+    groundTexture.needsUpdate = true;
+  }
+};
+
+// -------------------- dat.GUI controls --------------------
+function addGui() {
+  const gui = new dat.GUI({ width: 300 });
+  const cfg = {
+    canvasSize: canvasSize,
+    throttle: throttle,
+    throttleRate: throttleRate,
+    toggleLights: () => { window._demoLights.forEach(light => light.visible = !light.visible); },
+    applySize: () => { applyCanvasSize(cfg.canvasSize); },
+    exposure: renderer ? renderer.toneMappingExposure : 1.0,
+    ambientIntensity: (window._demoLights && window._demoLights[0]) ? window._demoLights[0].intensity : 0.35,
+    useBasicMaterial: false
+  };
+
+  gui.add(cfg, 'canvasSize', [128, 256, 512, 768, 1024]).name('Canvas Size').onFinishChange((v) => {
+    cfg.canvasSize = parseInt(v, 10);
+  });
+  gui.add(cfg, 'applySize').name('Apply Canvas Size');
+  gui.add(cfg, 'throttle').name('Throttling').onChange((v) => { throttle = v; });
+  gui.add(cfg, 'throttleRate', 1, 10, 1).name('Throttle Rate').onChange((v) => { throttleRate = v; });
+  gui.add(cfg, 'toggleLights').name('Toggle Lights (L)');
+  // Visual debug controls
+  gui.add(cfg, 'exposure', 0.5, 3.0, 0.05).name('Exposure').onChange((v) => {
+    if (renderer) renderer.toneMappingExposure = v;
+  });
+  gui.add(cfg, 'ambientIntensity', 0, 2.0, 0.05).name('Ambient').onChange((v) => {
+    if (window._demoLights && window._demoLights[0]) window._demoLights[0].intensity = v;
+  });
+  gui.add(cfg, 'useBasicMaterial').name('Use Basic Mat').onChange((v) => {
+    // swap materials quickly for debugging whether the texture itself is dark
+    updateMaterials(!!v);
+  });
+}
+
+addGui();
+
+// Swap materials helper for debugging brightness
+function updateMaterials(useBasic) {
+  if (!diamondMesh || !groundMesh) return;
+  if (useBasic) {
+    diamondMesh.material = new THREE.MeshBasicMaterial({ map: texture });
+    groundMesh.material = new THREE.MeshBasicMaterial({ map: groundTexture, color: 0xffffff });
+  } else {
+    diamondMesh.material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.35, metalness: 0.45, emissive: 0x072334, emissiveIntensity: 0.45 });
+    groundMesh.material = new THREE.MeshStandardMaterial({ map: groundTexture, color: 0xffffff, roughness: 1.0, metalness: 0.0 });
+  }
+}
+
+function applyCanvasSize(size) {
+  // apply a new canvas size and refresh p5 and textures
+  canvasSize = size;
+  if (p5Instance) p5Instance.remove();
+  createP5Sketch(canvasSize);
+  if (texture) texture.image = p5Canvas;
+  if (groundTexture) groundTexture.image = p5Canvas;
+  if (texture) texture.needsUpdate = true;
+  if (groundTexture) groundTexture.needsUpdate = true;
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+2index.html:83 Loaded local three.js
+index.html:74   GET file:///C:/AppDev/Healthcare_Heroes_Harzard_Wave_Battle/docs/p5js_integration/three-js-79.0.0/package/examples/js/controls/OrbitControls.js net::ERR_FILE_NOT_FOUND
+(anonymous) @ index.html:74
+loadOrbitLocal @ index.html:29
+s.onload @ index.html:83
+script
+loadLocalThreeAndControls @ index.html:81
+onerror @ index.html:100
+index.html:74   GET file:///C:/AppDev/Healthcare_Heroes_Harzard_Wave_Battle/docs/p5js_integration/three-js-79.0.0/package/OrbitControls.js net::ERR_FILE_NOT_FOUND
+(anonymous) @ index.html:74
+loadOrbitLocal @ index.html:29
+s.onload @ index.html:83
+script
+loadLocalThreeAndControls @ index.html:81
+onerror @ index.html:100
+index.html:72  Failed to load local OrbitControls from three-js-79.0.0/package/examples/js/controls/OrbitControls.js
+s.onerror @ index.html:72
+script
+(anonymous) @ index.html:31
+loadOrbitLocal @ index.html:29
+s.onload @ index.html:83
+script
+loadLocalThreeAndControls @ index.html:81
+onerror @ index.html:100
+index.html:72  Failed to load local OrbitControls from three-js-79.0.0/package/examples/js/controls/OrbitControls.js
+s.onerror @ index.html:72
+script
+(anonymous) @ index.html:31
+loadOrbitLocal @ index.html:29
+s.onload @ index.html:83
+script
+loadLocalThreeAndControls @ index.html:81
+onerror @ index.html:99
+index.html:72  Failed to load local OrbitControls from three-js-79.0.0/package/OrbitControls.js
+s.onerror @ index.html:72
+script
+(anonymous) @ index.html:31
+loadOrbitLocal @ index.html:29
+s.onload @ index.html:83
+script
+loadLocalThreeAndControls @ index.html:81
+onerror @ index.html:100
+index.html:72  Failed to load local OrbitControls from three-js-79.0.0/package/OrbitControls.js
+s.onerror @ index.html:72
+script
+(anonymous) @ index.html:31
+loadOrbitLocal @ index.html:29
+s.onload @ index.html:83
+script
+loadLocalThreeAndControls @ index.html:81
+onerror @ index.html:99
+VM217 OrbitControls.js:1  Uncaught ReferenceError: module is not defined
+(anonymous) @ VM217 OrbitControls.js:1
+index.html:66 Loaded local OrbitControls from three-js-79.0.0/package/addons/OrbitControls.js
+OrbitControls.js:1  Uncaught ReferenceError: module is not defined
+(anonymous) @ OrbitControls.js:1
+index.html:66 Loaded local OrbitControls from three-js-79.0.0/package/addons/OrbitControls.js
+p5.min.js:2  Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>p5.js + three.js Integration — Dynamic Example</title>
+  <style>
+    html,body { height: 100%; margin: 0; }
+    body { overflow: hidden; background: #111; }
+    canvas { display: block; width: 100%; height: 100%; }
+    #info { position: absolute; left: 12px; top: 12px; color: #eee; font-family: sans-serif; font-size: 13px; z-index: 10; }
+    a { color: #7ad; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <!-- Use ES Module imports for three.js instead of old UMD builds -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+<div id="info">p5 → three.js texture demo — press <strong>R</strong> to toggle throttling</div>
+<script type="module">
+// Import three.js using ES modules (modern approach)
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// Make THREE available globally for debugging
+window.THREE = THREE;
+
+// Dynamic three.js scene using p5 canvas as a texture.
+// - p5 renders an animated procedural texture (noise + ripples)
+// - three.js uses that canvas on multiple meshes with different transforms
+// - Texture updates are throttled to balance CPU/GPU work (toggle with R)
+
+let p5Canvas, p5Instance;
+let scene, camera, renderer, controls, controlsGroup, clock;
+let texture, groundTexture, materials = [];
+let throttle = true;
+let throttleRate = 2; // update texture every N frames when throttling
+let canvasSize = 512;
+
+// -------------------- p5 sketch --------------------
+function createP5Sketch(size = 512) {
+  // create a new p5 instance drawing to a square canvas of `size`
+  p5Instance = new p5((p) => {
+    p.setup = () => {
+      p.createCanvas(size, size);
+      p.noStroke();
+      p.pixelDensity(1);
+      p5Canvas = p.canvas;
+      
+      // FIX: Add willReadFrequently attribute for better performance
+      const ctx = p5Canvas.getContext('2d', { willReadFrequently: true });
+      
+      // keep p5 canvas in DOM but move it offscreen so it doesn't cover the three.js canvas
+      p5Canvas.id = 'p5-canvas';
+      p5Canvas.style.position = 'absolute';
+      p5Canvas.style.left = '-9999px';
+      p5Canvas.style.top = '0';
+    };
+
+    p.draw = () => {
+      // Animated background: moving radial ripples + subtle noise
+      const t = p.millis() * 0.001;
+      p.background(12, 18, 30);
+
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 + t * 0.05;
+        p.fill(30 + 20 * Math.sin(a * 6.28 + i), 60 + 40 * Math.cos(a * 3.14), 120 + 80 * Math.sin(a * 2));
+        const r = 60 + 40 * Math.sin(t * (0.5 + i * 0.1) + i);
+        p.ellipse(p.width * 0.5 + Math.sin(t * 0.6 + i) * 30, p.height * 0.5 + Math.cos(t * 0.4 + i) * 30, r + i * 20, r + i * 20);
+      }
+
+      // Add a moving translucent overlay using perlin noise for organic look
+      p.loadPixels();
+      for (let y = 0; y < p.height; y += 4) {
+        for (let x = 0; x < p.width; x += 4) {
+          const n = p.noise(x * 0.01, y * 0.01, t * 0.2);
+          const idx = 4 * (y * p.width + x);
+          // tint existing color with noise
+          p.pixels[idx] = Math.min(255, p.pixels[idx] + n * 32);
+          p.pixels[idx+1] = Math.min(255, p.pixels[idx+1] + n * 20);
+          p.pixels[idx+2] = Math.min(255, p.pixels[idx+2] + n * 10);
+          p.pixels[idx+3] = 255 * Math.min(1, 0.8 + n * 0.4);
+        }
+      }
+      p.updatePixels();
+    };
+  });
+}
+
+// initialize p5 with the current canvasSize
+createP5Sketch(canvasSize);
+
+// -------------------- three.js setup --------------------
+function initThree() {
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x080A0F, 0.08);
+
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 1.2, 3);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  // make three.js canvas explicit and full-viewport
+  renderer.domElement.id = 'three-canvas';
+  renderer.domElement.style.position = 'absolute';
+  renderer.domElement.style.top = '0';
+  renderer.domElement.style.left = '0';
+  renderer.domElement.style.width = '100%';
+  renderer.domElement.style.height = '100%';
+  renderer.domElement.style.zIndex = 1;
+  document.body.appendChild(renderer.domElement);
+
+  clock = new THREE.Clock();
+
+  // Lights
+  const hemi = new THREE.HemisphereLight(0x99bbff, 0x220022, 0.8);
+  scene.add(hemi);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+  dir.position.set(5, 10, 7);
+  scene.add(dir);
+  // register lights so we can toggle them from keyboard
+  window._demoLights = [hemi, dir];
+
+  // Use p5 canvas as two textures (diamond/material and ground material)
+  texture = new THREE.CanvasTexture(p5Canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+
+  groundTexture = new THREE.CanvasTexture(p5Canvas);
+  groundTexture.minFilter = THREE.LinearFilter;
+  groundTexture.magFilter = THREE.LinearFilter;
+  groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
+
+  // Diamond material and a slightly different ground material instance
+  const diamondMat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.3, metalness: 0.9, emissive: 0x072334, emissiveIntensity: 0.2 });
+  const groundMat = new THREE.MeshStandardMaterial({ map: groundTexture, color: 0xffffff, roughness: 1.0, metalness: 0.0 });
+  materials.push(diamondMat, groundMat);
+
+  // Diamond mesh (octahedron scaled to look like a gem)
+  const diamond = new THREE.Mesh(new THREE.OctahedronGeometry(0.6, 0), diamondMat);
+  diamond.scale.set(1.0, 1.4, 1.0);
+  diamond.position.set(0, 0.7, 0);
+  scene.add(diamond);
+
+  // Ground plane using its own p5-based material instance
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), groundMat);
+  ground.rotation.x = -Math.PI/2;
+  ground.position.y = 0;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  controlsGroup = new THREE.Group();
+  scene.add(controlsGroup);
+
+  // Orbit controls (interactive camera)
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.07;
+  controls.screenSpacePanning = false;
+  controls.minDistance = 1.2;
+  controls.maxDistance = 8;
+  controls.target.set(0, 0.6, 0);
+  controls.update();
+
+  window.addEventListener('resize', onWindowResize);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'r' || e.key === 'R') throttle = !throttle;
+    // Toggle lighting with 'L'
+    if (e.key === 'l' || e.key === 'L') {
+      window._demoLights.forEach(light => light.visible = !light.visible);
+    }
+  });
+}
+
+function onWindowResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// -------------------- animation / render --------------------
+let frameCounter = 0;
+function render() {
+  requestAnimationFrame(render);
+  const dt = clock.getDelta();
+  frameCounter++;
+
+  // rotate objects in different ways
+  scene.traverse((o) => {
+    if (o.isMesh && o.geometry) {
+      o.rotation.y += 0.2 * dt;
+      o.rotation.x += 0.05 * dt;
+    }
+  });
+
+  // update orbit controls
+  if (controls) controls.update();
+
+  // Update texture only when p5 has produced a new frame and throttling allows.
+  if (!throttle || (frameCounter % throttleRate === 0)) {
+    texture.needsUpdate = true;
+    if (groundTexture) groundTexture.needsUpdate = true;
+  }
+
+  // slowly pan texture for additional motion
+  texture.offset.x += 0.0008;
+  texture.offset.y += 0.0004;
+  if (groundTexture) {
+    groundTexture.offset.x += 0.00045;
+    groundTexture.offset.y += 0.0002;
+  }
+
+  renderer.render(scene, camera);
+}
+
+// -------------------- startup --------------------
+function startDemo() {
+  // initialize three.js and start render loop
+  initThree();
+  render();
+
+  // Expose simple status in the DOM
+  const info = document.getElementById('info');
+  setInterval(() => {
+    info.innerHTML = `p5 → three.js texture demo — throttling: <strong>${throttle ? 'ON' : 'OFF'}</strong> (press <strong>R</strong>) — lighting: <strong>L</strong> toggles lights`;
+  }, 400);
+}
+
+// Start after DOM ready to reduce race conditions
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  startDemo();
+} else {
+  window.addEventListener('DOMContentLoaded', startDemo);
+}
+
+// Optional: provide a small helper to reset p5 sketch (for debugging)
+window.resetP5 = () => {
+  if (p5Instance) p5Instance.remove();
+  // recreate with current canvasSize
+  createP5Sketch(canvasSize);
+  // ensure three.js textures reference the new canvas
+  if (texture) {
+    texture.image = p5Canvas;
+    texture.needsUpdate = true;
+  }
+  if (groundTexture) {
+    groundTexture.image = p5Canvas;
+    groundTexture.needsUpdate = true;
+  }
+};
+
+function applyCanvasSize(size) {
+  // apply a new canvas size and refresh p5 and textures
+  canvasSize = size;
+  if (p5Instance) p5Instance.remove();
+  createP5Sketch(canvasSize);
+  if (texture) texture.image = p5Canvas;
+  if (groundTexture) groundTexture.image = p5Canvas;
+  if (texture) texture.needsUpdate = true;
+  if (groundTexture) groundTexture.needsUpdate = true;
+}
+
+// Expose for debugging
+window.applyCanvasSize = applyCanvasSize;
+window.toggleThrottle = () => { throttle = !throttle; };
+window.setThrottleRate = (rate) => { throttleRate = rate; };
+
+</script>
+</body>
+</html>
