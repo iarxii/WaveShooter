@@ -151,3 +151,11 @@ These rates were nudged up to keep up with the increased movement speeds and ene
 ## Troubleshooting
 - If nothing renders: ensure your browser supports WebGL and you’re on a recent Chrome/Edge/Firefox.
 - If inputs don’t respond: click the canvas once to focus.
+
+
+## License
+This project is Proprietary and Closed Source. All Rights Reserved.
+
+
+## Contributing
+Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for details on how to contribute to this project.
